@@ -1,0 +1,10 @@
+# python: cache, package
+**/.venv
+**/.pytest_cache
+**/__pycache__
+**/*.egg-info
+
+# input, output
+automind/csv
+automind/output
+automind/.files

@@ -1,0 +1,38 @@
+[project]
+name = "automind-api"
+version = "0.1.0"
+description = "open-source automl service"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  # === Math === #
+  "pandas",
+  "numpy",
+
+
+  # === Database === #
+  "sqlalchemy",
+  "mindsdb_sdk",
+  "sly",
+
+  # === Console === #
+  "wcwidth",
+  "rich",
+  "tqdm",
+
+  # === Driver === #
+  "pyodbc",
+  "pymysql",
+
+
+  # === API === #
+  "fastapi[standard]",
+  "fastapi_utils",
+  "python-multipart",
+
+  # === AutoML Pipeline === #
+  "automind",
+]
+
+[tool.uv.sources]
+automind = { path = "../automind/", editable = true }

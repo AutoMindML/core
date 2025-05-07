@@ -1,0 +1,18 @@
+{
+  "server": {
+    "systemdb": {
+      "driver": "ODBC Driver 17 for SQL Server",
+      "user": "automl",
+      "password": ".automl.",
+      "host": "10.21.20.205",
+      "instance": "\\SQLEXPRESS",
+      "port": 1433,
+      "db": "AutoML"
+    },
+    "mindsdb": {
+      "user": "mindsdb",
+      "host": "10.21.20.205",
+      "port": "47334"
+    }
+  }
+}

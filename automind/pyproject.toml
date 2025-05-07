@@ -1,0 +1,53 @@
+[project]
+name = "automind"
+version = "0.1.0"
+description = "an automl framework using torch and optuna"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+
+  # === Model === #
+  "torch==2.6.0",
+  "optuna>=4.2.1",
+  "chainlit>=2.5.5",
+  "mcp[cli]>=1.6.0",
+
+
+  # === Feature === #
+  "scikit-learn",
+  "umap-learn",
+  "lorem",
+
+  # === Math === #
+  "pandas",
+  "numpy",
+
+  # ===  === #
+  "matplotlib",
+  "seaborn",
+
+  # === Unit Test === #
+  "pytest",
+
+  # === Package Util === #
+  "setuptools",
+  "wheel",
+
+  # === Env === #
+  "python-dotenv",
+
+  # === API === #
+  "aiohttp",
+
+  # === Console === #
+  "wcwidth",
+  "rich",
+]
+
+# also self install torch_opt_automl
+[build-system]
+requires = ["setuptools"]
+
+# define package entry
+[tool.setuptools.packages.find]
+where = ["src"]

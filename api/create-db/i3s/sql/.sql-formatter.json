@@ -1,0 +1,7 @@
+{
+  "language": "transactsql",
+  "tabWidth": 2,
+  "useTabs": true,
+  "keywordCase": "upper",
+  "linesBetweenQueries": 2
+}
