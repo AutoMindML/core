@@ -11,9 +11,7 @@ env = dotenv_values()
 
 chainlit_host = env.get("CHAINLIT_HOST")
 chainlit_port = env.get("CHAINLIT_PORT")
-mcp_client_entry = env.get("MCP_CLIENT_ENTRY")
 
-assert mcp_client_entry is not None
 assert chainlit_host is not None
 assert chainlit_port is not None
 
@@ -26,7 +24,7 @@ chainlit_args = [
     "run",
     "-h",
     "-w",
-    mcp_client_entry,
+    "src/automind/mcp/mcp_chainlit.py",
     "--host",
     chainlit_host,
     "--port",

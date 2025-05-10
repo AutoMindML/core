@@ -12,10 +12,8 @@ env = dotenv_values()
 
 chainlit_host = env.get("CHAINLIT_HOST")
 chainlit_port = env.get("CHAINLIT_PORT")
-mcp_client_entry = env.get("MCP_CLIENT_ENTRY")
 mindsdb_sse_url = env.get("MINDSDB_SSE_URL")
 
-assert mcp_client_entry is not None
 assert chainlit_host is not None
 assert chainlit_port is not None
 
