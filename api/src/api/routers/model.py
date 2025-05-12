@@ -212,8 +212,8 @@ def add_model(
                 if (model_inputs is not None) and (model_outputs is not None):
                     params = {
                         "model_id": new_id,
-                        "input": model_inputs[0],
-                        "output": model_outputs[0],
+                        "input": str(model_inputs[0]),
+                        "output": str(model_outputs[0]),
                     }
                     query = sql.text(
                         """
