@@ -289,25 +289,43 @@ class MetaGenerator:
             mi_scores = {}
             target_encoded = LabelEncoder().fit_transform(target_data.fillna("missing"))
 
+            # TODO: figure out details of discrete_features
             for col in self.numerical_columns:
                 if col != self.target_column:
+                    print(col)
                     feature = self.df[col].fillna(self.df[col].median())
-                    mi_scores[col] = mutual_info_classif(
-                        pd.DataFrame(feature).values.reshape(-1, 1),
-                        target_encoded,
-                        discrete_features="auto",
-                    )[0]
+
+                    try:
+                        mi_scores[col] = mutual_info_classif(
+                            pd.DataFrame(feature).values.reshape(-1, 1),
+                            target_encoded,
+                            discrete_features="auto",
+                        )[0]
+                    except ValueError:
+                        mi_scores[col] = mutual_info_classif(
+                            pd.DataFrame(feature).values.reshape(-1, 1),
+                            target_encoded,
+                            discrete_features=True,  # pyright: ignore
+                        )[0]
 
             for col in self.categorical_columns:
                 if col != self.target_column:
                     feature = LabelEncoder().fit_transform(
                         self.df[col].astype("str").fillna("missing")
                     )
-                    mi_scores[col] = mutual_info_classif(
-                        pd.DataFrame(feature).values.reshape(-1, 1),
-                        target_encoded,
-                        discrete_features="auto",
-                    )[0]
+
+                    try:
+                        mi_scores[col] = mutual_info_classif(
+                            pd.DataFrame(feature).values.reshape(-1, 1),
+                            target_encoded,
+                            discrete_features="auto",
+                        )[0]
+                    except ValueError:
+                        mi_scores[col] = mutual_info_classif(
+                            pd.DataFrame(feature).values.reshape(-1, 1),
+                            target_encoded,
+                            discrete_features=True,  # pyright: ignore
+                        )[0]
 
             target_info["mutual_information"] = {
                 k: v
@@ -540,7 +558,9 @@ class MetaGenerator:
         query_template = f"""
         # Dataset Analysis and Recommendations
 
-        Analyze the following dataset metadata and provide recommendations for data preparation, feature engineering, and modeling approaches. The dataset has {llm_metadata["basic_info"]["rows"]} rows and {llm_metadata["basic_info"]["columns"]} columns.
+        Analyze the following dataset metadata and provide recommendations for 
+        data preparation, feature engineering, and modeling approaches.
+        The dataset has {llm_metadata["basic_info"]["rows"]} rows and {llm_metadata["basic_info"]["columns"]} columns.
 
         ## Dataset Metadata
         ```json
@@ -576,6 +596,7 @@ class MetaGenerator:
         ```
 
         Please provide detailed explanations with each recommendation, focusing on the unique characteristics of this dataset.
+        Please provide json format, do not include other text.
         """
 
         return query_template

@@ -311,6 +311,12 @@ class DataParser:
 
         # Column type cache
         self._col_types: Optional[Dict[str, ColumnType]] = None
+        self.pre_identified_col_types = {}
+        self.pre_identified_col_names = []
+
+    def set_pre_identified_column_types(self, col_types: Dict[str, ColumnType]):
+        self.pre_identified_col_types = col_types
+        self.pre_identified_col_names = col_types.keys()
 
     def identify_column_types(self) -> Dict[str, ColumnType]:
         """
@@ -328,7 +334,11 @@ class DataParser:
 
         # First pass: Identify obvious types based on pandas dtypes
         for col in self.df.columns:
-            if pd.api.types.is_datetime64_any_dtype(self.df[col]):
+            if col in self.pre_identified_col_names:
+                col_types[col] = (
+                    self.pre_identified_col_types.get(col) or ColumnType.CATEGORICAL
+                )
+            elif pd.api.types.is_datetime64_any_dtype(self.df[col]):
                 col_types[col] = ColumnType.TIME_SERIES
             elif pd.api.types.is_numeric_dtype(
                 self.df[col]
