@@ -29,6 +29,7 @@ dependencies = [
   "fastapi[standard]",
   "fastapi_utils",
   "python-multipart",
+  "orjson",
 
   # === AutoML Pipeline === #
   "automind",
