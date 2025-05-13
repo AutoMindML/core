@@ -1,5 +1,6 @@
 import json
-from typing import Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,6 +10,7 @@ from sklearn.feature_selection import mutual_info_classif, mutual_info_regressio
 from sklearn.preprocessing import LabelEncoder
 
 from automind.data_utils.parser import ColumnType, DataParser
+from automind.process.ollama import END_OF_STREAM
 
 
 class MetaGenerator:
@@ -292,7 +294,6 @@ class MetaGenerator:
             # TODO: figure out details of discrete_features
             for col in self.numerical_columns:
                 if col != self.target_column:
-                    print(col)
                     feature = self.df[col].fillna(self.df[col].median())
 
                     try:
@@ -568,24 +569,27 @@ class MetaGenerator:
         ```
 
         ## Expected Output Format
-        Please provide your analysis in the following JSON format:
 
+        Please provide detailed explanations with each recommendation, focusing on the unique characteristics of this dataset.
+        Please provide your analysis in the following JSON format. Do not include any explanations or additional text.
+
+        Example:
         ```json
         {{
             "data_quality_report": {{
                 "summary": "Overall assessment of data quality",
-                "issues": ["List of specific data quality issues"],
-                "strengths": ["List of dataset strengths"]
+                "issues": ["List of specific data quality issues string"],
+                "strengths": ["List of dataset strengths string"]
             }},
             "data_cleaning_recommendations": {{
-                "missing_values": ["Specific strategies for handling missing values"],
-                "outliers": ["Strategies for handling outliers"],
-                "duplicates": ["Recommendations for duplicate handling"]
+                "missing_values": ["List of Specific strategies for handling missing values string"],
+                "outliers": ["List of Strategies for handling outliers string"],
+                "duplicates": ["List of Recommendations for duplicate handling string"]
             }},
             "feature_engineering": {{
-                "recommendations": ["Specific feature engineering recommendations"],
-                "transformations": ["Suggested transformations"],
-                "feature_selection": ["Feature selection recommendations"]
+                "recommendations": ["List of Specific feature engineering recommendations string"],
+                "transformations": ["List of Suggested transformations string"],
+                "feature_selection": ["List of Feature selection recommendations string"]
             }},
             "modeling_approach": {{
                 "recommended_algorithms": ["Algorithms that might work well"],
@@ -594,12 +598,61 @@ class MetaGenerator:
             }}
         }}
         ```
-
-        Please provide detailed explanations with each recommendation, focusing on the unique characteristics of this dataset.
-        Please provide json format, do not include other text.
         """
 
         return query_template
+
+    def parse_llm_response(self, response_lines: list[str]):
+        """
+        Process the response to extract JSON
+        """
+        json_text = ""
+        json_mode = False
+
+        for line in response_lines:
+            if line.strip() == "```json":
+                json_mode = True
+            elif line.strip() == "```" and json_mode:
+                json_mode = False
+            elif json_mode:
+                json_text += line
+            elif line.strip() == END_OF_STREAM:
+                break
+
+        try:
+            result: Dict[str, Any] = json.loads(json_text)
+            return result
+        except json.JSONDecodeError:
+            # In case of malformed JSON, try to clean it up
+            cleaned_json = self._clean_json_text(json_text)
+            try:
+                result: Dict[str, Any] = json.loads(cleaned_json)
+                return result
+            except json.JSONDecodeError:
+                return None
+
+    def _clean_json_text(self, json_text: str) -> str:
+        """
+        Attempt to clean up malformed JSON.
+
+        Args:
+            json_text: Potentially malformed JSON string
+
+        Returns:
+            Cleaned JSON string
+        """
+        # Remove any non-JSON text at the beginning or end
+        start_idx = json_text.find("{")
+        end_idx = json_text.rfind("}")
+
+        if start_idx != -1 and end_idx != -1:
+            json_text = json_text[start_idx : end_idx + 1]
+
+        # Fix common JSON formatting issues
+        json_text = re.sub(r",\s*}", "}", json_text)  # Remove trailing commas
+        json_text = re.sub(r",\s*]", "]", json_text)  # Remove trailing commas in arrays
+
+        return json_text
 
     def _json_serializer(self, obj):
         if isinstance(obj, ColumnType):

@@ -3,11 +3,10 @@ import json
 import pandas as pd
 
 from automind.data_utils.metagenerator import MetaGenerator
-from automind.process.ollama import END_OF_STREAM, run_ollama
-from automind.utils import get_sublist_before_target
+from automind.process.ollama import run_ollama
 
 
-def demo_metadata_generation_and_llm_analysis():
+def main():
     # Create a sample DataFrame for demonstration
     data = {
         "age": ["25", "30", "35", "40", "45", "50", "55", "28", "33", "38"],
@@ -75,24 +74,15 @@ def demo_metadata_generation_and_llm_analysis():
 
     # Use Ollama to generate analysis based on the prompt
     print("\n--- Ollama Analysis ---")
-    ollama_response = run_ollama(llm_prompt)
+    response_lines = run_ollama(llm_prompt)
 
     # Process and print the Ollama response
     print("Ollama Response:")
-    ollama_response = get_sublist_before_target(ollama_response, END_OF_STREAM)
-    response_text = "".join(ollama_response)
+    llm_result = meta_generator.parse_llm_response(response_lines)
 
-    try:
-        # Try to parse the response as JSON
-        parsed_response = json.loads(response_text)
-        print(json.dumps(parsed_response, indent=2))
-    except json.JSONDecodeError:
-        # If JSON parsing fails, print the raw response
-        print(response_text)
-
-    return {"prompt": llm_prompt, "response": response_text}
+    print(json.dumps(llm_result, indent=2))
 
 
 # Run the demo
 if __name__ == "__main__":
-    demo_metadata_generation_and_llm_analysis()
+    main()

@@ -4,7 +4,12 @@ import queue
 import subprocess
 from typing import Optional
 
+from dotenv import dotenv_values, load_dotenv
+
 from automind.console import ANSI_ESCAPE, SPINNER_SYMBOLS
+
+load_dotenv()
+env = dotenv_values()
 
 
 class AvailibleModel(enum.Enum):
@@ -41,7 +46,6 @@ def run_ollama(prompt: str, model: str = DEFAULT_MODEL):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
-
     buffer_list = []
 
     if process.stdout is not None:
@@ -55,11 +59,18 @@ def run_ollama(prompt: str, model: str = DEFAULT_MODEL):
             cleaned_line = cleaned_line.lstrip() + "\n"
 
             buffer += cleaned_line
+
+            if env.get("OLLAMA_DEBUG") is not None:
+                print(cleaned_line, flush=True)
+
             buffer_list.append(cleaned_line)
 
             # detect empty line or other ending
             if buffer.endswith("\n\n\n"):
                 break
+
+        if env.get("OLLAMA_DEBUG") is not None:
+            print(END_OF_STREAM, flush=True)
 
         buffer_list.append(END_OF_STREAM)
 
