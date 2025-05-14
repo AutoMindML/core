@@ -63,9 +63,9 @@ def test_init():
     assert mg.df.equals(df)
     assert mg.target_column == target
     assert mg.metadata == {}
-    assert mg.numerical_columns == []
+    assert mg.numeric_columns == []
     assert mg.categorical_columns == []
-    assert mg.time_series_columns == []
+    assert mg.datetime_columns == []
     assert mg.text_columns == []
 
 
@@ -74,22 +74,22 @@ def test_classify_columns(sample_df):
     mg = MetaGenerator(sample_df)
     mg._classify_columns()
 
-    assert set(mg.numerical_columns) == {"numeric1", "numeric2", "numeric3"}
+    assert set(mg.numeric_columns) == {"numeric1", "numeric2", "numeric3"}
     assert set(mg.categorical_columns) == {
         "categorical1",
         "categorical2",
         "numeric_cat",
     }
-    assert set(mg.time_series_columns) == {"datetime1"}
+    assert set(mg.datetime_columns) == {"datetime1"}
     assert set(mg.text_columns) == {"text1"}
 
     # Check metadata was properly updated
     assert "column_types" in mg.metadata
-    assert set(mg.metadata["column_types"]["numeric"]) == set(mg.numerical_columns)
+    assert set(mg.metadata["column_types"]["numeric"]) == set(mg.numeric_columns)
     assert set(mg.metadata["column_types"]["categorical"]) == set(
         mg.categorical_columns
     )
-    assert set(mg.metadata["column_types"]["datetime"]) == set(mg.time_series_columns)
+    assert set(mg.metadata["column_types"]["datetime"]) == set(mg.datetime_columns)
     assert set(mg.metadata["column_types"]["text"]) == set(mg.text_columns)
 
 
@@ -209,7 +209,7 @@ def test_analyze_correlations(sample_df):
     assert "high_correlations" in corr_info
 
     # Check that correlation matrix includes all numeric columns
-    for col in mg.numerical_columns:
+    for col in mg.numeric_columns:
         assert col in corr_info["pearson_correlation_matrix"]
 
 
@@ -231,7 +231,7 @@ def test_analyze_target_categorical(sample_df):
     for col in sample_df.columns:
         if (
             col != target_col
-            and col not in mg.time_series_columns
+            and col not in mg.datetime_columns
             and col not in mg.text_columns
         ):
             assert col in target_info["mutual_information"]
@@ -245,12 +245,12 @@ def test_analyze_target_numeric(sample_df):
     mg._classify_columns()
     target_info = mg._analyze_target()
 
-    assert target_info["column_type"] == ColumnType.NUMERICAL
+    assert target_info["column_type"] == ColumnType.NUMERIC
     assert "correlations" in target_info
     assert "mutual_information" in target_info
 
     # Verify correlations and mutual information are calculated for other columns
-    for col in mg.numerical_columns:
+    for col in mg.numeric_columns:
         if col != target_col:
             assert col in target_info["correlations"]
             assert col in target_info["mutual_information"]

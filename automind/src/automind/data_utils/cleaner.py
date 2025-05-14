@@ -676,7 +676,7 @@ class DataCleaner:
         """
         # Default to all numerical columns if none specified
         if columns is None:
-            columns = self.parser.get_columns_by_type(ColumnType.NUMERICAL)
+            columns = self.parser.get_columns_by_type(ColumnType.NUMERIC)
 
         result_df = self.df.copy()
 
@@ -792,13 +792,13 @@ class DataCleaner:
             for col in cols_with_na:
                 col_type = self.column_types[col]
 
-                if col_type == ColumnType.NUMERICAL:
+                if col_type == ColumnType.NUMERIC:
                     df[col] = self._impute_median(pd.Series(df[col]))
 
                 elif col_type == ColumnType.CATEGORICAL:
                     df[col] = self._impute_mode(pd.Series(df[col]))
 
-                elif col_type == ColumnType.TIME_SERIES:
+                elif col_type == ColumnType.DATETIME:
                     df[col] = self._impute_forward_fill(pd.Series(df[col]))
                     # Backward fill any remaining NAs at the beginning
                     df[col] = self._impute_backward_fill(pd.Series(df[col]))
@@ -898,7 +898,7 @@ class DataCleaner:
         self.df = self.handle_missing_values(strategy=handle_missing)
 
         # Step 3: Handle outliers in numerical columns
-        numerical_cols = self.parser.get_columns_by_type(ColumnType.NUMERICAL)
+        numerical_cols = self.parser.get_columns_by_type(ColumnType.NUMERIC)
         if numerical_cols:
             self.df = self.detect_and_handle_outliers(
                 columns=list(set(numerical_cols) - set(cols_to_drop)),

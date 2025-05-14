@@ -1,10 +1,7 @@
 import numpy as np
 import pandas as pd
-from dotenv import load_dotenv
 
 from automind.data_utils.logic_applier import LogicApplier
-
-load_dotenv()
 
 
 def create_sample_dataset(rows=1000):
@@ -116,7 +113,7 @@ def main():
     for i, transformation in enumerate(logic_applier.get_transformations_log(), 1):
         print(f"{i}. {transformation}")
 
-    print(transformed_df)
+    print("\n", transformed_df)
 
 
 if __name__ == "__main__":

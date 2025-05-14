@@ -41,6 +41,7 @@ class LogicApplier:
         self.df: pd.DataFrame = df.copy()
         self.target_column = target_column
         self.transformations_log = []
+        self.transformations_error_log = []
         self.meta_generator = MetaGenerator(df, target_column)
         self.parser = DataParser(df)
         self.llm_result = None
@@ -67,9 +68,9 @@ class LogicApplier:
 
         # Get column types for future transformation steps
         self.column_types = {
-            "numeric": self.meta_generator.numerical_columns,
+            "numeric": self.meta_generator.numeric_columns,
             "categorical": self.meta_generator.categorical_columns,
-            "datetime": self.meta_generator.time_series_columns,
+            "datetime": self.meta_generator.datetime_columns,
             "text": self.meta_generator.text_columns,
         }
 
@@ -120,43 +121,69 @@ class LogicApplier:
 
         # Process each missing value strategy
         for strategy in missing_strategies:
-            strategy_lower = strategy.lower().split(" ")
+            col_name: str | None = None
+            col_des: str | None = None
+
+            if isinstance(strategy, dict):
+                col_name = strategy.get("name")
+                col_des = strategy.get("description")
+
+            if col_name is None or col_des is None:
+                continue
+
+            col_des_terms = col_des.lower().split(" ")
 
             # Mean imputation for numerical columns
-            if any(term in strategy_lower for term in ["mean", "average"]):
-                for col in self.column_types["numeric"]:
-                    if self.df[col].isna().sum() > 0:
-                        imputer = SimpleImputer(strategy="mean")
-                        self.df[col] = imputer.fit_transform(self.df[[col]])
-                        self.transformations_log.append(
-                            f"Applied mean imputation to {col}"
-                        )
+            if any(term in col_des_terms for term in ["mean", "average"]):
+                if (
+                    col_name in self.column_types["numeric"]
+                    and self.df[col_name].isna().sum() > 0
+                ):
+                    imputer = SimpleImputer(strategy="mean")
+                    self.df[col_name] = imputer.fit_transform(self.df[[col_name]])
+                    self.transformations_log.append(
+                        f"Applied mean imputation to {col_name}"
+                    )
 
             # Median imputation for numerical columns
-            elif any(term in strategy_lower for term in ["median"]):
-                for col in self.column_types["numeric"]:
-                    if self.df[col].isna().sum() > 0:
-                        imputer = SimpleImputer(strategy="median")
-                        self.df[col] = imputer.fit_transform(self.df[[col]])
-                        self.transformations_log.append(
-                            f"Applied median imputation to {col}"
-                        )
+            elif any(term in col_des_terms for term in ["median"]):
+                if (
+                    col_name in self.column_types["numeric"]
+                    and self.df[col_name].isna().sum() > 0
+                ):
+                    imputer = SimpleImputer(strategy="median")
+                    self.df[col_name] = imputer.fit_transform(self.df[[col_name]])
+                    self.transformations_log.append(
+                        f"Applied median imputation to {col_name}"
+                    )
 
             # Mode imputation for categorical columns
             elif any(
-                term in strategy_lower for term in ["mode", "frequent", "most common"]
+                term in col_des_terms for term in ["mode", "frequent", "most common"]
             ):
-                for col in self.column_types["categorical"]:
-                    if self.df[col].isna().sum() > 0:
+                if (
+                    col_name in self.column_types["categorical"]
+                    and self.df[col_name].isna().sum() > 0
+                ):
+                    try:
                         imputer = SimpleImputer(strategy="most_frequent")
-                        self.df[col] = imputer.fit_transform(self.df[[col]].astype(str))
-                        self.transformations_log.append(
-                            f"Applied mode imputation to {col}"
+
+                        self.df[col_name] = pd.Series(
+                            imputer.fit_transform(self.df[col_name].to_numpy())
                         )
 
+                        self.transformations_log.append(
+                            f"Applied mode imputation to {col_name}"
+                        )
+                    except Exception as e:
+                        self.transformations_error_log.append(
+                            f"Error when apply mode imputation to {col_name}\n{e}"
+                        )
+
+            # TODO:
             # KNN imputation
             elif any(
-                term in strategy_lower
+                term in col_des_terms
                 for term in ["knn", "k-nearest", "nearest neighbor"]
             ):
                 numeric_cols_with_missing = [
@@ -175,27 +202,28 @@ class LogicApplier:
                     )
 
             # Zero imputation
-            elif any(term in strategy_lower for term in ["zero", "zeros"]):
-                for col in self.column_types["numeric"]:
-                    if self.df[col].isna().sum() > 0:
-                        self.df[col] = self.df[col].fillna(0)
-                        self.transformations_log.append(
-                            f"Applied zero imputation to {col}"
-                        )
+            elif any(term in col_des_terms for term in ["zero", "zeros"]):
+                if (
+                    col_name in self.column_types["numeric"]
+                    and self.df[col_name].isna().sum() > 0
+                ):
+                    self.df[col_name] = self.df[col_name].fillna(0)
+                    self.transformations_log.append(
+                        f"Applied zero imputation to {col_name}"
+                    )
 
             # New missing indicator features
-            elif any(
-                term in strategy_lower for term in ["indicator", "flag", "binary"]
-            ):
-                for col in self.df.columns:
-                    if self.df[col].isna().sum() > 0:
-                        self.df[f"{col}_missing"] = self.df[col].isna().astype(int)
-                        self.transformations_log.append(
-                            f"Created missing indicator for {col}"
-                        )
+            elif any(term in col_des_terms for term in ["indicator", "flag", "binary"]):
+                if col_name in self.df.columns and self.df[col_name].isna().sum() > 0:
+                    self.df[f"{col_name}_missing"] = (
+                        self.df[col_name].isna().astype(int)
+                    )
+                    self.transformations_log.append(
+                        f"Created missing indicator for {col_name}"
+                    )
 
             # Drop rows with missing values
-            elif any(term in strategy_lower for term in ["drop row", "remove row"]):
+            elif any(term in col_des_terms for term in ["drop row", "remove row"]):
                 initial_rows = len(self.df)
                 self.df = self.df.dropna()
                 self.transformations_log.append(
@@ -203,9 +231,9 @@ class LogicApplier:
                 )
 
             # Drop columns with high missing percentages
-            elif any(term in strategy_lower for term in ["drop col", "remove col"]):
+            elif any(term in col_des_terms for term in ["drop col", "remove col"]):
                 # Extract threshold if mentioned
-                threshold_match = re.search(r"(\d+)%", strategy_lower)
+                threshold_match = re.search(r"(\d+)%", col_des_terms)
                 threshold = 0.5  # Default threshold 50%
 
                 if threshold_match:
@@ -241,12 +269,22 @@ class LogicApplier:
         )
 
         for strategy in outlier_strategies:
-            strategy_lower = strategy.lower().split(" ")
+            col_name: str | None = None
+            col_des: str | None = None
+
+            if isinstance(strategy, dict):
+                col_name = strategy.get("name")
+                col_des = strategy.get("description")
+
+            if col_name is None or col_des is None:
+                continue
+
+            col_des_terms = col_des.lower().split(" ")
 
             # Handle IQR-based outlier removal/capping
-            if any(term in strategy_lower for term in ["iqr", "interquartile"]):
-                for col in self.column_types["numeric"]:
-                    series = self.df[col]
+            if any(term in col_des_terms for term in ["iqr", "interquartile"]):
+                if col_name in self.column_types["numeric"]:
+                    series = self.df[col_name]
 
                     Q1 = np.quantile(series.dropna(), 0.25, method="linear")
                     Q3 = np.quantile(series.dropna(), 0.75, method="linear")
@@ -258,50 +296,53 @@ class LogicApplier:
 
                     # Cap outliers (winsorizing)
                     if any(
-                        term in strategy_lower for term in ["cap", "clamp", "winsor"]
+                        term in col_des_terms for term in ["cap", "clamp", "winsor"]
                     ):
-                        self.df[col] = series.clip(lower=lower_bound, upper=upper_bound)
+                        self.df[col_name] = series.clip(
+                            lower=lower_bound, upper=upper_bound
+                        )
                         self.transformations_log.append(
-                            f"Capped outliers in {col} using IQR method"
+                            f"Capped outliers in {col_name} using IQR method"
                         )
 
                     # Remove outliers
-                    elif any(term in strategy_lower for term in ["remove", "drop"]):
-                        mask = (self.df[col] >= lower_bound) & (
-                            self.df[col] <= upper_bound
+                    elif any(term in col_des_terms for term in ["remove", "drop"]):
+                        mask = (self.df[col_name] >= lower_bound) & (
+                            self.df[col_name] <= upper_bound
                         )
                         self.df = self.df.loc[mask]
                         self.transformations_log.append(
-                            f"Removed outliers in {col} using IQR method"
+                            f"Removed outliers in {col_name} using IQR method"
                         )
 
                     # Mark outliers with a flag column
-                    elif any(term in strategy_lower for term in ["flag", "indicator"]):
-                        self.df[f"{col}_outlier"] = (
-                            (self.df[col] < lower_bound) | (self.df[col] > upper_bound)
+                    elif any(term in col_des_terms for term in ["flag", "indicator"]):
+                        self.df[f"{col_name}_outlier"] = (
+                            (self.df[col_name] < lower_bound)
+                            | (self.df[col_name] > upper_bound)
                         ).astype(int)
                         self.transformations_log.append(
-                            f"Created outlier indicator for {col}"
+                            f"Created outlier indicator for {col_name}"
                         )
 
             # Handle Z-score based outlier removal/capping
             elif any(
-                term in strategy_lower
+                term in col_des_terms
                 for term in ["z-score", "z score", "zscore", "standard deviation"]
             ):
                 # Extract threshold if mentioned
                 threshold_match = re.search(
                     r"(\d+(?:\.\d+)?)\s*(?:sigma|std|standard deviation)",
-                    strategy_lower,
+                    col_des_terms,
                 )
                 z_threshold = 3.0  # Default threshold
 
                 if threshold_match:
                     z_threshold = float(threshold_match.group(1))
 
-                for col in self.column_types["numeric"]:
-                    mean = self.df[col].mean()
-                    std = self.df[col].std()
+                if col_name in self.column_types["numeric"]:
+                    mean = self.df[col_name].mean()
+                    std = self.df[col_name].std()
 
                     if std == 0:
                         continue
@@ -311,40 +352,43 @@ class LogicApplier:
 
                     # Cap outliers
                     if any(
-                        term in strategy_lower for term in ["cap", "clamp", "winsor"]
+                        term in col_des_terms for term in ["cap", "clamp", "winsor"]
                     ):
-                        self.df[col] = pd.Series(self.df[col]).clip(
+                        self.df[col_name] = pd.Series(self.df[col_name]).clip(
                             lower=lower_bound, upper=upper_bound
                         )
                         self.transformations_log.append(
-                            f"Capped outliers in {col} using Z-score method (threshold={z_threshold})"
+                            f"Capped outliers in {col_name} using Z-score method (threshold={z_threshold})"
                         )
 
                     # Remove outliers
-                    elif any(term in strategy_lower for term in ["remove", "drop"]):
-                        mask = (self.df[col] >= lower_bound) & (
-                            self.df[col] <= upper_bound
+                    elif any(term in col_des_terms for term in ["remove", "drop"]):
+                        mask = (self.df[col_name] >= lower_bound) & (
+                            self.df[col_name] <= upper_bound
                         )
                         self.df = self.df.loc[mask]
                         self.transformations_log.append(
-                            f"Removed outliers in {col} using Z-score method (threshold={z_threshold})"
+                            f"Removed outliers in {col_name} using Z-score method (threshold={z_threshold})"
                         )
 
                     # Mark outliers with a flag column
-                    elif any(term in strategy_lower for term in ["flag", "indicator"]):
-                        self.df[f"{col}_outlier"] = (
-                            (self.df[col] < lower_bound) | (self.df[col] > upper_bound)
+                    elif any(term in col_des_terms for term in ["flag", "indicator"]):
+                        self.df[f"{col_name}_outlier"] = (
+                            (self.df[col_name] < lower_bound)
+                            | (self.df[col_name] > upper_bound)
                         ).astype(int)
                         self.transformations_log.append(
-                            f"Created outlier indicator for {col}"
+                            f"Created outlier indicator for {col_name}"
                         )
 
             # Handle robust scaling
-            elif any(term in strategy_lower for term in ["robust", "scaling"]):
-                for col in self.column_types["numeric"]:
+            elif any(term in col_des_terms for term in ["robust", "scaling"]):
+                if col_name in self.column_types["numeric"]:
                     scaler = RobustScaler()
-                    self.df[col] = scaler.fit_transform(self.df[[col]])
-                    self.transformations_log.append(f"Applied robust scaling to {col}")
+                    self.df[col_name] = scaler.fit_transform(self.df[[col_name]])
+                    self.transformations_log.append(
+                        f"Applied robust scaling to {col_name}"
+                    )
 
     def _handle_duplicates(self) -> None:
         """Apply recommended strategies for handling duplicate rows."""
@@ -361,19 +405,30 @@ class LogicApplier:
         )
 
         for strategy in duplicate_strategies:
-            strategy_lower = strategy.lower().split(" ")
+            col_name: str | None = None
+            col_des: str | None = None
+
+            if isinstance(strategy, dict):
+                col_name = strategy.get("name")
+                col_des = strategy.get("description")
+
+            if col_name is None or col_des is None:
+                continue
+
+            col_des_terms = col_des.lower().split(" ")
 
             # Drop duplicates based on all columns
-            if any(term in strategy_lower for term in ["drop", "remove"]):
+            if any(term in col_des_terms for term in ["drop", "remove"]):
                 initial_rows = len(self.df)
 
                 # Check if specific columns are mentioned
-                subset_cols = None
-                for col in self.df.columns:
-                    if col.lower() in strategy_lower:
-                        if subset_cols is None:
-                            subset_cols = []
-                        subset_cols.append(col)
+                subset_cols = [col_name]
+
+                # for col in self.df.columns:
+                #     if col.lower() in col_des_terms:
+                #         if subset_cols is None:
+                #             subset_cols = []
+                #         subset_cols.append(col)
 
                 # Drop duplicates
                 self.df = self.df.drop_duplicates(subset=subset_cols)
@@ -389,7 +444,7 @@ class LogicApplier:
                     )
 
             # Mark duplicates with a flag
-            elif any(term in strategy_lower for term in ["flag", "indicator", "mark"]):
+            elif any(term in col_des_terms for term in ["flag", "indicator", "mark"]):
                 self.df["is_duplicate"] = self.df.duplicated().astype(int)
                 self.transformations_log.append("Created duplicate row indicator")
 
@@ -406,126 +461,140 @@ class LogicApplier:
         )
 
         for strategy in transformation_strategies:
-            strategy_lower = strategy.lower().split(" ")
+            col_name: str | None = None
+            col_des: str | None = None
+
+            if isinstance(strategy, dict):
+                col_name = strategy.get("name")
+                col_des = strategy.get("description")
+
+            if col_name is None or col_des is None:
+                continue
+
+            col_des_terms = col_des.lower().split(" ")
 
             # Standardization (Z-score normalization)
             if any(
-                term in strategy_lower for term in ["standard", "z-score", "normalize"]
+                term in col_des_terms for term in ["standard", "z-score", "normalize"]
             ):
-                for col in self.column_types["numeric"]:
+                if col_name in self.column_types["numeric"]:
                     scaler = StandardScaler()
-                    self.df[col] = scaler.fit_transform(self.df[[col]])
-                    self.transformations_log.append(f"Applied standardization to {col}")
+                    self.df[col_name] = scaler.fit_transform(self.df[[col_name]])
+                    self.transformations_log.append(
+                        f"Applied standardization to {col_name}"
+                    )
 
             # Min-Max scaling
             elif any(
-                term in strategy_lower
+                term in col_des_terms
                 for term in ["min-max", "minmax", "scale 0-1", "scale between 0 and 1"]
             ):
-                for col in self.column_types["numeric"]:
+                if col_name in self.column_types["numeric"]:
                     scaler = MinMaxScaler()
-                    self.df[col] = scaler.fit_transform(self.df[[col]])
-                    self.transformations_log.append(f"Applied min-max scaling to {col}")
+                    self.df[col_name] = scaler.fit_transform(self.df[[col_name]])
+                    self.transformations_log.append(
+                        f"Applied min-max scaling to {col_name}"
+                    )
 
             # Log transformation
-            elif any(term in strategy_lower for term in ["log", "logarithm"]):
-                for col in self.column_types["numeric"]:
-                    if (self.df[col] > 0).all():
-                        self.df[f"{col}_log"] = np.log(self.df[col])
+            elif any(term in col_des_terms for term in ["log", "logarithm"]):
+                if col_name in self.column_types["numeric"]:
+                    if (self.df[col_name] > 0).all():
+                        self.df[f"{col_name}_log"] = np.log(self.df[col_name])
                         self.transformations_log.append(
-                            f"Applied log transformation to {col}"
+                            f"Applied log transformation to {col_name}"
                         )
-                    elif (self.df[col] >= 0).all():
-                        self.df[f"{col}_log"] = np.log1p(self.df[col])
+                    elif (self.df[col_name] >= 0).all():
+                        self.df[f"{col_name}_log"] = np.log1p(self.df[col_name])
                         self.transformations_log.append(
-                            f"Applied log1p transformation to {col}"
+                            f"Applied log1p transformation to {col_name}"
                         )
 
             # Square root transformation
-            elif any(term in strategy_lower for term in ["sqrt", "square root"]):
-                for col in self.column_types["numeric"]:
-                    if (self.df[col] >= 0).all():
-                        self.df[f"{col}_sqrt"] = np.sqrt(self.df[col])
+            elif any(term in col_des_terms for term in ["sqrt", "square root"]):
+                if col_name in self.column_types["numeric"]:
+                    if (self.df[col_name] >= 0).all():
+                        self.df[f"{col_name}_sqrt"] = np.sqrt(self.df[col_name])
                         self.transformations_log.append(
-                            f"Applied square root transformation to {col}"
+                            f"Applied square root transformation to {col_name}"
                         )
 
             # Box-Cox transformation
-            elif any(term in strategy_lower for term in ["box-cox", "boxcox"]):
+            elif any(term in col_des_terms for term in ["box-cox", "boxcox"]):
                 from scipy import stats
 
-                for col in self.column_types["numeric"]:
-                    if (self.df[col] > 0).all():
+                if col_name in self.column_types["numeric"]:
+                    if (self.df[col_name] > 0).all():
                         try:
-                            transformed_data, _ = stats.boxcox(self.df[col])  # pyright: ignore
-                            self.df[f"{col}_boxcox"] = transformed_data
+                            transformed_data, _ = stats.boxcox(self.df[col_name])  # pyright: ignore
+                            self.df[f"{col_name}_boxcox"] = transformed_data
                             self.transformations_log.append(
-                                f"Applied Box-Cox transformation to {col}"
+                                f"Applied Box-Cox transformation to {col_name}"
                             )
                         except Exception:
                             pass  # Skip if transformation fails
 
             # One-hot encoding for categorical variables
-            elif any(term in strategy_lower for term in ["one-hot", "onehot", "dummy"]):
-                for col in self.column_types["categorical"]:
+            elif any(term in col_des_terms for term in ["one-hot", "onehot", "dummy"]):
+                if col_name in self.column_types["categorical"]:
                     try:
                         # Use pandas get_dummies for simplicity
                         one_hot = pd.get_dummies(
-                            self.df[col], prefix=col, drop_first=False
+                            self.df[col_name], prefix=col_name, drop_first=False
                         )
                         self.df = pd.concat([self.df, one_hot], axis=1)  # pyright: ignore
-                        self.df.drop([col], axis=1, inplace=True)
+                        self.df.drop([col_name], axis=1, inplace=True)
                         self.transformations_log.append(
-                            f"Applied one-hot encoding to {col}"
+                            f"Applied one-hot encoding to {col_name}"
                         )
                     except Exception:
                         pass  # Skip if encoding fails
 
             # Label encoding for categorical variables
             elif any(
-                term in strategy_lower
+                term in col_des_terms
                 for term in ["label encoding", "label-encoding", "ordinal"]
             ):
-                for col in self.column_types["categorical"]:
+                if col_name in self.column_types["categorical"]:
                     try:
                         le = LabelEncoder()
-                        self.df[f"{col}_encoded"] = le.fit_transform(
-                            self.df[col].astype(str)
+                        self.df[f"{col_name}_encoded"] = le.fit_transform(
+                            self.df[col_name].astype(str)
                         )
                         self.transformations_log.append(
-                            f"Applied label encoding to {col}"
+                            f"Applied label encoding to {col_name}"
                         )
                     except Exception:
                         pass  # Skip if encoding fails
 
             # Binning/discretization for numerical variables
             elif any(
-                term in strategy_lower
+                term in col_des_terms
                 for term in ["bin", "binning", "discretize", "discretization"]
             ):
                 # Try to extract number of bins
-                bin_match = re.search(r"(\d+)\s*bins", strategy_lower)
+                bin_match = re.search(r"(\d+)\s*bins", col_des_terms)
                 n_bins = 5  # Default number of bins
 
                 if bin_match:
                     n_bins = int(bin_match.group(1))
 
-                for col in self.column_types["numeric"]:
+                if col_name in self.column_types["numeric"]:
                     try:
-                        self.df[f"{col}_binned"] = pd.qcut(
-                            self.df[col], n_bins, labels=False, duplicates="drop"
+                        self.df[f"{col_name}_binned"] = pd.qcut(
+                            self.df[col_name], n_bins, labels=False, duplicates="drop"
                         )
                         self.transformations_log.append(
-                            f"Applied binning to {col} with {n_bins} bins"
+                            f"Applied binning to {col_name} with {n_bins} bins"
                         )
                     except Exception:
                         try:
                             # Fall back to equal-width binning if qcut fails
-                            self.df[f"{col}_binned"] = pd.cut(
-                                self.df[col], n_bins, labels=False
+                            self.df[f"{col_name}_binned"] = pd.cut(
+                                self.df[col_name], n_bins, labels=False
                             )
                             self.transformations_log.append(
-                                f"Applied equal-width binning to {col} with {n_bins} bins"
+                                f"Applied equal-width binning to {col_name} with {n_bins} bins"
                             )
                         except Exception:
                             pass  # Skip if binning fails
@@ -543,11 +612,21 @@ class LogicApplier:
         )
 
         for recommendation in feature_recommendations:
-            recommendation_lower = recommendation.lower().split(" ")
+            col_name: str | None = None
+            col_des: str | None = None
+
+            if isinstance(recommendation, dict):
+                col_name = recommendation.get("name")
+                col_des = recommendation.get("description")
+
+            if col_name is None or col_des is None:
+                continue
+
+            col_des_terms = col_des.lower().split(" ")
 
             # Polynomial features
             if any(
-                term in recommendation_lower
+                term in col_des_terms
                 for term in ["polynomial", "squared", "square", "interaction"]
             ):
                 for i, col1 in enumerate(self.column_types["numeric"]):
@@ -568,7 +647,7 @@ class LogicApplier:
                         )
 
             # Ratio features
-            elif any(term in recommendation_lower for term in ["ratio", "divide"]):
+            elif any(term in col_des_terms for term in ["ratio", "divide"]):
                 for i, col1 in enumerate(self.column_types["numeric"]):
                     for j in range(i + 1, len(self.column_types["numeric"])):
                         col2 = self.column_types["numeric"][j]
@@ -592,7 +671,7 @@ class LogicApplier:
             # Aggregation features for categorical variables
 
             # elif any(
-            #     term in recommendation_lower
+            #     term in col_des_terms
             #     for term in ["aggregation", "groupby", "group by"]
             # ):
             #     for cat_col in self.column_types["categorical"]:
@@ -620,53 +699,51 @@ class LogicApplier:
 
             # Date-time features
             elif any(
-                term in recommendation_lower
+                term in col_des_terms
                 for term in [
                     "datetime",
                     "date",
                     "time",
                 ]
             ):
-                for dt_col in self.column_types["datetime"]:
+                if col_name in self.column_types["datetime"]:
                     try:
-                        dt_series = pd.to_datetime(self.df[dt_col], errors="coerce")
+                        dt_series = pd.to_datetime(self.df[col_name], errors="coerce")
 
                         # Extract date components
-                        self.df[f"{dt_col}_year"] = dt_series.dt.year
-                        self.df[f"{dt_col}_month"] = dt_series.dt.month
-                        self.df[f"{dt_col}_day"] = dt_series.dt.day
-                        self.df[f"{dt_col}_dayofweek"] = dt_series.dt.dayofweek
-                        self.df[f"{dt_col}_quarter"] = dt_series.dt.quarter
+                        self.df[f"{col_name}_year"] = dt_series.dt.year
+                        self.df[f"{col_name}_month"] = dt_series.dt.month
+                        self.df[f"{col_name}_day"] = dt_series.dt.day
+                        self.df[f"{col_name}_dayofweek"] = dt_series.dt.dayofweek
+                        self.df[f"{col_name}_quarter"] = dt_series.dt.quarter
 
                         # Add time components if time exists
                         if (dt_series.dt.hour != 0).any() or (
                             dt_series.dt.minute != 0
                         ).any():
-                            self.df[f"{dt_col}_hour"] = dt_series.dt.hour
-                            self.df[f"{dt_col}_minute"] = dt_series.dt.minute
+                            self.df[f"{col_name}_hour"] = dt_series.dt.hour
+                            self.df[f"{col_name}_minute"] = dt_series.dt.minute
 
-                        self.df.drop(dt_col, axis=1, inplace=True)
+                        self.df.drop(col_name, axis=1, inplace=True)
 
                         self.transformations_log.append(
-                            f"Created datetime features from {dt_col}"
+                            f"Created datetime features from {col_name}"
                         )
                     except Exception:
                         pass  # Skip if datetime conversion fails
 
             # Text features
-            elif any(
-                term in recommendation_lower for term in ["text", "nlp", "string"]
-            ):
-                for text_col in self.column_types["text"]:
+            elif any(term in col_des_terms for term in ["text", "nlp", "string"]):
+                if col_name in self.column_types["text"]:
                     # Basic text features
-                    self.df[f"{text_col}_length"] = (
-                        self.df[text_col].astype(str).apply(len)
+                    self.df[f"{col_name}_length"] = (
+                        self.df[col_name].astype(str).apply(len)
                     )
-                    self.df[f"{text_col}_word_count"] = (
-                        self.df[text_col].astype(str).apply(lambda x: len(x.split()))
+                    self.df[f"{col_name}_word_count"] = (
+                        self.df[col_name].astype(str).apply(lambda x: len(x.split()))
                     )
                     self.transformations_log.append(
-                        f"Created text length features from {text_col}"
+                        f"Created text length features from {col_name}"
                     )
 
                     # More advanced features could be added here (e.g., TF-IDF, sentiment)
@@ -681,13 +758,23 @@ class LogicApplier:
         )
 
         for strategy in selection_strategies:
-            strategy_lower = strategy.lower().split(" ")
+            col_name: str | None = None
+            col_des: str | None = None
+
+            if isinstance(strategy, dict):
+                col_name = strategy.get("name")
+                col_des = strategy.get("description")
+
+            if col_name is None or col_des is None:
+                continue
+
+            col_des_terms = col_des.lower().split(" ")
 
             # Low variance filter
-            if any(term in strategy_lower for term in ["variance", "low var"]):
+            if any(term in col_des_terms for term in ["variance", "low var"]):
                 # Extract threshold if mentioned
                 threshold_match = re.search(
-                    r"(\d+(?:\.\d+)?)\s*(?:threshold|var)", strategy_lower
+                    r"(\d+(?:\.\d+)?)\s*(?:threshold|var)", col_des_terms
                 )
                 threshold = 0.01  # Default threshold
 
@@ -727,7 +814,7 @@ class LogicApplier:
                         pass  # Skip if selection fails
 
             # Correlation-based feature selection
-            elif any(term in strategy_lower for term in ["correlation", "corr"]):
+            elif any(term in col_des_terms for term in ["correlation", "corr"]):
                 numeric_cols = [
                     col
                     for col in pd.DataFrame(self.df).columns
@@ -737,7 +824,7 @@ class LogicApplier:
                 if len(numeric_cols) >= 2:
                     # Extract threshold if mentioned
                     threshold_match = re.search(
-                        r"(\d+(?:\.\d+)?)", "".join(strategy_lower)
+                        r"(\d+(?:\.\d+)?)", "".join(col_des_terms)
                     )
                     threshold = 0.95  # Default threshold
 
@@ -768,7 +855,7 @@ class LogicApplier:
             # SelectKBest feature selection
 
             # elif any(
-            #     term in strategy_lower for term in ["k best", "kbest", "top features"]
+            #     term in col_des_terms for term in ["k best", "kbest", "top features"]
             # ):
             #     if not self.target_column:
             #         continue
@@ -784,7 +871,7 @@ class LogicApplier:
             #         continue
             #
             #     # Extract k if mentioned
-            #     k_match = re.search(r"(\d+)\s*(?:features|k)", strategy_lower)
+            #     k_match = re.search(r"(\d+)\s*(?:features|k)", col_des_terms)
             #     k = min(
             #         10, len(numeric_cols)
             #     )  # Default to 10 or less if fewer features available
@@ -827,7 +914,7 @@ class LogicApplier:
             #         )
 
             # PCA dimensionality reduction
-            elif any(term in strategy_lower for term in ["pca", "principal component"]):
+            elif any(term in col_des_terms for term in ["pca", "principal component"]):
                 numeric_cols = [
                     col
                     for col in self.df.columns
@@ -837,7 +924,7 @@ class LogicApplier:
                 if len(numeric_cols) >= 2:
                     # Extract number of components if mentioned
                     n_match = re.search(
-                        r"(\d+)\s*(?:components|dims|dimensions)", strategy_lower
+                        r"(\d+)\s*(?:components|dims|dimensions)", col_des_terms
                     )
                     n_components = min(len(numeric_cols) - 1, 5)  # Default
 
@@ -858,7 +945,7 @@ class LogicApplier:
                             self.df[f"PCA_component_{i + 1}"] = pca_result[:, i]
 
                         # Optionally remove original numeric columns if specified
-                        if "replace" in strategy_lower:
+                        if "replace" in col_des_terms:
                             self.df = self.df.drop(columns=numeric_cols)
                             self.transformations_log.append(
                                 f"Applied PCA: replaced numeric features with {n_components} components"

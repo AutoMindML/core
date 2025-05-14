@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -38,9 +38,9 @@ class MetaGenerator:
         self.parser = DataParser(self.df)
 
         # The columns will be populated during extract_metadata
-        self.numerical_columns: List[str] = []
+        self.numeric_columns: List[str] = []
         self.categorical_columns: List[str] = []
-        self.time_series_columns: List[str] = []
+        self.datetime_columns: List[str] = []
         self.text_columns: List[str] = []
 
     def extract_metadata(self) -> Dict:
@@ -73,7 +73,7 @@ class MetaGenerator:
         self.metadata["statistics"] = self._generate_statistics()
 
         # Correlation analysis
-        if len(self.numerical_columns) >= 2:
+        if len(self.numeric_columns) >= 2:
             self.metadata["correlations"] = self._analyze_correlations()
 
         # Target variable analysis
@@ -91,25 +91,25 @@ class MetaGenerator:
         column_types = self.parser.identify_column_types()
 
         # Reset our lists
-        self.numerical_columns = []
+        self.numeric_columns = []
         self.categorical_columns = []
-        self.time_series_columns = []
+        self.datetime_columns = []
         self.text_columns = []
 
         for col, col_type in column_types.items():
-            if col_type == ColumnType.NUMERICAL:
-                self.numerical_columns.append(col)
+            if col_type == ColumnType.NUMERIC:
+                self.numeric_columns.append(col)
             elif col_type == ColumnType.CATEGORICAL:
                 self.categorical_columns.append(col)
-            elif col_type == ColumnType.TIME_SERIES:
-                self.time_series_columns.append(col)
+            elif col_type == ColumnType.DATETIME:
+                self.datetime_columns.append(col)
             elif col_type == ColumnType.TEXT:
                 self.text_columns.append(col)
 
         self.metadata["column_types"] = {
-            "numeric": self.numerical_columns,
+            "numeric": self.numeric_columns,
             "categorical": self.categorical_columns,
-            "datetime": self.time_series_columns,
+            "datetime": self.datetime_columns,
             "text": self.text_columns,
         }
 
@@ -123,7 +123,7 @@ class MetaGenerator:
             "unique_values": column_data.nunique(),
         }
 
-        if column in self.numerical_columns:
+        if column in self.numeric_columns:
             column_info.update(
                 {
                     "min": column_data.min(),
@@ -167,7 +167,7 @@ class MetaGenerator:
                 }
             )
 
-        elif column in self.time_series_columns:
+        elif column in self.datetime_columns:
             # Convert to datetime if not already
             if not pd.api.types.is_datetime64_any_dtype(column_data):
                 try:
@@ -237,8 +237,8 @@ class MetaGenerator:
     def _generate_statistics(self) -> Dict:
         """Generate overall statistics for the dataset."""
         stats = {
-            "numeric_summary": self.df[self.numerical_columns].describe().to_dict()
-            if self.numerical_columns
+            "numeric_summary": self.df[self.numeric_columns].describe().to_dict()
+            if self.numeric_columns
             else {},
         }
 
@@ -254,7 +254,7 @@ class MetaGenerator:
     def _analyze_correlations(self) -> Dict:
         """Analyze correlations between features."""
         # Pearson correlation for numeric features
-        numeric_corr = pd.DataFrame(self.df[self.numerical_columns]).corr()
+        numeric_corr = pd.DataFrame(self.df[self.numeric_columns]).corr()
 
         # Find highly correlated features
         high_correlations = []
@@ -292,7 +292,7 @@ class MetaGenerator:
             target_encoded = LabelEncoder().fit_transform(target_data.fillna("missing"))
 
             # TODO: figure out details of discrete_features
-            for col in self.numerical_columns:
+            for col in self.numeric_columns:
                 if col != self.target_column:
                     feature = self.df[col].fillna(self.df[col].median())
 
@@ -333,12 +333,12 @@ class MetaGenerator:
                 for k, v in sorted(mi_scores.items(), key=lambda x: x[1], reverse=True)
             }
 
-        elif self.target_column in self.numerical_columns:
-            target_info["column_type"] = ColumnType.NUMERICAL
+        elif self.target_column in self.numeric_columns:
+            target_info["column_type"] = ColumnType.NUMERIC
 
             # Calculate correlations with target
             correlations = {}
-            for col in self.numerical_columns:
+            for col in self.numeric_columns:
                 if col != self.target_column:
                     correlations[col] = (
                         pd.DataFrame(self.df[[col, self.target_column]])
@@ -355,7 +355,7 @@ class MetaGenerator:
 
             # Calculate mutual information for numeric target
             mi_scores = {}
-            for col in self.numerical_columns:
+            for col in self.numeric_columns:
                 if col != self.target_column:
                     feature = self.df[col].fillna(self.df[col].median())
                     mi_scores[col] = mutual_info_regression(
@@ -377,8 +377,8 @@ class MetaGenerator:
                 for k, v in sorted(mi_scores.items(), key=lambda x: x[1], reverse=True)
             }
 
-        elif self.target_column in self.time_series_columns:
-            target_info["column_type"] = ColumnType.TIME_SERIES
+        elif self.target_column in self.datetime_columns:
+            target_info["column_type"] = ColumnType.DATETIME
             # TODO:
             # Handle datetime target if needed
             # This could include temporal analysis specific to datetime targets
@@ -413,9 +413,9 @@ class MetaGenerator:
         plt.ylabel("Samples")
 
         # Plot 2: Feature correlation heatmap
-        if len(self.numerical_columns) >= 2:
+        if len(self.numeric_columns) >= 2:
             plt.subplot(2, 2, 2)
-            corr_matrix = pd.DataFrame(self.df[self.numerical_columns]).corr()
+            corr_matrix = pd.DataFrame(self.df[self.numeric_columns]).corr()
             mask = np.triu(np.ones_like(corr_matrix))
             sns.heatmap(
                 corr_matrix,
@@ -429,9 +429,9 @@ class MetaGenerator:
             plt.title("Feature Correlations")
 
         # Plot 3: Distribution of numeric features
-        if self.numerical_columns:
+        if self.numeric_columns:
             plt.subplot(2, 2, 3)
-            for col in self.numerical_columns[:5]:  # Limit to first 5 columns
+            for col in self.numeric_columns[:5]:  # Limit to first 5 columns
                 sns.kdeplot(pd.DataFrame(self.df[col]).dropna(), label=col)
             plt.title("Distribution of Top Numeric Features")
             plt.legend()
@@ -442,12 +442,12 @@ class MetaGenerator:
             if self.target_column in self.categorical_columns:
                 sns.countplot(x=self.target_column, data=self.df)
                 plt.title(f"Target Distribution: {self.target_column}")
-            elif self.target_column in self.numerical_columns:
+            elif self.target_column in self.numeric_columns:
                 sns.histplot(
                     pd.DataFrame(self.df[self.target_column]).dropna(), kde=True
                 )
                 plt.title(f"Target Distribution: {self.target_column}")
-            elif self.target_column in self.time_series_columns:
+            elif self.target_column in self.datetime_columns:
                 # For datetime targets, plot distribution by year or month
                 try:
                     date_series = pd.to_datetime(self.df[self.target_column])
@@ -499,7 +499,7 @@ class MetaGenerator:
                 "unique_values": info["unique_values"],
             }
 
-            if col in self.numerical_columns:
+            if col in self.numeric_columns:
                 col_summary.update(
                     {
                         "min": float(info["min"]),
@@ -513,7 +513,7 @@ class MetaGenerator:
                 col_summary["top_values"] = {
                     str(k): float(v) for k, v in list(info["top_values"].items())[:3]
                 }
-            elif col in self.time_series_columns and "min_date" in info:
+            elif col in self.datetime_columns and "min_date" in info:
                 col_summary.update(
                     {
                         "min_date": str(info["min_date"]),
@@ -557,39 +557,67 @@ class MetaGenerator:
 
         # Format the query
         query_template = f"""
-        # Dataset Analysis and Recommendations
+        Dataset Analysis and Recommendations:
 
         Analyze the following dataset metadata and provide recommendations for 
         data preparation, feature engineering, and modeling approaches.
         The dataset has {llm_metadata["basic_info"]["rows"]} rows and {llm_metadata["basic_info"]["columns"]} columns.
 
-        ## Dataset Metadata
+        Dataset Metadatas:
         ```json
         {json.dumps(llm_metadata, indent=2, default=self._json_serializer)}
         ```
 
-        ## Expected Output Format
+        Expected Output Format:
 
-        Please provide detailed explanations with each recommendation, focusing on the unique characteristics of this dataset.
-        Please provide your analysis in the following JSON format. Do not include any explanations or additional text.
+        Please return analysis in the exact JSON format, do not include other text:
 
-        Example:
         ```json
         {{
             "data_quality_report": {{
                 "summary": "Overall assessment of data quality",
-                "issues": ["List of specific data quality issues string"],
-                "strengths": ["List of dataset strengths string"]
+                "issues": ["List of specific data quality issues"],
+                "strengths": ["List of dataset strengths"]
             }},
             "data_cleaning_recommendations": {{
-                "missing_values": ["List of Specific strategies for handling missing values string"],
-                "outliers": ["List of Strategies for handling outliers string"],
-                "duplicates": ["List of Recommendations for duplicate handling string"]
+                "missing_values": [
+                    {{
+                        "name": "col-name",
+                        "description": "Specific strategies for handling missing values"
+                    }}
+                ],
+                "outliers": [
+                    {{
+                        "name": "col-name",
+                        "description": "Strategies for handling outliers"
+                    }}
+                ],
+                "duplicates": [
+                    {{
+                        "name": "col-name",
+                        "description": "Recommendations for duplicate handling"
+                    }}
+                ]
             }},
             "feature_engineering": {{
-                "recommendations": ["List of Specific feature engineering recommendations string"],
-                "transformations": ["List of Suggested transformations string"],
-                "feature_selection": ["List of Feature selection recommendations string"]
+                "recommendations": [
+                    {{
+                        "name": "col-name",
+                        "description": "Specific feature engineering recommendations"
+                    }}
+                ],
+                "transformations": [
+                    {{
+                        "name": "col-name",
+                        "description": "Suggested transformations"
+                    }}
+                ],
+                "feature_selection": [
+                    {{
+                        "name": "col-name",
+                        "description": "Feature selection recommendations"
+                    }}
+                ]
             }},
             "modeling_approach": {{
                 "recommended_algorithms": ["Algorithms that might work well"],
@@ -606,30 +634,28 @@ class MetaGenerator:
         """
         Process the response to extract JSON
         """
-        json_text = ""
-        json_mode = False
 
-        for line in response_lines:
-            if line.strip() == "```json":
-                json_mode = True
-            elif line.strip() == "```" and json_mode:
-                json_mode = False
-            elif json_mode:
-                json_text += line
-            elif line.strip() == END_OF_STREAM:
-                break
+        response_text = "".join(response_lines)
+        response_text.replace(END_OF_STREAM, "")
 
-        try:
-            result: Dict[str, Any] = json.loads(json_text)
-            return result
-        except json.JSONDecodeError:
-            # In case of malformed JSON, try to clean it up
-            cleaned_json = self._clean_json_text(json_text)
+        pattern = re.compile(r"```(?:json)?\n(.*?)\n```", re.DOTALL)
+        matches = pattern.findall(response_text)
+
+        for match in matches:
             try:
-                result: Dict[str, Any] = json.loads(cleaned_json)
-                return result
+                parsed_json = json.loads(match)
+                return parsed_json
             except json.JSONDecodeError:
-                return None
+                # In case of malformed JSON, try to clean it up
+                cleaned_json = self._clean_json_text(match)
+
+                try:
+                    result = json.loads(cleaned_json)
+                    return result
+                except json.JSONDecodeError:
+                    return None
+
+        return None
 
     def _clean_json_text(self, json_text: str) -> str:
         """

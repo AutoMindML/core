@@ -4,14 +4,12 @@ import numpy as np
 import pandas as pd
 
 from automind.data_utils.cleaner import DataCleaner
-
-# Import the required classes
 from automind.data_utils.parser import DataParser
 
 
 def create_sample_data(rows=100):
     """Create a sample dataset with various issues for demonstration"""
-    np.random.seed(42)  # For reproducibility
+    np.random.seed(42)
 
     # Create dates
     start_date = datetime(2023, 1, 1)

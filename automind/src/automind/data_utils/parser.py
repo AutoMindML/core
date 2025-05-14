@@ -12,8 +12,8 @@ class ColumnType(enum.Enum):
     Enumeration of possible data column types.
     """
 
-    TIME_SERIES = "time_series"
-    NUMERICAL = "numerical"
+    DATETIME = "datetime"
+    NUMERIC = "numeric"
     CATEGORICAL = "categorical"
     TEXT = "text"
 
@@ -339,12 +339,12 @@ class DataParser:
                     self.pre_identified_col_types.get(col) or ColumnType.CATEGORICAL
                 )
             elif pd.api.types.is_datetime64_any_dtype(self.df[col]):
-                col_types[col] = ColumnType.TIME_SERIES
+                col_types[col] = ColumnType.DATETIME
             elif pd.api.types.is_numeric_dtype(
                 self.df[col]
             ) and not pd.api.types.is_bool_dtype(self.df[col]):
                 # Initially mark as numerical, but will check cardinality later
-                col_types[col] = ColumnType.NUMERICAL
+                col_types[col] = ColumnType.NUMERIC
             elif pd.api.types.is_bool_dtype(self.df[col]) or isinstance(
                 self.df[col].dtype, pd.CategoricalDtype
             ):
@@ -352,13 +352,13 @@ class DataParser:
             else:
                 # String or object columns - check if they're time series or categorical
                 if self._check_if_time_series(col):
-                    col_types[col] = ColumnType.TIME_SERIES
+                    col_types[col] = ColumnType.DATETIME
                 else:
                     col_types[col] = ColumnType.CATEGORICAL
 
         # Second pass: Check for numeric columns that might be categorical
         for col in self.df.columns:
-            if col_types[col] == ColumnType.NUMERICAL:
+            if col_types[col] == ColumnType.NUMERIC:
                 if self._is_numeric_categorical(col):
                     col_types[col] = ColumnType.CATEGORICAL
 
@@ -554,7 +554,7 @@ class DataParser:
             DataFrame with time series columns converted to datetime
         """
         df_copy = self.df.copy()
-        time_series_cols = self.get_columns_by_type(ColumnType.TIME_SERIES)
+        time_series_cols = self.get_columns_by_type(ColumnType.DATETIME)
 
         for col in time_series_cols:
             try:
@@ -606,7 +606,7 @@ class DataParser:
             }
 
             # Add type-specific stats
-            if col_types[col] == ColumnType.NUMERICAL:
+            if col_types[col] == ColumnType.NUMERIC:
                 col_stat.update(
                     {
                         "min": self.df[col].min(),
@@ -621,7 +621,7 @@ class DataParser:
                 )
             elif col_types[
                 col
-            ] == ColumnType.TIME_SERIES and pd.api.types.is_datetime64_any_dtype(
+            ] == ColumnType.DATETIME and pd.api.types.is_datetime64_any_dtype(
                 self.df[col]
             ):
                 col_stat.update(
@@ -675,7 +675,7 @@ class DataParser:
                             confidence=min(missing_percent / 100, 0.95),
                         ),
                     )
-                elif col_types[col] == ColumnType.NUMERICAL:
+                elif col_types[col] == ColumnType.NUMERIC:
                     recommendations.add_recommendation(
                         col,
                         ColumnRecommendation(
@@ -695,7 +695,7 @@ class DataParser:
                             confidence=0.8,
                         ),
                     )
-                elif col_types[col] == ColumnType.TIME_SERIES:
+                elif col_types[col] == ColumnType.DATETIME:
                     recommendations.add_recommendation(
                         col,
                         ColumnRecommendation(
@@ -707,7 +707,7 @@ class DataParser:
                     )
 
             # Type-specific recommendations
-            if col_types[col] == ColumnType.NUMERICAL:
+            if col_types[col] == ColumnType.NUMERIC:
                 # Check for outliers using IQR
                 if pd.api.types.is_numeric_dtype(self.df[col]):
                     q1 = self.df[col].quantile(0.25)
@@ -822,7 +822,7 @@ class DataParser:
                         ),
                     )
 
-            elif col_types[col] == ColumnType.TIME_SERIES:
+            elif col_types[col] == ColumnType.DATETIME:
                 # Check if conversion to datetime is needed
                 if not pd.api.types.is_datetime64_any_dtype(self.df[col]):
                     recommendations.add_recommendation(
