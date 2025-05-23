@@ -475,7 +475,6 @@ class MetaGenerator:
         if not self.metadata:
             self.extract_metadata()
 
-        # Create a simplified version of metadata for the LLM
         llm_metadata = {
             "basic_info": self.metadata["basic_info"],
             "column_types": self.metadata["column_types"],
@@ -490,7 +489,6 @@ class MetaGenerator:
             },
         }
 
-        # Add simplified column info
         llm_metadata["columns"] = {}
         for col, info in self.metadata["columns"].items():
             col_summary = {
@@ -692,6 +690,7 @@ class MetaGenerator:
 
     def get_json_metadata(self) -> str:
         """Returns the metadata as a JSON string."""
+
         if not self.metadata:
             self.extract_metadata()
 

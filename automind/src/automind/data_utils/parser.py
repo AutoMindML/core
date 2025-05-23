@@ -649,7 +649,7 @@ class DataParser:
 
         return pd.DataFrame(stats)
 
-    def recommend_column_operations(self) -> ColumnRecommendations:
+    def get_basic_recommendations(self) -> ColumnRecommendations:
         """
         Recommend data preprocessing operations for each column.
 
@@ -821,41 +821,5 @@ class DataParser:
                             confidence=0.9,
                         ),
                     )
-
-            elif col_types[col] == ColumnType.DATETIME:
-                # Check if conversion to datetime is needed
-                if not pd.api.types.is_datetime64_any_dtype(self.df[col]):
-                    recommendations.add_recommendation(
-                        col,
-                        ColumnRecommendation(
-                            operation=ColumnOperation.CONVERT_TO_DATETIME,
-                            reason="Column identified as time series but not in datetime format",
-                            priority=1,
-                            confidence=0.9,
-                        ),
-                    )
-
-                # Suggest feature extraction
-                recommendations.add_recommendation(
-                    col,
-                    ColumnRecommendation(
-                        operation=ColumnOperation.EXTRACT_DATE_PARTS,
-                        reason="Extract useful features from datetime",
-                        priority=2,
-                        confidence=0.8,
-                        params={"parts": ["year", "month", "day", "dayofweek"]},
-                    ),
-                )
-
-                recommendations.add_recommendation(
-                    col,
-                    ColumnRecommendation(
-                        operation=ColumnOperation.CREATE_CYCLICAL_FEATURES,
-                        reason="Create cyclical encoding for periodic features",
-                        priority=3,
-                        confidence=0.7,
-                        params={"for_features": ["month", "dayofweek", "hour"]},
-                    ),
-                )
 
         return recommendations

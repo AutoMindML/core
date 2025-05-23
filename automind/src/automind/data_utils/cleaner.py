@@ -50,7 +50,7 @@ class DataCleaner:
         ColumnRecommendations
             Object containing structured recommendations for each column
         """
-        return self.parser.recommend_column_operations()
+        return self.parser.get_basic_recommendations()
 
     def apply_recommendations(
         self,
@@ -909,7 +909,7 @@ class DataCleaner:
         if apply_recommendations:
             # Generate fresh recommendations on the partially cleaned data
             self.parser = DataParser(self.df)
-            recommendations = self.parser.recommend_column_operations()
+            recommendations = self.parser.get_basic_recommendations()
 
             # Apply recommendations (this updates operation_history)
             self.df = self.apply_recommendations(

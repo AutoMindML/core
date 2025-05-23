@@ -333,8 +333,9 @@ class LogicApplier:
                 # Extract threshold if mentioned
                 threshold_match = re.search(
                     r"(\d+(?:\.\d+)?)\s*(?:sigma|std|standard deviation)",
-                    col_des_terms,
+                    "".join(col_des_terms),
                 )
+
                 z_threshold = 3.0  # Default threshold
 
                 if threshold_match:
@@ -924,8 +925,10 @@ class LogicApplier:
                 if len(numeric_cols) >= 2:
                     # Extract number of components if mentioned
                     n_match = re.search(
-                        r"(\d+)\s*(?:components|dims|dimensions)", col_des_terms
+                        r"(\d+)\s*(?:components|dims|dimensions)",
+                        "".join(col_des_terms),
                     )
+
                     n_components = min(len(numeric_cols) - 1, 5)  # Default
 
                     if n_match:
@@ -1084,6 +1087,7 @@ class LogicApplier:
         self.generate_and_get_llm_analysis(model)
         self._clean_and_validate_data()
         self.apply_recommendations()
+
         return pd.DataFrame(self.df)
 
     def print_summary(self) -> None:
