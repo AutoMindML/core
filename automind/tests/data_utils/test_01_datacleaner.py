@@ -4,10 +4,10 @@ import pytest
 
 from automind.data_utils.cleaner import DataCleaner
 from automind.data_utils.parser import (
-    ColumnOperation,
     ColumnRecommendation,
     ColumnRecommendations,
 )
+from automind.data_utils.preprocessing_steps import DC
 
 
 class TestDataCleaner:
@@ -71,7 +71,7 @@ class TestDataCleaner:
         numeric_recs = recommendations.get_column_recommendations("numeric")
 
         assert any(
-            rec.operation == ColumnOperation.IMPUTE_MEDIAN for rec in numeric_recs
+            rec.operation == DC.MissingValues.IMPUTE_MEDIAN for rec in numeric_recs
         )
 
     def test_apply_recommendations(self, cleaner):
@@ -81,7 +81,7 @@ class TestDataCleaner:
         recommendations.add_recommendation(
             "numeric",
             ColumnRecommendation(
-                operation=ColumnOperation.IMPUTE_MEDIAN,
+                operation=DC.MissingValues.IMPUTE_MEDIAN,
                 reason="Testing imputation",
                 priority=1,
                 confidence=0.9,
@@ -104,7 +104,7 @@ class TestDataCleaner:
     def test_apply_operation(self, cleaner):
         """Test manually applying an operation."""
         # Apply median imputation to numeric column
-        result_df = cleaner.apply_operation("numeric", ColumnOperation.IMPUTE_MEDIAN)
+        result_df = cleaner.apply_operation("numeric", DC.MissingValues.IMPUTE_MEDIAN)
 
         # Check that NaN was imputed with median
         assert not result_df["numeric"].isna().any()
@@ -183,7 +183,6 @@ class TestDataCleaner:
     def test_clean_data_complete_pipeline(self, cleaner):
         """Test the complete data cleaning pipeline."""
         result_df = cleaner.clean_data(
-            handle_missing="auto",
             handle_outliers="winsorize",
             drop_threshold=0.7,  # Don't drop any columns since max missing is 1/6
             apply_recommendations=True,
@@ -204,7 +203,7 @@ class TestDataCleaner:
         recommendations.add_recommendation(
             "categorical",
             ColumnRecommendation(
-                operation=ColumnOperation.DROP_COLUMN,
+                operation=DC.DuplicatesAndColumn.DROP_COLUMN,
                 reason="Testing column drop",
                 priority=1,
                 confidence=0.9,
@@ -222,22 +221,11 @@ class TestDataCleaner:
             for op in cleaner.operation_history
         )
 
-    def test_log_transform(self, cleaner):
-        """Test log transformation."""
-        result_df = cleaner.apply_operation("numeric", ColumnOperation.LOG_TRANSFORM)
-
-        # Check that values were log-transformed (with default offset of 1)
-        # We'll check a single value
-        assert np.isclose(result_df["numeric"].iloc[0], np.log(1 + 1))
-
-        # NaN values should still be NaN
-        assert np.isnan(result_df["numeric"].iloc[2])
-
     def test_operation_error_handling(self, cleaner):
         """Test error handling when applying operations."""
         # Try to apply mean imputation to categorical column (should fail)
         with pytest.raises(TypeError):
-            cleaner.apply_operation("categorical", ColumnOperation.IMPUTE_MEAN)
+            cleaner.apply_operation("categorical", DC.MissingValues.IMPUTE_MEAN)
 
         # Check that error was recorded in history
         assert len(cleaner.operation_history) == 1
@@ -251,7 +239,7 @@ class TestDataCleaner:
         recommendations.add_recommendation(
             "numeric",
             ColumnRecommendation(
-                operation=ColumnOperation.IMPUTE_MEDIAN,
+                operation=DC.MissingValues.IMPUTE_MEDIAN,
                 reason="Testing numeric imputation",
                 priority=1,
                 confidence=0.9,
@@ -260,7 +248,7 @@ class TestDataCleaner:
         recommendations.add_recommendation(
             "categorical",
             ColumnRecommendation(
-                operation=ColumnOperation.IMPUTE_MODE,
+                operation=DC.MissingValues.IMPUTE_MODE,
                 reason="Testing categorical imputation",
                 priority=1,
                 confidence=0.9,

@@ -1,9 +1,8 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
-import numpy as np
 import pandas as pd
-from sklearn.impute import KNNImputer, SimpleImputer
-from sklearn.linear_model import LinearRegression
+
+from automind.data_utils.preprocessing_steps import DC, apply_method, identify_outliers
 
 from .parser import (
     ColumnOperation,
@@ -50,14 +49,13 @@ class DataCleaner:
         ColumnRecommendations
             Object containing structured recommendations for each column
         """
-        return self.parser.get_basic_recommendations()
+        return self.parser.get_recommendations()
 
     def apply_recommendations(
         self,
         recommendations: Optional[ColumnRecommendations] = None,
         priority_threshold: int = 3,
         confidence_threshold: float = 0.6,
-        operation_types: Optional[List[ColumnOperation]] = None,
         columns: Optional[List[str]] = None,
     ) -> pd.DataFrame:
         """
@@ -84,31 +82,6 @@ class DataCleaner:
         if recommendations is None:
             recommendations = self.get_recommendations()
 
-        # Filter for data cleaning operations if no specific operations provided
-        cleaning_operations = [
-            ColumnOperation.DROP_COLUMN,
-            ColumnOperation.IMPUTE_MEAN,
-            ColumnOperation.IMPUTE_MEDIAN,
-            ColumnOperation.IMPUTE_MODE,
-            ColumnOperation.IMPUTE_CONSTANT,
-            ColumnOperation.IMPUTE_KNN,
-            ColumnOperation.IMPUTE_REGRESSION,
-            ColumnOperation.IMPUTE_FORWARD_FILL,
-            ColumnOperation.IMPUTE_BACKWARD_FILL,
-            ColumnOperation.REMOVE_OUTLIERS,
-            ColumnOperation.WINSORIZE_OUTLIERS,
-            ColumnOperation.CAP_OUTLIERS,
-            ColumnOperation.LOG_TRANSFORM,
-        ]
-
-        if operation_types is None:
-            operation_types = cleaning_operations
-        else:
-            # Filter to only include cleaning operations
-            operation_types = [
-                op for op in operation_types if op in cleaning_operations
-            ]
-
         # Create a clean DataFrame
         result_df = self.df.copy()
 
@@ -125,8 +98,7 @@ class DataCleaner:
             applicable_recs = [
                 rec
                 for rec in recs
-                if rec.operation in operation_types
-                and rec.priority <= priority_threshold
+                if rec.priority <= priority_threshold
                 and rec.confidence >= confidence_threshold
             ]
 
@@ -135,7 +107,7 @@ class DataCleaner:
 
             # Apply operations
             for rec in applicable_recs:
-                if rec.operation == ColumnOperation.DROP_COLUMN:
+                if rec.operation == DC.DuplicatesAndColumn.DROP_COLUMN:
                     columns_to_drop.append(column)
                     # Skip further operations on this column
                     break
@@ -146,7 +118,7 @@ class DataCleaner:
                         self.operation_history.append(
                             {
                                 "column": column,
-                                "operation": rec.operation.value,
+                                "operation": rec.operation.name,
                                 "params": rec.params,
                                 "success": True,
                             }
@@ -155,7 +127,7 @@ class DataCleaner:
                         self.operation_history.append(
                             {
                                 "column": column,
-                                "operation": rec.operation.value,
+                                "operation": rec.operation.name,
                                 "params": rec.params,
                                 "success": False,
                                 "error": str(e),
@@ -169,7 +141,7 @@ class DataCleaner:
                 self.operation_history.append(
                     {
                         "column": col,
-                        "operation": ColumnOperation.DROP_COLUMN.value,
+                        "operation": DC.DuplicatesAndColumn.DROP_COLUMN.name,
                         "success": True,
                     }
                 )
@@ -196,57 +168,14 @@ class DataCleaner:
         pd.DataFrame
             DataFrame with operation applied
         """
-        result = df.copy()
         operation = recommendation.operation
         params = recommendation.params or {}
 
-        # Handle missing values
-        if operation == ColumnOperation.IMPUTE_MEAN:
-            result[column] = self._impute_mean(pd.Series(df[column]))
-        elif operation == ColumnOperation.IMPUTE_MEDIAN:
-            result[column] = self._impute_median(pd.Series(df[column]))
-        elif operation == ColumnOperation.IMPUTE_MODE:
-            result[column] = self._impute_mode(pd.Series(df[column]))
-        elif operation == ColumnOperation.IMPUTE_CONSTANT:
+        if operation == DC.MissingValues.IMPUTE_CONSTANT:
             fill_value = params.get("fill_value", 0)
-            result[column] = self._impute_constant(pd.Series(df[column]), fill_value)
-        elif operation == ColumnOperation.IMPUTE_KNN:
-            n_neighbors = params.get("n_neighbors", 5)
-            result[column] = self._impute_knn(df, column, n_neighbors)
-        elif operation == ColumnOperation.IMPUTE_REGRESSION:
-            predictor_columns = params.get("predictor_columns")
-            result[column] = self._impute_regression(df, column, predictor_columns)
-        elif operation == ColumnOperation.IMPUTE_FORWARD_FILL:
-            result[column] = self._impute_forward_fill(pd.Series(df[column]))
-        elif operation == ColumnOperation.IMPUTE_BACKWARD_FILL:
-            result[column] = self._impute_backward_fill(pd.Series(df[column]))
+            return apply_method(operation, df, column, fill_value=fill_value)
 
-        # Handle outliers
-        elif operation == ColumnOperation.REMOVE_OUTLIERS:
-            method = params.get("method", "iqr")
-            factor = params.get("factor", 1.5)
-            result = self._remove_outliers(df, column, method, factor)
-        elif operation == ColumnOperation.WINSORIZE_OUTLIERS:
-            method = params.get("method", "iqr")
-            factor = params.get("factor", 1.5)
-            result[column] = self._winsorize_outliers(
-                pd.Series(df[column]), method, factor
-            )
-        elif operation == ColumnOperation.CAP_OUTLIERS:
-            method = params.get("method", "percentile")
-            lower_bound = params.get("lower_bound", 0.01)
-            upper_bound = params.get("upper_bound", 0.99)
-            result[column] = self._cap_outliers(
-                pd.Series(df[column]), method, lower_bound, upper_bound
-            )
-
-        # Handle transformations
-        elif operation == ColumnOperation.LOG_TRANSFORM:
-            base = params.get("base", "natural")
-            offset = params.get("offset", 1)
-            result[column] = self._log_transform(pd.Series(df[column]), base, offset)
-
-        return result
+        return apply_method(operation, df, column)
 
     def apply_operation(
         self, column: str, operation: ColumnOperation, params: Optional[Dict] = None
@@ -282,7 +211,7 @@ class DataCleaner:
             self.operation_history.append(
                 {
                     "column": column,
-                    "operation": operation.value,
+                    "operation": operation.name,
                     "params": params,
                     "success": True,
                 }
@@ -292,7 +221,7 @@ class DataCleaner:
             self.operation_history.append(
                 {
                     "column": column,
-                    "operation": operation.value,
+                    "operation": operation.name,
                     "params": params,
                     "success": False,
                     "error": str(e),
@@ -310,341 +239,6 @@ class DataCleaner:
             List of operations applied
         """
         return self.operation_history
-
-    # Imputation methods
-
-    def _impute_mean(self, series: pd.Series) -> pd.Series:
-        """Impute missing values with mean."""
-        if not pd.api.types.is_numeric_dtype(series):
-            raise TypeError("Column must be numeric for mean imputation")
-
-        imputer = SimpleImputer(strategy="mean")
-        return pd.Series(
-            imputer.fit_transform(np.array(series.to_numpy()).reshape(-1, 1)).ravel(),
-            index=series.index,
-        )
-
-    def _impute_median(self, series: pd.Series) -> pd.Series:
-        """Impute missing values with median."""
-        if not pd.api.types.is_numeric_dtype(series):
-            raise TypeError("Column must be numeric for median imputation")
-
-        imputer = SimpleImputer(strategy="median")
-        return pd.Series(
-            imputer.fit_transform(np.array(series.to_numpy()).reshape(-1, 1)).ravel(),
-            index=series.index,
-        )
-
-    def _impute_mode(self, series: pd.Series) -> pd.Series:
-        """Impute missing values with mode."""
-        imputer = SimpleImputer(strategy="most_frequent", missing_values=pd.NA)  # pyright: ignore[reportArgumentType]
-        return pd.Series(
-            imputer.fit_transform(np.array(series.to_numpy()).reshape(-1, 1)).ravel(),
-            index=series.index,
-        )
-
-    def _impute_constant(self, series: pd.Series, value: Any) -> pd.Series:
-        """Impute missing values with a constant value."""
-        return series.fillna(value)
-
-    def _impute_knn(
-        self, df: pd.DataFrame, column: str, n_neighbors: int = 5
-    ) -> pd.Series:
-        """Impute missing values using KNN from other numerical columns."""
-        # Find numerical columns that can be used as features
-        numerical_cols = [
-            col
-            for col in df.columns
-            if pd.api.types.is_numeric_dtype(df[col]) and col != column
-        ]
-
-        if not numerical_cols:
-            raise ValueError("No numerical columns available for KNN imputation")
-
-        # Create feature matrix
-        X = df[numerical_cols].copy()
-
-        # Handle missing values in features with median imputation
-        for col in X.columns:
-            if pd.Series(X[col]).isna().any():
-                X[col] = pd.Series(X[col]).fillna(pd.Series(X[col]).median())
-
-        # Set up the imputer
-        imputer = KNNImputer(n_neighbors=n_neighbors)
-
-        # Create the dataset to impute
-        target_with_features = pd.concat([df[column], X], axis=1)
-
-        # Apply imputation
-        imputed_data = imputer.fit_transform(target_with_features)
-
-        # Return only the imputed target column
-        return pd.Series(imputed_data[:, 0], index=df.index)
-
-    def _impute_regression(
-        self,
-        df: pd.DataFrame,
-        target_column: str,
-        predictor_columns: Optional[List[str]] = None,
-    ) -> pd.Series:
-        """Impute missing values using linear regression."""
-        # If predictor columns not specified, use all numerical columns
-        if predictor_columns is None:
-            predictor_columns = [
-                col
-                for col in df.columns
-                if pd.api.types.is_numeric_dtype(df[col]) and col != target_column
-            ]
-
-        if not predictor_columns:
-            raise ValueError("No predictor columns available for regression imputation")
-
-        # Create feature matrix and target vector
-        X = df[predictor_columns].copy()
-        y: pd.Series = pd.Series(df[target_column].copy())
-
-        # Handle missing values in features with median imputation
-        for col in X.columns:
-            if pd.Series(X[col]).isna().any():
-                X[col] = pd.Series(X[col]).fillna(pd.Series(X[col]).median())
-
-        # Split data into rows with target value and rows missing target value
-        mask_train = ~y.isna()
-        X_train = X[mask_train]
-        y_train = y[mask_train]
-
-        # If all values are missing, can't train a model
-        if len(y_train) == 0:
-            raise ValueError("All values in target column are missing")
-
-        # Train regression model
-        model = LinearRegression()
-        model.fit(X_train, y_train)
-
-        # Apply model to predict missing values
-        result = y.copy()
-        mask_predict = y.isna()
-
-        if mask_predict.any():
-            X_predict = X[mask_predict]
-            y_predict = model.predict(X_predict)
-            result[mask_predict] = y_predict
-
-        return result
-
-    def _impute_forward_fill(self, series: pd.Series) -> pd.Series:
-        """Impute missing values using forward fill."""
-        return series.ffill()
-
-    def _impute_backward_fill(self, series: pd.Series) -> pd.Series:
-        """Impute missing values using backward fill."""
-        return series.bfill()
-
-    # Outlier methods
-
-    def _identify_outliers(
-        self, series: pd.Series, method: str = "iqr", factor: float = 1.5
-    ) -> pd.Series:
-        """
-        Identify outliers in a series.
-
-        Parameters:
-        -----------
-        series : pd.Series
-            Series to check for outliers
-        method : str, default='iqr'
-            Method to identify outliers: 'iqr', 'zscore', or 'percentile'
-        factor : float, default=1.5
-            Factor for IQR or number of standard deviations for zscore
-
-        Returns:
-        --------
-        pd.Series
-            Boolean mask where True indicates an outlier
-        """
-        if not pd.api.types.is_numeric_dtype(series):
-            raise TypeError("Outlier detection requires numeric data")
-
-        if method == "iqr":
-            q1 = series.quantile(0.25)
-            q3 = series.quantile(0.75)
-            iqr = q3 - q1
-            lower_bound = q1 - factor * iqr
-            upper_bound = q3 + factor * iqr
-            return (series < lower_bound) | (series > upper_bound)
-
-        elif method == "zscore":
-            mean = series.mean()
-            std = series.std()
-            z_scores = (series - mean) / std
-            return z_scores.abs() > factor
-
-        elif method == "percentile":
-            lower_bound = series.quantile(0.01)
-            upper_bound = series.quantile(0.99)
-            return (series < lower_bound) | (series > upper_bound)
-
-        else:
-            raise ValueError(f"Unknown outlier detection method: {method}")
-
-    def _remove_outliers(
-        self, df: pd.DataFrame, column: str, method: str = "iqr", factor: float = 1.5
-    ) -> pd.DataFrame:
-        """
-        Remove rows containing outliers in the specified column.
-
-        Parameters:
-        -----------
-        df : pd.DataFrame
-            DataFrame to process
-        column : str
-            Column to check for outliers
-        method : str, default='iqr'
-            Method to identify outliers: 'iqr', 'zscore', or 'percentile'
-        factor : float, default=1.5
-            Factor for IQR or number of standard deviations for zscore
-
-        Returns:
-        --------
-        pd.DataFrame
-            DataFrame with outlier rows removed
-        """
-        outlier_mask = self._identify_outliers(pd.Series(df[column]), method, factor)
-        return pd.DataFrame(df[~outlier_mask])
-
-    def _winsorize_outliers(
-        self, series: pd.Series, method: str = "iqr", factor: float = 1.5
-    ) -> pd.Series:
-        """
-        Winsorize outliers (cap at boundaries).
-
-        Parameters:
-        -----------
-        series : pd.Series
-            Series to winsorize
-        method : str, default='iqr'
-            Method to identify outliers: 'iqr', 'zscore', or 'percentile'
-        factor : float, default=1.5
-            Factor for IQR or number of standard deviations for zscore
-
-        Returns:
-        --------
-        pd.Series
-            Winsorized series
-        """
-        if not pd.api.types.is_numeric_dtype(series):
-            raise TypeError("Winsorization requires numeric data")
-
-        result = series.copy()
-
-        if method == "iqr":
-            # q1 = series.quantile(0.25)
-            # q3 = series.quantile(0.75)
-
-            q1 = np.quantile(series.dropna(), 0.25, method="linear")
-            q3 = np.quantile(series.dropna(), 0.75, method="linear")
-
-            iqr = q3 - q1
-
-            lower_bound = q1 - factor * iqr
-            upper_bound = q3 + factor * iqr
-
-        elif method == "zscore":
-            mean = series.mean()
-            std = series.std()
-            lower_bound = mean - factor * std
-            upper_bound = mean + factor * std
-
-        elif method == "percentile":
-            lower_bound = series.quantile(0.01)
-            upper_bound = series.quantile(0.99)
-
-        else:
-            raise ValueError(f"Unknown outlier detection method: {method}")
-
-        # Cap values
-        result = result.clip(lower=lower_bound, upper=upper_bound)
-
-        return result
-
-    def _cap_outliers(
-        self,
-        series: pd.Series,
-        method: str = "percentile",
-        lower_bound: float = 0.01,
-        upper_bound: float = 0.99,
-    ) -> pd.Series:
-        """
-        Cap outliers at specified percentiles.
-
-        Parameters:
-        -----------
-        series : pd.Series
-            Series to cap
-        method : str, default='percentile'
-            Method to identify boundaries: 'percentile' or 'value'
-        lower_bound : float, default=0.01
-            Lower percentile or value
-        upper_bound : float, default=0.99
-            Upper percentile or value
-
-        Returns:
-        --------
-        pd.Series
-            Capped series
-        """
-        if not pd.api.types.is_numeric_dtype(series):
-            raise TypeError("Capping requires numeric data")
-
-        result = series.copy()
-
-        if method == "percentile":
-            low_val = series.quantile(lower_bound)
-            high_val = series.quantile(upper_bound)
-        elif method == "value":
-            low_val = lower_bound
-            high_val = upper_bound
-        else:
-            raise ValueError(f"Unknown capping method: {method}")
-
-        # Apply caps
-        result = result.clip(lower=low_val, upper=high_val)
-        return result
-
-    # Transformation methods
-
-    def _log_transform(
-        self, series: pd.Series, base: Union[str, float] = "natural", offset: float = 1
-    ) -> pd.Series:
-        """
-        Apply logarithmic transformation to a series.
-
-        Parameters:
-        -----------
-        series : pd.Series
-            Series to transform
-        base : Union[str, float], default='natural'
-            'natural' for natural log, 'log10' for base 10, or a number for custom base
-        offset : float, default=1
-            Value to add before taking log (to handle zeros/negative values)
-
-        Returns:
-        --------
-        pd.Series
-            Log-transformed series
-        """
-        if not pd.api.types.is_numeric_dtype(series):
-            raise TypeError("Log transform requires numeric data")
-
-        # Add offset to handle zeros/negative values
-        data = series + offset
-
-        if base == "natural":
-            return np.log(data)
-        elif base == "log10":
-            return np.log10(data)
-        else:
-            return np.log(data) / np.log(base)
 
     # Utility methods
 
@@ -687,7 +281,7 @@ class DataCleaner:
 
             if method == "remove":
                 # Create a mask of non-outlier rows for this column
-                outlier_mask = self._identify_outliers(
+                outlier_mask = identify_outliers(
                     pd.Series(result_df[column]),
                     method=outlier_detection,
                     factor=factor,
@@ -698,15 +292,17 @@ class DataCleaner:
                 self.operation_history.append(
                     {
                         "column": column,
-                        "operation": ColumnOperation.REMOVE_OUTLIERS.value,
+                        "operation": DC.Outliers.REMOVE_OUTLIERS.name,
                         "reason": "Numerical column outlier strategy",
                         "success": True,
                     }
                 )
 
             elif method == "winsorize":
-                result_df[column] = self._winsorize_outliers(
-                    pd.Series(result_df[column]),
+                result_df = apply_method(
+                    DC.Outliers.WINSORIZE_OUTLIERS,
+                    pd.DataFrame(result_df),
+                    column,
                     method=outlier_detection,
                     factor=factor,
                 )
@@ -714,30 +310,7 @@ class DataCleaner:
                 self.operation_history.append(
                     {
                         "column": column,
-                        "operation": ColumnOperation.WINSORIZE_OUTLIERS.value,
-                        "reason": "Numerical column outlier strategy",
-                        "success": True,
-                    }
-                )
-
-            elif method == "cap":
-                if outlier_detection == "percentile":
-                    lower = 0.01
-                    upper = 0.99
-                else:
-                    lower = upper = factor  # Use the factor for both bounds
-
-                result_df[column] = self._cap_outliers(
-                    pd.Series(result_df[column]),
-                    method="percentile",
-                    lower_bound=lower,
-                    upper_bound=upper,
-                )
-
-                self.operation_history.append(
-                    {
-                        "column": column,
-                        "operation": ColumnOperation.CAP_OUTLIERS.value,
+                        "operation": DC.Outliers.WINSORIZE_OUTLIERS.name,
                         "reason": "Numerical column outlier strategy",
                         "success": True,
                     }
@@ -793,21 +366,21 @@ class DataCleaner:
                 col_type = self.column_types[col]
 
                 if col_type == ColumnType.NUMERIC:
-                    df[col] = self._impute_median(pd.Series(df[col]))
+                    df = apply_method(DC.MissingValues.IMPUTE_MEDIAN, df, col)
 
                 elif col_type == ColumnType.CATEGORICAL:
-                    df[col] = self._impute_mode(pd.Series(df[col]))
+                    df = apply_method(DC.MissingValues.IMPUTE_MODE, df, col)
 
                 elif col_type == ColumnType.DATETIME:
-                    df[col] = self._impute_forward_fill(pd.Series(df[col]))
+                    df = apply_method(DC.MissingValues.IMPUTE_FORWARD_FILL, df, col)
                     # Backward fill any remaining NAs at the beginning
-                    df[col] = self._impute_backward_fill(pd.Series(df[col]))
+                    df = apply_method(DC.MissingValues.IMPUTE_BACKWARD_FILL, df, col)
 
                 self.operation_history.append(
                     {
                         "column": col,
-                        "operation": col_type.value,
-                        "reason": f"Missing value strategy based on {col_type.value}",
+                        "operation": col_type.name,
+                        "reason": f"Missing value strategy based on {col_type.name}",
                         "success": True,
                     }
                 )
@@ -817,26 +390,26 @@ class DataCleaner:
             for col in cols_with_na:
                 if strategy == "mean":
                     if pd.api.types.is_numeric_dtype(df[col]):
-                        df[col] = self._impute_mean(pd.Series(df[col]))
+                        df = apply_method(DC.MissingValues.IMPUTE_MEAN, df, col)
                     else:
                         # Skip non-numeric columns for mean imputation
                         continue
 
                 elif strategy == "median":
                     if pd.api.types.is_numeric_dtype(df[col]):
-                        df[col] = self._impute_median(pd.Series(df[col]))
+                        df = apply_method(DC.MissingValues.IMPUTE_MEDIAN, df, col)
                     else:
                         # Skip non-numeric columns for median imputation
                         continue
 
                 elif strategy == "mode":
-                    df[col] = self._impute_mode(pd.Series(df[col]))
+                    df = apply_method(DC.MissingValues.IMPUTE_MODE, df, col)
 
                 elif strategy == "ffill":
-                    df[col] = self._impute_forward_fill(pd.Series(df[col]))
+                    df = apply_method(DC.MissingValues.IMPUTE_FORWARD_FILL, df, col)
 
                 elif strategy == "bfill":
-                    df[col] = self._impute_backward_fill(pd.Series(df[col]))
+                    df = apply_method(DC.MissingValues.IMPUTE_BACKWARD_FILL, df, col)
 
                 else:
                     raise ValueError(f"Unknown imputation strategy: {strategy}")
@@ -888,7 +461,7 @@ class DataCleaner:
                 self.operation_history.append(
                     {
                         "column": col,
-                        "operation": ColumnOperation.DROP_COLUMN.value,
+                        "operation": DC.DuplicatesAndColumn.DROP_COLUMN,
                         "reason": f"More than {drop_threshold * 100}% missing values",
                         "success": True,
                     }
@@ -909,7 +482,7 @@ class DataCleaner:
         if apply_recommendations:
             # Generate fresh recommendations on the partially cleaned data
             self.parser = DataParser(self.df)
-            recommendations = self.parser.get_basic_recommendations()
+            recommendations = self.parser.get_recommendations()
 
             # Apply recommendations (this updates operation_history)
             self.df = self.apply_recommendations(

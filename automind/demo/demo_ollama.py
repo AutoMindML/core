@@ -1,13 +1,14 @@
 import json
 
 from automind.console import console
-from automind.data import load_data
+from automind.data.csv.file import AvailableDatasetsCSV
+from automind.data.main import load_data
 from automind.data_utils.metagenerator import MetaGenerator
 from automind.process.ollama import run_ollama
 
 
 def main():
-    df = load_data("diabetes")
+    df = load_data(AvailableDatasetsCSV.diabetes.name)
     meta_generator = MetaGenerator(df, target_column="Outcome")
 
     meta_generator.extract_metadata()

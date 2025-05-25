@@ -1,86 +1,29 @@
-import enum
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional
+from enum import Enum, auto
+from typing import Dict, List, Optional, Union
 
 import pandas as pd
 
+from automind.data_utils.preprocessing_steps import DC
 
-class ColumnType(enum.Enum):
+
+class ColumnType(Enum):
     """
     Enumeration of possible data column types.
     """
 
-    DATETIME = "datetime"
-    NUMERIC = "numeric"
-    CATEGORICAL = "categorical"
-    TEXT = "text"
+    DATETIME = auto()
+    NUMERIC = auto()
+    CATEGORICAL = auto()
+    TEXT = auto()
 
 
-class ColumnOperation(enum.Enum):
-    """
-    Enumeration of possible operations to perform on DataFrame columns.
-    """
-
-    # Data cleaning step
-
-    # General operations
-    DROP_COLUMN = "DROP_COLUMN"
-    # RENAME_COLUMN = "RENAME_COLUMN"
-
-    # Missing value operations
-    IMPUTE_MEAN = "IMPUTE_MEAN"
-    IMPUTE_MEDIAN = "IMPUTE_MEDIAN"
-    IMPUTE_MODE = "IMPUTE_MODE"
-    IMPUTE_CONSTANT = "IMPUTE_CONSTANT"
-    IMPUTE_KNN = "IMPUTE_KNN"
-    IMPUTE_REGRESSION = "IMPUTE_REGRESSION"
-    IMPUTE_FORWARD_FILL = "IMPUTE_FORWARD_FILL"
-    IMPUTE_BACKWARD_FILL = "IMPUTE_BACKWARD_FILL"
-
-    # Outlier operations
-    REMOVE_OUTLIERS = "REMOVE_OUTLIERS"
-    WINSORIZE_OUTLIERS = "WINSORIZE_OUTLIERS"
-    CAP_OUTLIERS = "CAP_OUTLIERS"
-    LOG_TRANSFORM = "LOG_TRANSFORM"
-
-    # Feature engineering step, including encoding
-
-    # Normalization and scaling
-    STANDARDIZE = "STANDARDIZE"  # Z-score normalization
-    MIN_MAX_SCALE = "MIN_MAX_SCALE"
-    ROBUST_SCALE = "ROBUST_SCALE"  # Using median and IQR
-
-    # Categorical operations
-    ONE_HOT_ENCODE = "ONE_HOT_ENCODE"
-    LABEL_ENCODE = "LABEL_ENCODE"
-    TARGET_ENCODE = "TARGET_ENCODE"
-    FREQUENCY_ENCODE = "FREQUENCY_ENCODE"
-    HASH_ENCODE = "HASH_ENCODE"
-    GROUP_RARE_CATEGORIES = "GROUP_RARE_CATEGORIES"
-
-    # Time series operations
-    CONVERT_TO_DATETIME = "CONVERT_TO_DATETIME"
-    EXTRACT_YEAR = "EXTRACT_YEAR"
-    EXTRACT_MONTH = "EXTRACT_MONTH"
-    EXTRACT_DAY = "EXTRACT_DAY"
-    EXTRACT_WEEKDAY = "EXTRACT_WEEKDAY"
-    EXTRACT_HOUR = "EXTRACT_HOUR"
-    EXTRACT_DATE_PARTS = "EXTRACT_DATE_PARTS"  # All relevant date parts
-    CREATE_CYCLICAL_FEATURES = "CREATE_CYCLICAL_FEATURES"
-    CREATE_LAG_FEATURES = "CREATE_LAG_FEATURES"
-    CREATE_ROLLING_FEATURES = "CREATE_ROLLING_FEATURES"
-
-    # Feature engineering
-    CREATE_POLYNOMIAL_FEATURES = "CREATE_POLYNOMIAL_FEATURES"
-    CREATE_INTERACTION_FEATURES = "CREATE_INTERACTION_FEATURES"
-    BIN_VALUES = "BIN_VALUES"
-
-    # Dimensionality reduction
-    APPLY_PCA = "APPLY_PCA"
-    APPLY_TSNE = "APPLY_TSNE"
-    APPLY_UMAP = "APPLY_UMAP"
+ColumnOperation = Union[
+    DC.MissingValues,
+    DC.DuplicatesAndColumn,
+]
 
 
 @dataclass
@@ -98,7 +41,7 @@ class ColumnRecommendation:
     def to_dict(self) -> Dict:
         """Convert the recommendation to a dictionary."""
         return {
-            "operation": self.operation.value,
+            "operation": self.operation.name,  # Use .name instead of .value for enum
             "reason": self.reason,
             "priority": self.priority,
             "confidence": self.confidence,
@@ -235,7 +178,7 @@ class ColumnRecommendations:
             result.append(f"Column: {column}")
             for rec in sorted(recs, key=lambda x: x.priority):
                 result.append(
-                    f"  - {rec.operation.value} (Priority: {rec.priority}, Confidence: {rec.confidence:.2f})"
+                    f"  - {rec.operation.name} (Priority: {rec.priority}, Confidence: {rec.confidence:.2f})"
                 )
                 result.append(f"    Reason: {rec.reason}")
                 if rec.params:
@@ -649,9 +592,9 @@ class DataParser:
 
         return pd.DataFrame(stats)
 
-    def get_basic_recommendations(self) -> ColumnRecommendations:
+    def get_recommendations(self) -> ColumnRecommendations:
         """
-        Recommend data preprocessing operations for each column.
+        Recommend missing value operations for each column.
 
         Returns:
         --------
@@ -669,7 +612,7 @@ class DataParser:
                     recommendations.add_recommendation(
                         col,
                         ColumnRecommendation(
-                            operation=ColumnOperation.DROP_COLUMN,
+                            operation=DC.DuplicatesAndColumn.DROP_COLUMN,
                             reason=f"High percentage of missing values ({missing_percent:.1f}%)",
                             priority=1,
                             confidence=min(missing_percent / 100, 0.95),
@@ -679,8 +622,8 @@ class DataParser:
                     recommendations.add_recommendation(
                         col,
                         ColumnRecommendation(
-                            operation=ColumnOperation.IMPUTE_MEDIAN,
-                            reason=f"Handle {missing_percent:.1f}% missing values in numerical column",
+                            operation=DC.MissingValues.IMPUTE_MEDIAN,
+                            reason=f"Handle {missing_percent:.1f}% missing values in numeric column",
                             priority=2,
                             confidence=0.8,
                         ),
@@ -689,7 +632,7 @@ class DataParser:
                     recommendations.add_recommendation(
                         col,
                         ColumnRecommendation(
-                            operation=ColumnOperation.IMPUTE_MODE,
+                            operation=DC.MissingValues.IMPUTE_MODE,
                             reason=f"Handle {missing_percent:.1f}% missing values in categorical column",
                             priority=2,
                             confidence=0.8,
@@ -699,127 +642,10 @@ class DataParser:
                     recommendations.add_recommendation(
                         col,
                         ColumnRecommendation(
-                            operation=ColumnOperation.IMPUTE_FORWARD_FILL,
-                            reason=f"Handle {missing_percent:.1f}% missing values in time series column",
+                            operation=DC.MissingValues.IMPUTE_FORWARD_FILL,
+                            reason=f"Handle {missing_percent:.1f}% missing values in datetime column",
                             priority=2,
                             confidence=0.7,
                         ),
                     )
-
-            # Type-specific recommendations
-            if col_types[col] == ColumnType.NUMERIC:
-                # Check for outliers using IQR
-                if pd.api.types.is_numeric_dtype(self.df[col]):
-                    q1 = self.df[col].quantile(0.25)
-                    q3 = self.df[col].quantile(0.75)
-                    iqr = q3 - q1
-                    outliers = (
-                        (self.df[col] < (q1 - 1.5 * iqr))
-                        | (self.df[col] > (q3 + 1.5 * iqr))
-                    ).sum()
-
-                    if outliers > 0:
-                        outlier_percent = (outliers / len(self.df)) * 100
-                        if outlier_percent > 5:
-                            recommendations.add_recommendation(
-                                col,
-                                ColumnRecommendation(
-                                    operation=ColumnOperation.WINSORIZE_OUTLIERS,
-                                    reason=f"Detected {outlier_percent:.1f}% potential outliers",
-                                    priority=3,
-                                    confidence=min(outlier_percent / 20, 0.9),
-                                    params={"strategy": "iqr", "factor": 1.5},
-                                ),
-                            )
-
-                    # Check if normalization might be needed
-                    if self.df[col].std() > 10 * self.df[col].mean():
-                        recommendations.add_recommendation(
-                            col,
-                            ColumnRecommendation(
-                                operation=ColumnOperation.STANDARDIZE,
-                                reason="Large variance relative to mean suggests standardization",
-                                priority=3,
-                                confidence=0.7,
-                            ),
-                        )
-
-                    # Check distribution skew for log transform
-                    if self.df[col].min() > 0:  # Can only log transform positive values
-                        skew = self.df[col].skew()
-                        if skew > 1.5:
-                            recommendations.add_recommendation(
-                                col,
-                                ColumnRecommendation(
-                                    operation=ColumnOperation.LOG_TRANSFORM,
-                                    reason=f"Highly skewed distribution (skew={skew:.2f})",
-                                    priority=4,
-                                    confidence=min(abs(skew) / 5, 0.9),
-                                ),
-                            )
-
-            elif col_types[col] == ColumnType.CATEGORICAL:
-                # Check cardinality
-                cardinality = self.df[col].nunique()
-                if cardinality > 100:
-                    recommendations.add_recommendation(
-                        col,
-                        ColumnRecommendation(
-                            operation=ColumnOperation.GROUP_RARE_CATEGORIES,
-                            reason=f"Very high cardinality ({cardinality} unique values)",
-                            priority=2,
-                            confidence=0.8,
-                            params={"threshold": 0.01},
-                        ),
-                    )
-                    recommendations.add_recommendation(
-                        col,
-                        ColumnRecommendation(
-                            operation=ColumnOperation.HASH_ENCODE,
-                            reason=f"High cardinality ({cardinality} unique values)",
-                            priority=2,
-                            confidence=0.7,
-                        ),
-                    )
-                elif cardinality > 20:
-                    recommendations.add_recommendation(
-                        col,
-                        ColumnRecommendation(
-                            operation=ColumnOperation.FREQUENCY_ENCODE,
-                            reason=f"Medium-high cardinality ({cardinality} unique values)",
-                            priority=3,
-                            confidence=0.6,
-                        ),
-                    )
-                    recommendations.add_recommendation(
-                        col,
-                        ColumnRecommendation(
-                            operation=ColumnOperation.TARGET_ENCODE,
-                            reason=f"Medium-high cardinality ({cardinality} unique values)",
-                            priority=3,
-                            confidence=0.6,
-                            params={"needs_target": True},
-                        ),
-                    )
-                elif cardinality > 2:
-                    recommendations.add_recommendation(
-                        col,
-                        ColumnRecommendation(
-                            operation=ColumnOperation.ONE_HOT_ENCODE,
-                            reason=f"Low cardinality ({cardinality} unique values)",
-                            priority=2,
-                            confidence=0.8,
-                        ),
-                    )
-                else:
-                    recommendations.add_recommendation(
-                        col,
-                        ColumnRecommendation(
-                            operation=ColumnOperation.LABEL_ENCODE,
-                            reason=f"Binary column ({cardinality} unique values)",
-                            priority=2,
-                            confidence=0.9,
-                        ),
-                    )
-
         return recommendations

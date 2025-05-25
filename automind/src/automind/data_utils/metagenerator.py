@@ -610,7 +610,7 @@ class MetaGenerator:
                         "description": "Suggested transformations"
                     }}
                 ],
-                "feature_selection": [
+                "selection": [
                     {{
                         "name": "col-name",
                         "description": "Feature selection recommendations"
