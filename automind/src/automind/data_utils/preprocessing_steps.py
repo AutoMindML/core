@@ -1,9 +1,18 @@
+from datetime import datetime
 from enum import Enum, auto
 from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
+from sklearn.decomposition import PCA
 from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import (
+    LabelEncoder,
+    MinMaxScaler,
+    Normalizer,
+    RobustScaler,
+    StandardScaler,
+)
 
 
 class DC:
@@ -92,6 +101,7 @@ def register_method(processing_method: ALL_PROCESSING_METHOD):
 @register_method(DC.MissingValues.IMPUTE_MEAN)
 def impute_mean(df: pd.DataFrame, column: str) -> pd.DataFrame:
     """Impute missing values with mean."""
+    df = df.copy()
     series = df[column].copy()
 
     if not pd.api.types.is_numeric_dtype(series):
@@ -112,6 +122,7 @@ def impute_mean(df: pd.DataFrame, column: str) -> pd.DataFrame:
 @register_method(DC.MissingValues.IMPUTE_MEDIAN)
 def impute_median(df: pd.DataFrame, column: str) -> pd.DataFrame:
     """Impute missing values with median."""
+    df = df.copy()
     series = df[column].copy()
 
     if not pd.api.types.is_numeric_dtype(series):
@@ -132,6 +143,7 @@ def impute_median(df: pd.DataFrame, column: str) -> pd.DataFrame:
 @register_method(DC.MissingValues.IMPUTE_MODE)
 def impute_mode(df: pd.DataFrame, column: str) -> pd.DataFrame:
     """Impute missing values with mode."""
+    df = df.copy()
     series = df[column].copy()
 
     imputer = SimpleImputer(strategy="most_frequent", missing_values=pd.NA)  # pyright: ignore[reportArgumentType]
@@ -149,6 +161,7 @@ def impute_mode(df: pd.DataFrame, column: str) -> pd.DataFrame:
 @register_method(DC.MissingValues.IMPUTE_CONSTANT)
 def impute_constant(df: pd.DataFrame, column: str, value: int = 0) -> pd.DataFrame:
     """Impute missing values with a constant value."""
+    df = df.copy()
     series = pd.Series(df[column].copy())
     series = series.fillna(value)
 
@@ -160,6 +173,7 @@ def impute_constant(df: pd.DataFrame, column: str, value: int = 0) -> pd.DataFra
 @register_method(DC.MissingValues.IMPUTE_FORWARD_FILL)
 def impute_forward_fill(df: pd.DataFrame, column: str) -> pd.DataFrame:
     """Impute missing values using forward fill."""
+    df = df.copy()
     series = pd.Series(df[column].copy())
     series = series.ffill()
 
@@ -171,6 +185,7 @@ def impute_forward_fill(df: pd.DataFrame, column: str) -> pd.DataFrame:
 @register_method(DC.MissingValues.IMPUTE_BACKWARD_FILL)
 def impute_backward_fill(df: pd.DataFrame, column: str) -> pd.DataFrame:
     """Impute missing values using backward fill."""
+    df = df.copy()
     series = pd.Series(df[column].copy())
     series = series.bfill()
 
@@ -199,6 +214,8 @@ def identify_outliers(
     pd.Series
         Boolean mask where True indicates an outlier
     """
+    series = series.copy()
+
     if not pd.api.types.is_numeric_dtype(series):
         raise TypeError("Outlier detection requires numeric data")
 
@@ -248,9 +265,11 @@ def remove_outliers(
     pd.DataFrame
         DataFrame with outlier rows removed
     """
+    df = df.copy()
     series = pd.Series(df[column].copy())
     outlier_mask = identify_outliers(series, method, factor)
-    return pd.DataFrame(df[~outlier_mask])
+
+    return df.loc[~outlier_mask]
 
 
 @register_method(DC.Outliers.WINSORIZE_OUTLIERS)
@@ -274,6 +293,7 @@ def winsorize_outliers(
     pd.Series
         Winsorized series
     """
+    df = df.copy()
     series = pd.Series(df[column].copy())
 
     if not pd.api.types.is_numeric_dtype(series):
@@ -309,6 +329,260 @@ def winsorize_outliers(
     df[column] = series
 
     return df
+
+
+@register_method(FE.Transformations.STANDARDIZE)
+def standardize(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    df = df.copy()
+    series = df[column].copy()
+
+    if not pd.api.types.is_numeric_dtype(series):
+        raise TypeError("Standard requires numeric data")
+
+    scaler = StandardScaler()
+    df[column] = scaler.fit_transform(series)
+
+    return df
+
+
+@register_method(FE.Transformations.MIN_MAX_SCALE)
+def min_max_scale(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    df = df.copy()
+    series = df[column].copy()
+
+    if not pd.api.types.is_numeric_dtype(series):
+        raise TypeError("Min-max scale requires numeric data")
+
+    scaler = MinMaxScaler()
+    df[column] = scaler.fit_transform(series)
+
+    return df
+
+
+@register_method(FE.Transformations.ROBUST_SCALE)
+def robust_scale(df: pd.DataFrame, column: str):
+    df = df.copy()
+    series = df[column].copy()
+
+    if not pd.api.types.is_numeric_dtype(series):
+        raise TypeError("Robust scale requires numeric data")
+
+    scaler = RobustScaler()
+    df[column] = scaler.fit_transform(series)
+
+    return df
+
+
+@register_method(FE.Transformations.LOG_TRANSFORM)
+def log_transform(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    df = df.copy()
+    series = df[column].copy()
+
+    if not pd.api.types.is_numeric_dtype(series):
+        raise TypeError("Log transform requires numeric data")
+
+    if (series > 0).all():
+        df[f"{column}_log"] = np.log(series)
+    elif (series >= 0).all():
+        df[f"{column}_log"] = np.log1p(series)
+
+    return df
+
+
+@register_method(FE.Transformations.NORMALIZE)
+def normalize(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    df = df.copy()
+    series = df[column].copy()
+
+    normalizer = Normalizer()
+    df[column] = normalizer.fit_transform(series)
+
+    return df
+
+
+@register_method(FE.FeatureCreation.ONE_HOT_ENCODE)
+def one_hot_encode(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    df = df.copy()
+    series = df[column].copy()
+
+    try:
+        one_hot = pd.get_dummies(series, prefix=column, drop_first=False)
+        df = pd.concat([df, one_hot], axis=1)
+        df.drop(columns=[column], axis=1)
+    except Exception:
+        raise ValueError("Try to do one-hot encode error, skip operation.")
+
+    return df
+
+
+@register_method(FE.FeatureCreation.LABEL_ENCODE)
+def label_encode(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    df = df.copy()
+    series = df[column].copy()
+
+    try:
+        le = LabelEncoder()
+        df[column] = le.fit_transform(series)
+    except Exception:
+        raise ValueError("Try to do label encode error, skip operation.")
+
+    return df
+
+
+# @register_method(FE.FeatureCreation.TARGET_ENCODE)
+# def target_encode(df: pd.DataFrame, column: str) -> pd.DataFrame:
+#     df = df.copy()
+#     series = df[column].copy()
+#
+#     return df
+
+
+_datetime_formats = [
+    "%Y-%m-%d",
+    "%d/%m/%Y",
+    "%m/%d/%Y",
+    "%Y/%m/%d",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%dT%H:%M:%S",
+    "%d-%m-%Y",
+    "%m-%d-%Y",
+    "%Y%m%d",
+    "%d%m%Y",
+    "%m%d%Y",
+    "%H:%M:%S",
+    "%H:%M",
+    "%Y-%m-%d %H:%M:%S.%f",
+]
+
+
+def try_convert_to_datetime(
+    df: pd.DataFrame,
+    column: str,
+    format: Optional[str] = None,
+    datetime_ratio: float = 0.80,
+) -> str | None:
+    df = df.copy()
+    series = df[column].copy()
+
+    # Skip conversion if more than 20% of values are missing
+    if series.isna().mean() > 1 - datetime_ratio:
+        return None
+
+    # Get a sample of non-null values to check (avoid checking entire large columns)
+    sample = series.dropna().sample(min(100, len(series.dropna())))
+
+    # Try specified format first
+    try:
+        parsed_series = pd.to_datetime(sample, errors="coerce", format=format)
+
+        if (parsed_series.notna().sum() / len(parsed_series)) > datetime_ratio:
+            return format
+
+    except (ValueError, TypeError):
+        pass
+
+    # Try explicit formats
+    for fmt in _datetime_formats:
+        try:
+            success_count = 0
+            for val in sample:
+                try:
+                    if isinstance(val, str):
+                        datetime.strptime(val, fmt)
+                        success_count += 1
+                except (ValueError, TypeError):
+                    continue
+
+            # If more than 80% of the sample was successfully parsed, consider it a datetime
+            if success_count / len(sample) > datetime_ratio:
+                return fmt
+        except Exception:
+            continue
+
+    # Finally, try mixed format
+    try:
+        parsed_series = pd.to_datetime(sample, errors="coerce", format="mixed")
+
+        if (parsed_series.notna().sum() / len(parsed_series)) > datetime_ratio:
+            return "mixed"
+
+    except (ValueError, TypeError):
+        pass
+
+    return None
+
+
+@register_method(FE.FeatureCreation.CONVERT_TO_DATETIME)
+def convert_to_datetime(df: pd.DataFrame, column: str, format: str) -> pd.DataFrame:
+    df = df.copy()
+    series = df[column].copy()
+
+    verified_fmt = try_convert_to_datetime(df, column, format)
+
+    if verified_fmt is None:
+        raise TypeError("This column can't convert to datetime.")
+
+    try:
+        parsed_series = pd.to_datetime(series, errors="coerce", format=verified_fmt)
+        df[column] = parsed_series
+        return df
+    except (ValueError, TypeError):
+        raise ValueError("Convert to datetime failed, skip operation.")
+
+
+@register_method(FE.FeatureCreation.EXTRACT_DATE_PARTS)
+def extract_date_parts(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    df = df.copy()
+    series = df[column].copy()
+
+    if not pd.api.types.is_datetime64_any_dtype(series):
+        raise TypeError("Extract date parts requires datetime column.")
+
+    df[f"{column}_year"] = series.dt.year
+    df[f"{column}_month"] = series.dt.month
+    df[f"{column}_day"] = series.dt.day
+    df[f"{column}_dayofweek"] = series.dt.dayofweek
+    df[f"{column}_quarter"] = series.dt.quarter
+
+    # Add time components if time exists
+    if (series.dt.hour != 0).any() or (series.dt.minute != 0).any():
+        df[f"{column}_hour"] = series.dt.hour
+        df[f"{column}_minute"] = series.dt.minute
+
+    df = df.drop(columns=[column], axis=1)
+
+    return df
+
+
+@register_method(FE.FeatureSelection.APPLY_PCA)
+def apply_pca(df: pd.DataFrame, column: str, n_components=5) -> pd.DataFrame:
+    df = df.copy()
+    series = df[column].copy()
+
+    if not pd.api.types.is_numeric_dtype(series):
+        raise TypeError("PCA requires numeric data")
+
+    scaler = StandardScaler()
+    scaled_data = scaler.fit_transform(series)
+
+    pca = PCA(n_components=n_components)
+    pca_result = pca.fit_transform(scaled_data)
+
+    # Create PCA feature columns
+    for i in range(n_components):
+        df[f"{column}_pca_component_{i + 1}"] = pca_result[:, i]
+
+    df = df.drop(columns=[column])
+
+    return df
+
+
+# @register_method(FE.FeatureSelection.FEATURE_RECOMMENDATION)
+# def feature_recommendation(df: pd.DataFrame, column: str) -> pd.DataFrame:
+#     df = df.copy()
+#     series = df[column].copy()
+#
+#     return df
 
 
 def apply_method(

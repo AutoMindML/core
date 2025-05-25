@@ -568,7 +568,7 @@ class MetaGenerator:
 
         Expected Output Format:
 
-        Please return analysis in the exact JSON format, do not include other text:
+        Please return analysis in the exact JSON format in one file, do not include other text:
 
         ```json
         {{
