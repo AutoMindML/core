@@ -681,6 +681,27 @@ class CrossValidationMethod(Enum):
     TIME_SERIES_SPLIT = auto()
 
 
+class EvaluationMetric(Enum):
+    # Regression
+    RMSE = auto()
+    MAE = auto()
+    R2 = auto()
+    MAPE = auto()
+
+    # Binary Classification
+    ACCURACY = auto()
+    PRECISION = auto()
+    RECALL = auto()
+    F1 = auto()
+    AUC = auto()
+    LOG_LOSS = auto()
+
+    # Multiclass Classification
+    MACRO_F1 = auto()
+    WEIGHTED_F1 = auto()
+    TOP_K_ACCURACY = auto()
+
+
 class Issue(BaseModel):
     type: Annotated[DataQualityType, EnumByName()]
     columns: List[str]
@@ -756,9 +777,9 @@ class CrossValidation(BaseModel):
 
 class ModelingApproach(BaseModel):
     task_type: Annotated[TaskType, EnumByName()]
-    target_variable: str
+    target: str
     recommended_algorithms: List[RecommendedAlgorithm]
-    evaluation_metrics: List[str]
+    evaluation_metrics: List[Annotated[EvaluationMetric, EnumByName()]]
     cross_validation: CrossValidation
 
 

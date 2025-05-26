@@ -15,6 +15,8 @@ from automind.data_utils.preprocessing import (
     FE,
     CrossValidationMethod,
     DataQualityType,
+    EvaluationMetric,
+    LLMOutputSchema,
     OverallQuality,
     TaskType,
 )
@@ -503,7 +505,7 @@ class MetaGenerator:
         llm_metadata["columns"] = {}
         for col, info in self.metadata["columns"].items():
             col_summary = {
-                "dtype": info["dtype"],
+                # "dtype": info["dtype"],
                 "missing_percentage": info["missing_percentage"],
                 "unique_values": info["unique_values"],
             }
@@ -575,7 +577,9 @@ class MetaGenerator:
         } columns.
 
         Dataset Metadata:
+        ```json
         {json.dumps(llm_metadata, indent=2, default=self._json_serializer)}
+        ```
 
         You are strictly limited to using the following methods in output, do not include any other text:
 
@@ -609,6 +613,9 @@ class MetaGenerator:
         - For cross validation method:
         {CrossValidationMethod._member_names_}
 
+        - For evaluation metrics:
+        {EvaluationMetric._member_names_}
+
         Expected Output Format:
         Please return analysis in the exact JSON format (use ```json ```)
         below (do not include any other text) in one, and use provided methods above (do not include any other method or text):
@@ -622,7 +629,7 @@ class MetaGenerator:
               {{
                 "type": one of provided data quality type,
                 "columns": [],
-                "description": your des
+                "description": your description
               }}
             ],
             "strengths": [
@@ -637,19 +644,19 @@ class MetaGenerator:
             "missing_values": [
               {{
                 "column": col name,
-                "methods": [your recommendations from provided list]
+                "methods": [ your recommendations from provided list ]
               }}
             ],
             "outliers": [
               {{
                 "column": col name,
-                "methods": [your recommendations from provided list]
+                "methods": [ your recommendations from provided list ]
               }}
             ],
             "duplicates": [
               {{
                 "column": col name,
-                "methods": [your recommendations from provided list]
+                "methods": [ your recommendations from provided list ]
               }}
             ]
           }},
@@ -657,32 +664,32 @@ class MetaGenerator:
             "creation": [
               {{
                 "column": col name,
-                "methods": [your recommendations from provided list]
+                "methods": [ your recommendations from provided list ]
               }}
             ],
             "transformation": [
               {{
                 "column": col name,
-                "methods": [your recommendations from provided list]
+                "methods": [ your recommendations from provided list ]
               }}
             ],
             "selection": [
               {{
                 "column": col name,
-                "methods": [your recommendations from provided list]
+                "methods": [ your recommendations from provided list ]
               }}
             ]
           }},
           "modeling_approach": {{
             "task_type": one of provided task type,
-            "target_variable": target name,
+            "target": target col name,
             "recommended_algorithms": [
               {{
                 "name": model name,
                 "reason": your reason
               }}
             ],
-            "evaluation_metrics": [],
+            "evaluation_metrics": [ your recommendations from provided list ],
             "cross_validation": {{
               "method": one of provided cross validation methods,
               "folds": num of folds,
@@ -695,9 +702,9 @@ class MetaGenerator:
 
         return query_template
 
-    def parse_llm_response(self, response_lines: list[str]):
+    def parse_llm_response(self, response_lines: list[str]) -> LLMOutputSchema | None:
         """
-        Process the response to extract JSON
+        Process the response to defined model
         """
 
         response_text = "".join(response_lines)
@@ -709,14 +716,14 @@ class MetaGenerator:
         for match in matches:
             try:
                 parsed_json = json.loads(match)
-                return parsed_json
+                return LLMOutputSchema.model_validate(parsed_json)
             except json.JSONDecodeError:
                 # In case of malformed JSON, try to clean it up
                 cleaned_json = self._clean_json_text(match)
 
                 try:
                     result = json.loads(cleaned_json)
-                    return result
+                    return LLMOutputSchema.model_validate(result)
                 except json.JSONDecodeError:
                     return None
 
