@@ -3,11 +3,6 @@ import pandas as pd
 import pytest
 
 from automind.data_utils.cleaner import DataCleaner
-from automind.data_utils.parser import (
-    ColumnRecommendation,
-    ColumnRecommendations,
-)
-from automind.data_utils.preprocessing_steps import DC
 
 
 class TestDataCleaner:
@@ -53,66 +48,6 @@ class TestDataCleaner:
 
         # Check operation history starts empty
         assert cleaner.operation_history == []
-
-    def test_get_recommendations(self, cleaner):
-        """Test getting recommendations."""
-        recommendations = cleaner.get_recommendations()
-
-        # Check recommendation structure
-        assert isinstance(recommendations, ColumnRecommendations)
-
-        # Should have recommendations for each column
-        all_recs = recommendations.get_all_recommendations()
-        assert set(all_recs.keys()).issubset(
-            set(["numeric", "categorical", "datetime", "constant"])
-        )
-
-        # Check for specific recommendation types
-        numeric_recs = recommendations.get_column_recommendations("numeric")
-
-        assert any(
-            rec.operation == DC.MissingValues.IMPUTE_MEDIAN for rec in numeric_recs
-        )
-
-    def test_apply_recommendations(self, cleaner):
-        """Test applying recommendations."""
-        # Create mock recommendations
-        recommendations = ColumnRecommendations()
-        recommendations.add_recommendation(
-            "numeric",
-            ColumnRecommendation(
-                operation=DC.MissingValues.IMPUTE_MEDIAN,
-                reason="Testing imputation",
-                priority=1,
-                confidence=0.9,
-            ),
-        )
-
-        # Apply recommendations
-        result_df = cleaner.apply_recommendations(recommendations)
-
-        # Check that NaN in numeric column was imputed
-        assert not result_df["numeric"].isna().any()
-        assert result_df["numeric"].iloc[2] == 4.0  # Median of [1, 2, 4, 5, 100]
-
-        # Check that operation was recorded in history
-        assert len(cleaner.operation_history) == 1
-        assert cleaner.operation_history[0]["column"] == "numeric"
-        assert cleaner.operation_history[0]["operation"] == "IMPUTE_MEDIAN"
-        assert cleaner.operation_history[0]["success"] is True
-
-    def test_apply_operation(self, cleaner):
-        """Test manually applying an operation."""
-        # Apply median imputation to numeric column
-        result_df = cleaner.apply_operation("numeric", DC.MissingValues.IMPUTE_MEDIAN)
-
-        # Check that NaN was imputed with median
-        assert not result_df["numeric"].isna().any()
-        assert result_df["numeric"].iloc[2] == 4.0  # Median of [1, 2, 4, 5, 100]
-
-        # Check operation history
-        assert len(cleaner.operation_history) == 1
-        assert cleaner.operation_history[0]["operation"] == "IMPUTE_MEDIAN"
 
     def test_handle_missing_values_auto(self, cleaner):
         """Test handling missing values with 'auto' strategy."""
@@ -185,7 +120,6 @@ class TestDataCleaner:
         result_df = cleaner.clean_data(
             handle_outliers="winsorize",
             drop_threshold=0.7,  # Don't drop any columns since max missing is 1/6
-            apply_recommendations=True,
         )
 
         # Check that all missing values were handled
@@ -196,74 +130,3 @@ class TestDataCleaner:
 
         # Check if operation history recorded
         assert len(cleaner.get_operation_history()) == 5
-
-    def test_drop_column_recommendation(self, cleaner):
-        """Test applying a drop column recommendation."""
-        recommendations = ColumnRecommendations()
-        recommendations.add_recommendation(
-            "categorical",
-            ColumnRecommendation(
-                operation=DC.DuplicatesAndColumn.DROP_COLUMN,
-                reason="Testing column drop",
-                priority=1,
-                confidence=0.9,
-            ),
-        )
-
-        result_df = cleaner.apply_recommendations(recommendations)
-
-        # Check that the column was dropped
-        assert "categorical" not in result_df.columns
-
-        # Check operation history
-        assert any(
-            op["column"] == "categorical" and op["operation"] == "DROP_COLUMN"
-            for op in cleaner.operation_history
-        )
-
-    def test_operation_error_handling(self, cleaner):
-        """Test error handling when applying operations."""
-        # Try to apply mean imputation to categorical column (should fail)
-        with pytest.raises(TypeError):
-            cleaner.apply_operation("categorical", DC.MissingValues.IMPUTE_MEAN)
-
-        # Check that error was recorded in history
-        assert len(cleaner.operation_history) == 1
-        assert cleaner.operation_history[0]["success"] is False
-        assert "error" in cleaner.operation_history[0]
-
-    def test_column_filter_apply_recommendations(self, cleaner):
-        """Test applying recommendations to specific columns only."""
-        recommendations = ColumnRecommendations()
-        # Add recommendations for multiple columns
-        recommendations.add_recommendation(
-            "numeric",
-            ColumnRecommendation(
-                operation=DC.MissingValues.IMPUTE_MEDIAN,
-                reason="Testing numeric imputation",
-                priority=1,
-                confidence=0.9,
-            ),
-        )
-        recommendations.add_recommendation(
-            "categorical",
-            ColumnRecommendation(
-                operation=DC.MissingValues.IMPUTE_MODE,
-                reason="Testing categorical imputation",
-                priority=1,
-                confidence=0.9,
-            ),
-        )
-
-        # Apply only to numeric column
-        result_df = cleaner.apply_recommendations(
-            recommendations=recommendations, columns=["numeric"]
-        )
-
-        # Check that only numeric was imputed
-        assert not result_df["numeric"].isna().any()
-        assert result_df["categorical"].isna().any()
-
-        # Check operation history
-        assert len(cleaner.operation_history) == 1
-        assert cleaner.operation_history[0]["column"] == "numeric"

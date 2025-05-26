@@ -2,15 +2,11 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
-from automind.data_utils.preprocessing_steps import DC, apply_method, identify_outliers
-
-from .parser import (
-    ColumnOperation,
-    ColumnRecommendation,
-    ColumnRecommendations,
+from automind.data_utils.parser import (
     ColumnType,
     DataParser,
 )
+from automind.data_utils.preprocessing import DC, apply_method, identify_outliers
 
 
 class DataCleaner:
@@ -40,195 +36,6 @@ class DataCleaner:
         self.column_types = self.parser.identify_column_types()
         self.operation_history = []
 
-    def get_recommendations(self) -> ColumnRecommendations:
-        """
-        Get cleaning recommendations for the DataFrame.
-
-        Returns:
-        --------
-        ColumnRecommendations
-            Object containing structured recommendations for each column
-        """
-        return self.parser.get_recommendations()
-
-    def apply_recommendations(
-        self,
-        recommendations: Optional[ColumnRecommendations] = None,
-        priority_threshold: int = 3,
-        confidence_threshold: float = 0.6,
-        columns: Optional[List[str]] = None,
-    ) -> pd.DataFrame:
-        """
-        Apply recommended operations to the DataFrame based on filters.
-
-        Parameters:
-        -----------
-        recommendations : Optional[ColumnRecommendations], default=None
-            Recommendations to apply. If None, will generate new recommendations.
-        priority_threshold : int, default=3
-            Apply recommendations with priority less than or equal to this value (lower is higher priority)
-        confidence_threshold : float, default=0.6
-            Apply recommendations with confidence greater than or equal to this value
-        operation_types : Optional[List[ColumnOperation]], default=None
-            Only apply these operation types. If None, apply all cleaning operations.
-        columns : Optional[List[str]], default=None
-            Only apply operations to these columns. If None, apply to all columns.
-
-        Returns:
-        --------
-        pd.DataFrame
-            DataFrame with cleaning operations applied
-        """
-        if recommendations is None:
-            recommendations = self.get_recommendations()
-
-        # Create a clean DataFrame
-        result_df = self.df.copy()
-
-        # Track columns to drop
-        columns_to_drop = []
-
-        # Process all recommendations that meet criteria
-        for column, recs in recommendations.get_all_recommendations().items():
-            # Skip if we're focusing on specific columns and this isn't one of them
-            if columns is not None and column not in columns:
-                continue
-
-            # Filter recommendations by criteria
-            applicable_recs = [
-                rec
-                for rec in recs
-                if rec.priority <= priority_threshold
-                and rec.confidence >= confidence_threshold
-            ]
-
-            # Sort by priority
-            applicable_recs.sort(key=lambda x: x.priority)
-
-            # Apply operations
-            for rec in applicable_recs:
-                if rec.operation == DC.DuplicatesAndColumn.DROP_COLUMN:
-                    columns_to_drop.append(column)
-                    # Skip further operations on this column
-                    break
-                else:
-                    # Apply the operation
-                    try:
-                        result_df = self._apply_operation(result_df, column, rec)
-                        self.operation_history.append(
-                            {
-                                "column": column,
-                                "operation": rec.operation.name,
-                                "params": rec.params,
-                                "success": True,
-                            }
-                        )
-                    except Exception as e:
-                        self.operation_history.append(
-                            {
-                                "column": column,
-                                "operation": rec.operation.name,
-                                "params": rec.params,
-                                "success": False,
-                                "error": str(e),
-                            }
-                        )
-
-        # Drop columns at the end to avoid affecting other operations
-        if columns_to_drop:
-            result_df = result_df.drop(columns=columns_to_drop)
-            for col in columns_to_drop:
-                self.operation_history.append(
-                    {
-                        "column": col,
-                        "operation": DC.DuplicatesAndColumn.DROP_COLUMN.name,
-                        "success": True,
-                    }
-                )
-
-        return result_df
-
-    def _apply_operation(
-        self, df: pd.DataFrame, column: str, recommendation: ColumnRecommendation
-    ) -> pd.DataFrame:
-        """
-        Apply a single operation to a column based on a recommendation.
-
-        Parameters:
-        -----------
-        df : pd.DataFrame
-            DataFrame to modify
-        column : str
-            Column to apply operation to
-        recommendation : ColumnRecommendation
-            Recommendation object containing operation and parameters
-
-        Returns:
-        --------
-        pd.DataFrame
-            DataFrame with operation applied
-        """
-        operation = recommendation.operation
-        params = recommendation.params or {}
-
-        if operation == DC.MissingValues.IMPUTE_CONSTANT:
-            fill_value = params.get("fill_value", 0)
-            return apply_method(operation, df, column, fill_value=fill_value)
-
-        return apply_method(operation, df, column)
-
-    def apply_operation(
-        self, column: str, operation: ColumnOperation, params: Optional[Dict] = None
-    ) -> pd.DataFrame:
-        """
-        Manually apply a specific operation to a column.
-
-        Parameters:
-        -----------
-        column : str
-            Column to apply operation to
-        operation : ColumnOperation
-            Operation to apply
-        params : Optional[Dict], default=None
-            Parameters for the operation
-
-        Returns:
-        --------
-        pd.DataFrame
-            DataFrame with operation applied
-        """
-        params = params or {}
-        rec = ColumnRecommendation(
-            operation=operation,
-            reason="Manual application",
-            priority=1,
-            confidence=1.0,
-            params=params,
-        )
-
-        try:
-            result = self._apply_operation(self.df, column, rec)
-            self.operation_history.append(
-                {
-                    "column": column,
-                    "operation": operation.name,
-                    "params": params,
-                    "success": True,
-                }
-            )
-            return result
-        except Exception as e:
-            self.operation_history.append(
-                {
-                    "column": column,
-                    "operation": operation.name,
-                    "params": params,
-                    "success": False,
-                    "error": str(e),
-                }
-            )
-            raise e
-
     def get_operation_history(self) -> List[Dict]:
         """
         Get history of operations applied to the DataFrame.
@@ -239,8 +46,6 @@ class DataCleaner:
             List of operations applied
         """
         return self.operation_history
-
-    # Utility methods
 
     def detect_and_handle_outliers(
         self,
@@ -421,9 +226,6 @@ class DataCleaner:
         handle_missing: str = "auto",
         handle_outliers: str = "winsorize",
         drop_threshold: float = 0.5,
-        apply_recommendations: bool = True,
-        priority_threshold: int = 3,
-        confidence_threshold: float = 0.6,
     ) -> pd.DataFrame:
         """
         Apply a complete data cleaning pipeline.
@@ -448,7 +250,7 @@ class DataCleaner:
         pd.DataFrame
             Cleaned DataFrame
         """
-        # Step 1: Drop columns with excessive missing values
+        # Drop columns with excessive missing values
         cols_to_drop = [
             col
             for col in self.df.columns
@@ -467,28 +269,15 @@ class DataCleaner:
                     }
                 )
 
-        # Step 2: Handle remaining missing values
+        # Handle remaining missing values
         self.df = self.handle_missing_values(strategy=handle_missing)
 
-        # Step 3: Handle outliers in numerical columns
+        # Handle outliers in numerical columns
         numerical_cols = self.parser.get_columns_by_type(ColumnType.NUMERIC)
         if numerical_cols:
             self.df = self.detect_and_handle_outliers(
                 columns=list(set(numerical_cols) - set(cols_to_drop)),
                 method=handle_outliers,
-            )
-
-        # Step 4: Apply recommended operations if requested
-        if apply_recommendations:
-            # Generate fresh recommendations on the partially cleaned data
-            self.parser = DataParser(self.df)
-            recommendations = self.parser.get_recommendations()
-
-            # Apply recommendations (this updates operation_history)
-            self.df = self.apply_recommendations(
-                recommendations=recommendations,
-                priority_threshold=priority_threshold,
-                confidence_threshold=confidence_threshold,
             )
 
         return self.df

@@ -10,6 +10,14 @@ from sklearn.feature_selection import mutual_info_classif, mutual_info_regressio
 from sklearn.preprocessing import LabelEncoder
 
 from automind.data_utils.parser import ColumnType, DataParser
+from automind.data_utils.preprocessing import (
+    DC,
+    FE,
+    CrossValidationMethod,
+    DataQualityType,
+    OverallQuality,
+    TaskType,
+)
 from automind.process.ollama import END_OF_STREAM
 
 
@@ -20,6 +28,9 @@ class MetaGenerator:
     preliminary correlations. It also generates LLM queries for data analysis.
 
     This version integrates with the ColumnType enum from the parser module.
+
+    Using JSON Schema: https://json-schema.org/draft/2020-12
+    You can validate the schema via https://www.jsonschemavalidator.net/
     """
 
     def __init__(self, df: pd.DataFrame, target_column: Optional[str] = None):
@@ -559,69 +570,125 @@ class MetaGenerator:
 
         Analyze the following dataset metadata and provide recommendations for 
         data preparation, feature engineering, and modeling approaches.
-        The dataset has {llm_metadata["basic_info"]["rows"]} rows and {llm_metadata["basic_info"]["columns"]} columns.
+        The dataset has {llm_metadata["basic_info"]["rows"]} rows and {
+            llm_metadata["basic_info"]["columns"]
+        } columns.
 
-        Dataset Metadatas:
-        ```json
+        Dataset Metadata:
         {json.dumps(llm_metadata, indent=2, default=self._json_serializer)}
-        ```
+
+        You are strictly limited to using the following methods in output, do not include any other text:
+
+        - For data quality types:
+        {DataQualityType._member_names_}
+
+        - For overall quality:
+        {OverallQuality._member_names_}
+
+        - For missing values:
+        {DC.MissingValues._member_names_}
+
+        - For outliers:
+        {DC.Outliers._member_names_}
+
+        - For duplicates:
+        {DC.DuplicatesAndColumn._member_names_}
+
+        - For feature creations:
+        {FE.FeatureCreation._member_names_}
+
+        - For transformations:
+        {FE.Transformations._member_names_}
+
+        - For feature selections:
+        {FE.FeatureSelection._member_names_}
+
+        - For task type:
+        {TaskType._member_names_}
+
+        - For cross validation method:
+        {CrossValidationMethod._member_names_}
 
         Expected Output Format:
-
-        Please return analysis in the exact JSON format in one file, do not include other text:
+        Please return analysis in the exact JSON format (use ```json ```)
+        below (do not include any other text) in one, and use provided methods above (do not include any other method or text):
 
         ```json
         {{
-            "data_quality_report": {{
-                "summary": "Overall assessment of data quality",
-                "issues": ["List of specific data quality issues"],
-                "strengths": ["List of dataset strengths"]
-            }},
-            "data_cleaning_recommendations": {{
-                "missing_values": [
-                    {{
-                        "name": "col-name",
-                        "description": "Specific strategies for handling missing values"
-                    }}
-                ],
-                "outliers": [
-                    {{
-                        "name": "col-name",
-                        "description": "Strategies for handling outliers"
-                    }}
-                ],
-                "duplicates": [
-                    {{
-                        "name": "col-name",
-                        "description": "Recommendations for duplicate handling"
-                    }}
-                ]
-            }},
-            "feature_engineering": {{
-                "recommendations": [
-                    {{
-                        "name": "col-name",
-                        "description": "Specific feature engineering recommendations"
-                    }}
-                ],
-                "transformations": [
-                    {{
-                        "name": "col-name",
-                        "description": "Suggested transformations"
-                    }}
-                ],
-                "selection": [
-                    {{
-                        "name": "col-name",
-                        "description": "Feature selection recommendations"
-                    }}
-                ]
-            }},
-            "modeling_approach": {{
-                "recommended_algorithms": ["Algorithms that might work well"],
-                "evaluation_metrics": ["Suggested evaluation metrics"],
-                "cross_validation": "Recommended cross-validation strategy"
+          "data_quality_report": {{
+            "overall_quality": one of provided overall quality,
+            "summary": your summary,
+            "issues": [
+              {{
+                "type": one of provided data quality type,
+                "columns": [],
+                "description": your des
+              }}
+            ],
+            "strengths": [
+              {{
+                "type": one of provided data quality type,
+                "description": your description
+              }}
+            ]
+          }},
+
+          "data_cleaning": {{
+            "missing_values": [
+              {{
+                "column": col name,
+                "methods": [your recommendations from provided list]
+              }}
+            ],
+            "outliers": [
+              {{
+                "column": col name,
+                "methods": [your recommendations from provided list]
+              }}
+            ],
+            "duplicates": [
+              {{
+                "column": col name,
+                "methods": [your recommendations from provided list]
+              }}
+            ]
+          }},
+          "feature_engineering": {{
+            "creation": [
+              {{
+                "column": col name,
+                "methods": [your recommendations from provided list]
+              }}
+            ],
+            "transformation": [
+              {{
+                "column": col name,
+                "methods": [your recommendations from provided list]
+              }}
+            ],
+            "selection": [
+              {{
+                "column": col name,
+                "methods": [your recommendations from provided list]
+              }}
+            ]
+          }},
+          "modeling_approach": {{
+            "task_type": one of provided task type,
+            "target_variable": target name,
+            "recommended_algorithms": [
+              {{
+                "name": model name,
+                "reason": your reason
+              }}
+            ],
+            "evaluation_metrics": [],
+            "cross_validation": {{
+              "method": one of provided cross validation methods,
+              "folds": num of folds,
+              "stratified": false or true
             }}
+          }}
         }}
         ```
         """

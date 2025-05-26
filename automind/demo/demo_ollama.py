@@ -1,9 +1,8 @@
-import json
-
 from automind.console import console
 from automind.data.csv.file import AvailableDatasetsCSV
 from automind.data.main import load_data
 from automind.data_utils.metagenerator import MetaGenerator
+from automind.data_utils.preprocessing import LLMOutputSchema
 from automind.process.ollama import run_ollama
 
 
@@ -23,7 +22,9 @@ def main():
     print("\n--- Ollama Response ---")
     llm_result = meta_generator.parse_llm_response(response_lines)
 
-    console.print("\n", json.dumps(llm_result, indent=2))
+    validated_output = LLMOutputSchema.model_validate(llm_result)
+
+    console.print("\n", validated_output)
 
 
 # Run the demo

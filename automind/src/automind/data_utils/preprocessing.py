@@ -1,9 +1,11 @@
 from datetime import datetime
 from enum import Enum, auto
-from typing import Optional, Union
+from typing import Annotated, List, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
+from pydantic import BaseModel, GetCoreSchemaHandler
+from pydantic_core import core_schema
 from sklearn.decomposition import PCA
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import (
@@ -69,7 +71,7 @@ class FE:
 
     class FeatureSelection(Enum):
         APPLY_PCA = auto()
-        FEATURE_RECOMMENDATION = auto()
+        # FEATURE_RECOMMENDATION = auto()
         # APPLY_TSNE = auto()  # visualization only
         # APPLY_UMAP = auto()  # visualization only
         # FEATURE_SELECTION_MODEL_BASED = auto()
@@ -597,3 +599,171 @@ def apply_method(
         raise NotImplementedError(f"method has not been implement: {processing_method}")
 
     return func(data, column=column, **kwargs)
+
+
+# === LLM Req Res Model ===
+
+
+class EnumByName:
+    """
+    This class refer to discussions below
+    https://github.com/pydantic/pydantic/discussions/2980#discussioncomment-12977507
+    """
+
+    def __init__(self, *, ignore_case: bool = True):
+        self.ignore_case = ignore_case
+
+    def __get_pydantic_core_schema__(
+        self, enum_cls: type[Enum], _handler: GetCoreSchemaHandler
+    ):
+        name_enum = Enum("name_enum", {member.name: member.name for member in enum_cls})
+        name_enum = cast(type[Enum], name_enum)
+
+        def enum_or_name(value: Enum | str) -> Enum:
+            if isinstance(value, str):
+                if not self.ignore_case:
+                    try:
+                        return enum_cls[value]
+                    except KeyError:
+                        raise ValueError(f"Enum name not found: {value}")
+                try:
+                    return next(
+                        member
+                        for member in enum_cls
+                        if member.name.lower() == value.lower()
+                    )
+                except StopIteration:
+                    raise ValueError(f"Enum name not found: {value}")
+            elif isinstance(value, enum_cls):
+                return value
+            raise ValueError(
+                f"Expected enum member or name, got {type(value).__name__}: {value}"
+            )
+
+        return core_schema.no_info_plain_validator_function(
+            enum_or_name,
+            json_schema_input_schema=core_schema.enum_schema(
+                enum_cls, list(name_enum.__members__.values())
+            ),
+            ref=enum_cls.__name__,
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda e: e.name
+            ),
+        )
+
+
+# === Data Quality ===
+class DataQualityType(Enum):
+    MISSING_VALUES = auto()
+    OUTLIERS = auto()
+    DUPLICATES = auto()
+    INCONSISTENT_TYPES = auto()
+    HIGH_COMPLETENESS = auto()
+    CONSISTENT_SCHEMA = auto()
+    WELL_NAMED_COLUMNS = auto()
+
+
+class OverallQuality(Enum):
+    GOOD = auto()
+    MODERATE = auto()
+    POOR = auto()
+
+
+class TaskType(Enum):
+    CLASSIFICATION = auto()
+    REGRESSION = auto()
+    MULTICLASS_CLASSIFICATION = auto()
+
+
+class CrossValidationMethod(Enum):
+    K_FOLD = auto()
+    LEAVE_ONE_OUT = auto()
+    TIME_SERIES_SPLIT = auto()
+
+
+class Issue(BaseModel):
+    type: Annotated[DataQualityType, EnumByName()]
+    columns: List[str]
+    description: str
+
+
+class Strength(BaseModel):
+    type: Annotated[DataQualityType, EnumByName()]
+    description: str
+
+
+class DataQualityReport(BaseModel):
+    overall_quality: Annotated[OverallQuality, EnumByName()]
+    summary: str
+    issues: List[Issue]
+    strengths: List[Strength]
+
+
+# === Recommendations ===
+class MissingValueRecommendation(BaseModel):
+    column: str
+    methods: List[Annotated[DC.MissingValues, EnumByName()]]
+
+
+class OutlierRecommendation(BaseModel):
+    column: str
+    methods: List[Annotated[DC.Outliers, EnumByName()]]
+
+
+class DuplicateRecommendation(BaseModel):
+    column: str
+    methods: List[Annotated[DC.DuplicatesAndColumn, EnumByName()]]
+
+
+class FeatureCreationRecommendation(BaseModel):
+    column: str
+    methods: List[Annotated[FE.FeatureCreation, EnumByName()]]
+
+
+class TransformationRecommendation(BaseModel):
+    column: str
+    methods: List[Annotated[FE.Transformations, EnumByName()]]
+
+
+class FeatureSelectionRecommendation(BaseModel):
+    column: str
+    methods: List[Annotated[FE.FeatureSelection, EnumByName()]]
+
+
+class DataCleaningRecommendations(BaseModel):
+    missing_values: List[MissingValueRecommendation]
+    outliers: List[OutlierRecommendation]
+    duplicates: List[DuplicateRecommendation]
+
+
+class FeatureEngineeringRecommendations(BaseModel):
+    creation: List[FeatureCreationRecommendation]
+    transformation: List[TransformationRecommendation]
+    selection: List[FeatureSelectionRecommendation]
+
+
+# === Modeling ===
+class RecommendedAlgorithm(BaseModel):
+    name: str
+    reason: str
+
+
+class CrossValidation(BaseModel):
+    method: Annotated[CrossValidationMethod, EnumByName()]
+    folds: int
+    stratified: bool
+
+
+class ModelingApproach(BaseModel):
+    task_type: Annotated[TaskType, EnumByName()]
+    target_variable: str
+    recommended_algorithms: List[RecommendedAlgorithm]
+    evaluation_metrics: List[str]
+    cross_validation: CrossValidation
+
+
+class LLMOutputSchema(BaseModel):
+    data_quality_report: DataQualityReport
+    data_cleaning: DataCleaningRecommendations
+    feature_engineering: FeatureEngineeringRecommendations
+    modeling_approach: ModelingApproach
