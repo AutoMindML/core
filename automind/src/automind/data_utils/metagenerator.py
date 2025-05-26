@@ -568,15 +568,13 @@ class MetaGenerator:
 
         # Format the query
         query_template = f"""
-        Dataset Analysis and Recommendations:
+        ataset Analysis and Recommendations:
 
         Analyze the following dataset metadata and provide recommendations for 
         data preparation, feature engineering, and modeling approaches.
-        The dataset has {llm_metadata["basic_info"]["rows"]} rows and {
-            llm_metadata["basic_info"]["columns"]
-        } columns.
+        The dataset has {llm_metadata["basic_info"]["rows"]} rows and {llm_metadata["basic_info"]["columns"]} columns.
 
-        Dataset Metadata:
+        Dataset Metadatas:
         ```json
         {json.dumps(llm_metadata, indent=2, default=self._json_serializer)}
         ```
@@ -643,19 +641,19 @@ class MetaGenerator:
           "data_cleaning": {{
             "missing_values": [
               {{
-                "column": col name,
+                "column": feature column in metedata,
                 "methods": [ your recommendations from provided list ]
               }}
             ],
             "outliers": [
               {{
-                "column": col name,
+                "column": feature column in metedata,
                 "methods": [ your recommendations from provided list ]
               }}
             ],
             "duplicates": [
               {{
-                "column": col name,
+                "column": feature column in metedata,
                 "methods": [ your recommendations from provided list ]
               }}
             ]
@@ -663,33 +661,33 @@ class MetaGenerator:
           "feature_engineering": {{
             "creation": [
               {{
-                "column": col name,
+                "column": feature column in metedata,
                 "methods": [ your recommendations from provided list ]
               }}
             ],
             "transformation": [
               {{
-                "column": col name,
+                "column": feature column in metedata,
                 "methods": [ your recommendations from provided list ]
               }}
             ],
             "selection": [
               {{
-                "column": col name,
+                "column": feature column in metedata,
                 "methods": [ your recommendations from provided list ]
               }}
             ]
           }},
           "modeling_approach": {{
             "task_type": one of provided task type,
-            "target": target col name,
+            "target": "{llm_metadata["target"]["name"]}",
             "recommended_algorithms": [
               {{
                 "name": model name,
                 "reason": your reason
               }}
             ],
-            "evaluation_metrics": [ your recommendations from provided list ],
+            "evaluation_metrics": [ choose proper method from provided list based on task type ],
             "cross_validation": {{
               "method": one of provided cross validation methods,
               "folds": num of folds,
