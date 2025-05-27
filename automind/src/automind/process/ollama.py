@@ -4,7 +4,9 @@ import queue
 import subprocess
 from typing import Optional
 
+import ollama
 from dotenv import dotenv_values, load_dotenv
+from ollama import chat
 
 from automind.console import ANSI_ESCAPE, SPINNER_SYMBOLS
 
@@ -14,11 +16,15 @@ env = dotenv_values()
 
 class AvailibleModel(enum.Enum):
     llama3_2 = "llama3.2"
+    qwen3_8b = "qwen3:8b"
+    gemma3_4b = "gemma3:4b"
+    gemma3_12b = "gemma3:12b"
+    deepseek_r1_8b = "deepseek-r1:8b"
 
 
 CMD = "ollama"
 END_OF_STREAM = "<<END_OF_STREAM>>"
-DEFAULT_MODEL = AvailibleModel.llama3_2.value
+DEFAULT_MODEL = AvailibleModel.deepseek_r1_8b.value
 TEST_PROMPT = "generate random python code."
 
 
@@ -121,6 +127,32 @@ def buffer_stream(buffer_queue: queue.Queue):
             break
 
         yield line
+
+
+def run_ollama_by_official_api(prompt: str, model: str = DEFAULT_MODEL):
+    try:
+        ollama.show(model)
+    except ollama.ResponseError:
+        print("model is not exists, try to pull model...")
+        ollama.pull(model)
+        print("model pull completed.")
+
+    buffer = ""
+
+    stream = chat(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        stream=True,
+    )
+
+    for chunk in stream:
+        if chunk.message.content:
+            buffer += chunk.message.content
+
+        if env.get("OLLAMA_DEBUG") is not None:
+            print(chunk.message.content, end="", flush=True)
+
+    return buffer
 
 
 async def main():

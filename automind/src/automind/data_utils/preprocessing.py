@@ -657,10 +657,11 @@ class DataQualityType(Enum):
     MISSING_VALUES = auto()
     OUTLIERS = auto()
     DUPLICATES = auto()
+    IMBALANCE = auto()
     INCONSISTENT_TYPES = auto()
     HIGH_COMPLETENESS = auto()
     CONSISTENT_SCHEMA = auto()
-    WELL_NAMED_COLUMNS = auto()
+    # WELL_NAMED_COLUMNS = auto()
 
 
 class OverallQuality(Enum):

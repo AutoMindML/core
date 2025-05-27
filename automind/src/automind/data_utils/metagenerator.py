@@ -20,7 +20,6 @@ from automind.data_utils.preprocessing import (
     OverallQuality,
     TaskType,
 )
-from automind.process.ollama import END_OF_STREAM
 
 
 class MetaGenerator:
@@ -294,7 +293,7 @@ class MetaGenerator:
             self.target_column in self.categorical_columns
             or self.target_column in self.text_columns
         ):
-            target_info["column_type"] = ColumnType.CATEGORICAL
+            target_info["column_type"] = ColumnType.CATEGORICAL.name.lower()
             target_info["class_distribution"] = dict(
                 target_data.value_counts(normalize=True).to_dict()
             )
@@ -347,7 +346,7 @@ class MetaGenerator:
             }
 
         elif self.target_column in self.numeric_columns:
-            target_info["column_type"] = ColumnType.NUMERIC
+            target_info["column_type"] = ColumnType.NUMERIC.name.lower()
 
             # Calculate correlations with target
             correlations = {}
@@ -391,7 +390,7 @@ class MetaGenerator:
             }
 
         elif self.target_column in self.datetime_columns:
-            target_info["column_type"] = ColumnType.DATETIME
+            target_info["column_type"] = ColumnType.DATETIME.name.lower()
             # TODO:
             # Handle datetime target if needed
             # This could include temporal analysis specific to datetime targets
@@ -482,6 +481,11 @@ class MetaGenerator:
         """
         Generate a comprehensive LLM query based on the metadata.
 
+        - 強制 key 使用正確名稱（如 target）。
+        - 強制方法來自 enum 列表（不允許亂取）。
+        - 包含 output JSON 範本，幫助模型模仿正確格式。
+        - 包含提示文字提醒不得新增任何欄位或使用錯誤值。
+
         Returns:
             A string containing the LLM query
         """
@@ -568,72 +572,86 @@ class MetaGenerator:
 
         # Format the query
         query_template = f"""
-        ataset Analysis and Recommendations:
+        You are an expert data scientist.
 
-        Analyze the following dataset metadata and provide recommendations for 
-        data preparation, feature engineering, and modeling approaches.
+        Please strictly follow the instructions below to analyze the dataset metadata and provide recommendations for data preparation, feature engineering, and modeling approaches.
+
+        Rules:
+        - Output must be in strict JSON format (structure provided below).
+        - Use **only** the following method lists. Do **NOT** use any other method names.
+        - Use **exact** key names. Do **NOT** change or rename keys (e.g., use "target", not "label").
+        - All method values must come from the corresponding method list (do not include any other method or text).
+        - Different column must be separated, and the same column key cannot contain multiple column.
+        - If a column does not need to be processed, just leave method with empty list `[]`, do not include any other method or text.
+
+        ---
+
+        Method Lists:
+
+        - data quality list:
+        {DataQualityType._member_names_}
+
+        - overall quality list:
+        {OverallQuality._member_names_}
+
+        - missing value list:
+        {DC.MissingValues._member_names_}
+
+        - outlier list:
+        {DC.Outliers._member_names_}
+
+        - duplicate list:
+        {DC.DuplicatesAndColumn._member_names_}
+
+        - feature creation list:
+        {FE.FeatureCreation._member_names_}
+
+        - transformation list:
+        {FE.Transformations._member_names_}
+
+        - feature selection list:
+        {FE.FeatureSelection._member_names_}
+
+        - task type list:
+        {TaskType._member_names_}
+
+        - cross validation method list:
+        {CrossValidationMethod._member_names_}
+
+        - evaluation metric list:
+        {EvaluationMetric._member_names_}
+
+        ---
+
+        Dataset Info:
         The dataset has {llm_metadata["basic_info"]["rows"]} rows and {llm_metadata["basic_info"]["columns"]} columns.
+        The target column is '{llm_metadata["target"]["name"]}', which is of type '{llm_metadata["target"]["type"]}'.
 
-        Dataset Metadatas:
+        ---
+
+        Dataset Metadatas in JSON format:
         ```json
         {json.dumps(llm_metadata, indent=2, default=self._json_serializer)}
         ```
 
-        You are strictly limited to using the following methods in output, do not include any other text:
-
-        - For data quality types:
-        {DataQualityType._member_names_}
-
-        - For overall quality:
-        {OverallQuality._member_names_}
-
-        - For missing values:
-        {DC.MissingValues._member_names_}
-
-        - For outliers:
-        {DC.Outliers._member_names_}
-
-        - For duplicates:
-        {DC.DuplicatesAndColumn._member_names_}
-
-        - For feature creations:
-        {FE.FeatureCreation._member_names_}
-
-        - For transformations:
-        {FE.Transformations._member_names_}
-
-        - For feature selections:
-        {FE.FeatureSelection._member_names_}
-
-        - For task type:
-        {TaskType._member_names_}
-
-        - For cross validation method:
-        {CrossValidationMethod._member_names_}
-
-        - For evaluation metrics:
-        {EvaluationMetric._member_names_}
-
-        Expected Output Format:
-        Please return analysis in the exact JSON format (use ```json ```)
-        below (do not include any other text) in one, and use provided methods above (do not include any other method or text):
-
+        Expected Output:
         ```json
+
         {{
           "data_quality_report": {{
-            "overall_quality": one of provided overall quality,
-            "summary": your summary,
+            "overall_quality": "REPLACE_WITH_ONE_OF: {OverallQuality._member_names_}",
+            "summary": "REPLACE_WITH_YOUR_SUMMARY",
             "issues": [
               {{
-                "type": one of provided data quality type,
-                "columns": [],
-                "description": your description
+                "type": "REPLACE_WITH_ONE_OF: {DataQualityType._member_names_}",
+                "columns": ["COLUMN_NAME_1", "COLUMN_NAME_2"],
+                "description": "REPLACE_WITH_DESCRIPTION"
               }}
             ],
             "strengths": [
               {{
-                "type": one of provided data quality type,
-                "description": your description
+                "type": "REPLACE_WITH_ONE_OF: {DataQualityType._member_names_}",
+                "description": "REPLACE_WITH_DESCRIPTION"
               }}
             ]
           }},
@@ -641,73 +659,74 @@ class MetaGenerator:
           "data_cleaning": {{
             "missing_values": [
               {{
-                "column": feature column in metedata,
-                "methods": [ your recommendations from provided list ]
+                "column": "COLUMN_NAME",
+                "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {DC.MissingValues._member_names_}"]
               }}
             ],
             "outliers": [
               {{
-                "column": feature column in metedata,
-                "methods": [ your recommendations from provided list ]
+                "column": "COLUMN_NAME",
+                "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {DC.Outliers._member_names_}"]
               }}
             ],
             "duplicates": [
               {{
-                "column": feature column in metedata,
-                "methods": [ your recommendations from provided list ]
+                "column": "COLUMN_NAME",
+                "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {DC.DuplicatesAndColumn._member_names_}"]
               }}
             ]
           }},
+
           "feature_engineering": {{
             "creation": [
               {{
-                "column": feature column in metedata,
-                "methods": [ your recommendations from provided list ]
+                "column": "COLUMN_NAME",
+                "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {FE.FeatureCreation._member_names_}"]
               }}
             ],
             "transformation": [
               {{
-                "column": feature column in metedata,
-                "methods": [ your recommendations from provided list ]
+                "column": "COLUMN_NAME",
+                "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {FE.Transformations._member_names_}"]
               }}
             ],
             "selection": [
               {{
-                "column": feature column in metedata,
-                "methods": [ your recommendations from provided list ]
+                "column": "COLUMN_NAME",
+                "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {FE.FeatureSelection._member_names_}"]
               }}
             ]
           }},
+
           "modeling_approach": {{
-            "task_type": one of provided task type,
-            "target": "{llm_metadata["target"]["name"]}",
+            "task_type": "REPLACE_WITH_ONE_OF: {TaskType._member_names_}",
+            "target": "REPLACE_WITH_TARGET_COLUMN_NAME",
             "recommended_algorithms": [
               {{
-                "name": model name,
-                "reason": your reason
+                "name": "REPLACE_WITH_MODEL_NAME",
+                "reason": "REPLACE_WITH_REASON"
               }}
             ],
-            "evaluation_metrics": [ choose proper method from provided list based on task type ],
+            "evaluation_metrics": ["REPLACE_WITH_ONE_OR_MORE_OF: {EvaluationMetric._member_names_}"],
             "cross_validation": {{
-              "method": one of provided cross validation methods,
-              "folds": num of folds,
-              "stratified": false or true
+              "method": "REPLACE_WITH_ONE_OF: {CrossValidationMethod._member_names_}",
+              "folds": "REPLACE_WITH_NUMBER",
+              "stratified": "REPLACE_WITH_BOOLEAN" 
             }}
           }}
         }}
         ```
+
+        Return analysis in the exact JSON format above, use ```json ``` to surround it (do not include any other text),
+        All method values must come from the specified method lists (do not include any other method or text).
         """
 
         return query_template
 
-    def parse_llm_response(self, response_lines: list[str]) -> LLMOutputSchema | None:
+    def parse_llm_response(self, response_text: str) -> LLMOutputSchema | None:
         """
         Process the response to defined model
         """
-
-        response_text = "".join(response_lines)
-        response_text.replace(END_OF_STREAM, "")
-
         pattern = re.compile(r"```(?:json)?\n(.*?)\n```", re.DOTALL)
         matches = pattern.findall(response_text)
 

@@ -2,7 +2,7 @@ from automind.console import console
 from automind.data.csv.file import AvailableDatasetsCSV
 from automind.data.main import load_data
 from automind.data_utils.metagenerator import MetaGenerator
-from automind.process.ollama import run_ollama
+from automind.process.ollama import run_ollama_by_official_api
 
 
 def main():
@@ -16,7 +16,9 @@ def main():
     console.print(llm_prompt)
 
     print("\n--- Ollama Analysis ---")
-    response_lines = run_ollama(llm_prompt)
+    response_lines = run_ollama_by_official_api(llm_prompt)
+
+    console.print(response_lines)
 
     print("\n--- Ollama Response ---")
     llm_result = meta_generator.parse_llm_response(response_lines)

@@ -221,7 +221,7 @@ def test_analyze_target_categorical(sample_df):
     mg._classify_columns()
     target_info = mg._analyze_target()
 
-    assert target_info["column_type"] == ColumnType.CATEGORICAL
+    assert target_info["column_type"] == ColumnType.CATEGORICAL.name.lower()
     assert "class_distribution" in target_info
     assert "class_count" in target_info
     assert "mutual_information" in target_info
@@ -245,7 +245,7 @@ def test_analyze_target_numeric(sample_df):
     mg._classify_columns()
     target_info = mg._analyze_target()
 
-    assert target_info["column_type"] == ColumnType.NUMERIC
+    assert target_info["column_type"] == ColumnType.NUMERIC.name.lower()
     assert "correlations" in target_info
     assert "mutual_information" in target_info
 
