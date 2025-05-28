@@ -12,195 +12,39 @@ from automind.data_utils.preprocessing import (
     apply_method,
 )
 
-llm_response_1 = {
+llm_response = {
     "data_quality_report": {
         "overall_quality": "MODERATE",
-        "summary": "The dataset is complete and free of missing values and duplicates, with a consistent schema. However, it contains moderate outlier presence in several columns and a noticeable class imbalance in the target variable.",
+        "summary": "The dataset is generally clean and complete, but several columns contain zero values that are likely placeholders for missing data. There are also moderate levels of outliers in some numeric columns and class imbalance in the target variable.",
         "issues": [
             {
                 "type": "OUTLIERS",
                 "columns": ["Glucose", "Insulin", "BMI", "DiabetesPedigreeFunction"],
-                "description": "Several numeric columns contain moderate to high percentages of outliers, which could distort statistical analyses and model performance.",
+                "description": "Several numeric columns show a non-negligible percentage of outliers.",
             },
             {
                 "type": "IMBALANCE",
                 "columns": ["Outcome"],
-                "description": "The target variable is imbalanced, with 65% of observations in class 0 and 35% in class 1, which may lead to biased models.",
+                "description": "The target variable has an imbalanced class distribution with 65% negative class and 35% positive class.",
+            },
+            {
+                "type": "INCONSISTENT_TYPES",
+                "columns": ["Pregnancies", "BloodPressure", "SkinThickness", "Age"],
+                "description": "These columns are currently categorized as categorical but should be treated as numeric features.",
             },
         ],
         "strengths": [
             {
                 "type": "MISSING_VALUES",
-                "description": "There are no missing values across all columns, which simplifies preprocessing and model training.",
+                "description": "No explicit missing values are present in the dataset.",
+            },
+            {
+                "type": "HIGH_COMPLETENESS",
+                "description": "All columns are fully populated with no missing data recorded.",
             },
             {
                 "type": "CONSISTENT_SCHEMA",
-                "description": "Column types are clearly defined and consistent, aiding in robust feature engineering and modeling.",
-            },
-        ],
-    },
-    "data_cleaning": {
-        "missing_values": [],
-        "outliers": [
-            {"column": "Glucose", "methods": ["WINSORIZE_OUTLIERS"]},
-            {"column": "Insulin", "methods": ["WINSORIZE_OUTLIERS"]},
-            {"column": "BMI", "methods": ["WINSORIZE_OUTLIERS"]},
-            {"column": "DiabetesPedigreeFunction", "methods": ["WINSORIZE_OUTLIERS"]},
-        ],
-        "duplicates": [],
-    },
-    "feature_engineering": {
-        "creation": [
-            {"column": "Pregnancies", "methods": ["LABEL_ENCODE"]},
-            {"column": "BloodPressure", "methods": ["LABEL_ENCODE"]},
-            {"column": "SkinThickness", "methods": ["LABEL_ENCODE"]},
-            {"column": "Age", "methods": ["LABEL_ENCODE"]},
-        ],
-        "transformation": [
-            {"column": "Glucose", "methods": ["STANDARDIZE"]},
-            {"column": "Insulin", "methods": ["LOG_TRANSFORM", "STANDARDIZE"]},
-            {"column": "BMI", "methods": ["STANDARDIZE"]},
-            {"column": "DiabetesPedigreeFunction", "methods": ["ROBUST_SCALE"]},
-        ],
-        "selection": [],
-    },
-    "modeling_approach": {
-        "task_type": "CLASSIFICATION",
-        "target": "Outcome",
-        "recommended_algorithms": [
-            {
-                "name": "RandomForestClassifier",
-                "reason": "Performs well with mixed data types and can handle feature importance estimation and imbalanced data.",
-            },
-            {
-                "name": "XGBoostClassifier",
-                "reason": "Effective for structured data with imbalanced target distributions and supports regularization.",
-            },
-            {
-                "name": "LogisticRegression",
-                "reason": "Simple and interpretable baseline model suitable for binary classification tasks.",
-            },
-        ],
-        "evaluation_metrics": ["ACCURACY", "PRECISION", "RECALL", "F1", "AUC"],
-        "cross_validation": {"method": "K_FOLD", "folds": "5", "stratified": "true"},
-    },
-}
-
-llm_response_2 = {
-    "data_quality_report": {
-        "overall_quality": "MODERATE",
-        "summary": "The dataset is generally complete with no missing values and a consistent schema. However, the presence of outliers in several numerical columns and class imbalance in the target variable affect its overall quality.",
-        "issues": [
-            {
-                "type": "OUTLIERS",
-                "columns": ["Glucose", "Insulin", "BMI", "DiabetesPedigreeFunction"],
-                "description": "These numeric columns contain moderate to high levels of outliers that may affect model performance.",
-            },
-            {
-                "type": "IMBALANCE",
-                "columns": ["Outcome"],
-                "description": "The target column is imbalanced, with class 0 making up approximately 65% of the data.",
-            },
-        ],
-        "strengths": [
-            {
-                "type": "MISSING_VALUES",
-                "description": "The dataset contains no missing values, which simplifies the data cleaning process.",
-            },
-            {
-                "type": "CONSISTENT_SCHEMA",
-                "description": "All columns have consistent and appropriate data types for analysis.",
-            },
-        ],
-    },
-    "data_cleaning": {
-        "missing_values": [],
-        "outliers": [
-            {"column": "Glucose", "methods": ["WINSORIZE_OUTLIERS"]},
-            {"column": "Insulin", "methods": ["WINSORIZE_OUTLIERS"]},
-            {"column": "BMI", "methods": ["WINSORIZE_OUTLIERS"]},
-            {"column": "DiabetesPedigreeFunction", "methods": ["WINSORIZE_OUTLIERS"]},
-        ],
-        "duplicates": [],
-    },
-    "feature_engineering": {
-        "creation": [
-            {"column": "Pregnancies", "methods": ["ONE_HOT_ENCODE"]},
-            {"column": "BloodPressure", "methods": ["ONE_HOT_ENCODE"]},
-            {"column": "SkinThickness", "methods": ["ONE_HOT_ENCODE"]},
-            {"column": "Age", "methods": ["ONE_HOT_ENCODE"]},
-        ],
-        "transformation": [
-            {"column": "Glucose", "methods": ["STANDARDIZE"]},
-            {"column": "Insulin", "methods": ["ROBUST_SCALE"]},
-            {"column": "BMI", "methods": ["STANDARDIZE"]},
-            {"column": "DiabetesPedigreeFunction", "methods": ["LOG_TRANSFORM"]},
-        ],
-        "selection": [
-            {"column": "Glucose", "methods": ["APPLY_PCA"]},
-            {"column": "BMI", "methods": ["APPLY_PCA"]},
-            {"column": "Age", "methods": ["APPLY_PCA"]},
-            {"column": "Pregnancies", "methods": ["APPLY_PCA"]},
-            {"column": "SkinThickness", "methods": ["APPLY_PCA"]},
-        ],
-    },
-    "modeling_approach": {
-        "task_type": "CLASSIFICATION",
-        "target": "Outcome",
-        "recommended_algorithms": [
-            {
-                "name": "RANDOM_FOREST",
-                "reason": "Handles mixed data types well and is robust to outliers and feature importance is interpretable.",
-            },
-            {
-                "name": "XGBOOST",
-                "reason": "Performs well on tabular datasets with imbalanced classes and allows fine control over regularization.",
-            },
-            {
-                "name": "LOGISTIC_REGRESSION",
-                "reason": "Provides a strong baseline for binary classification and offers interpretable coefficients.",
-            },
-        ],
-        "evaluation_metrics": ["ACCURACY", "PRECISION", "RECALL", "F1", "AUC"],
-        "cross_validation": {"method": "K_FOLD", "folds": "5", "stratified": "true"},
-    },
-}
-
-llm_response_3 = {
-    "data_quality_report": {
-        "overall_quality": "MODERATE",
-        "summary": "The dataset is generally well-structured with no missing values, duplicate columns, or inconsistent types. However, issues such as outliers in several numeric columns and potential imbalance in the target variable are present. Additionally, some numeric fields contain zero values that are likely placeholders for missing data.",
-        "issues": [
-            {
-                "type": "OUTLIERS",
-                "columns": ["Glucose", "Insulin", "BMI", "DiabetesPedigreeFunction"],
-                "description": "Several numeric columns exhibit a non-trivial percentage of outliers which may affect model performance.",
-            },
-            {
-                "type": "IMBALANCE",
-                "columns": ["Outcome"],
-                "description": "The target variable is imbalanced with class 0 representing 65.1% of the samples and class 1 representing 34.9%.",
-            },
-            {
-                "type": "MISSING_VALUES",
-                "columns": [
-                    "Glucose",
-                    "BloodPressure",
-                    "SkinThickness",
-                    "Insulin",
-                    "BMI",
-                ],
-                "description": "Zero values likely represent missing data in these numeric health metrics.",
-            },
-        ],
-        "strengths": [
-            {
-                "type": "MISSING_VALUES",
-                "description": "The dataset has no formally missing values, indicating a high degree of completeness.",
-            },
-            {
-                "type": "CONSISTENT_SCHEMA",
-                "description": "All columns have consistent and appropriate data types.",
+                "description": "Dataset contains consistent column naming and types with no apparent schema conflicts.",
             },
         ],
     },
@@ -227,23 +71,28 @@ llm_response_3 = {
                 "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"],
             },
         ],
+        "outliers": [
+            {"column": "Glucose", "methods": ["WINSORIZE_REMOVE_OUTLIERS"]},
+            {"column": "Insulin", "methods": ["WINSORIZE_REMOVE_OUTLIERS"]},
+            {"column": "BMI", "methods": ["WINSORIZE_REMOVE_OUTLIERS"]},
+            {
+                "column": "DiabetesPedigreeFunction",
+                "methods": ["WINSORIZE_REMOVE_OUTLIERS"],
+            },
+        ],
         "duplicates": [],
     },
     "feature_engineering": {
-        "creation": [
-            {"column": "Pregnancies", "methods": ["LABEL_ENCODE"]},
-            {"column": "BloodPressure", "methods": ["LABEL_ENCODE"]},
-            {"column": "SkinThickness", "methods": ["LABEL_ENCODE"]},
-            {"column": "Age", "methods": ["LABEL_ENCODE"]},
-        ],
+        "creation": [],
         "transformation": [
             {"column": "Glucose", "methods": ["STANDARDIZE"]},
-            {"column": "Insulin", "methods": ["ROBUST_SCALE"]},
+            {"column": "Insulin", "methods": ["STANDARDIZE"]},
             {"column": "BMI", "methods": ["STANDARDIZE"]},
-            {
-                "column": "DiabetesPedigreeFunction",
-                "methods": ["LOG_TRANSFORM", "STANDARDIZE"],
-            },
+            {"column": "DiabetesPedigreeFunction", "methods": ["STANDARDIZE"]},
+            {"column": "Age", "methods": ["STANDARDIZE"]},
+            {"column": "Pregnancies", "methods": ["STANDARDIZE"]},
+            {"column": "BloodPressure", "methods": ["STANDARDIZE"]},
+            {"column": "SkinThickness", "methods": ["STANDARDIZE"]},
         ],
         "selection": [],
     },
@@ -253,28 +102,26 @@ llm_response_3 = {
         "recommended_algorithms": [
             {
                 "name": "RandomForestClassifier",
-                "reason": "Performs well with mixed data types and can handle outliers and feature importance natively.",
+                "reason": "Performs well with mixed-type features and handles outliers and missing values relatively well.",
             },
             {
                 "name": "XGBoostClassifier",
-                "reason": "Provides strong performance with imbalanced data and handles feature interactions effectively.",
+                "reason": "Effective for imbalanced classification problems and provides feature importance insights.",
             },
             {
                 "name": "LogisticRegression",
-                "reason": "A strong baseline model for binary classification and interpretable results.",
+                "reason": "A strong baseline model for binary classification problems.",
             },
         ],
         "evaluation_metrics": ["ACCURACY", "PRECISION", "RECALL", "F1", "AUC"],
-        "cross_validation": {"method": "K_FOLD", "folds": 5, "stratified": "true"},
+        "cross_validation": {"method": "K_FOLD", "folds": "5", "stratified": "true"},
     },
 }
 
 if __name__ == "__main__":
     df = load_data(AvailableDatasetsCSV.diabetes.name)
 
-    result_1 = LLMOutputSchema.model_validate(llm_response_1)
-    result_2 = LLMOutputSchema.model_validate(llm_response_2)
-    result_3 = LLMOutputSchema.model_validate(llm_response_3)
+    result = LLMOutputSchema.model_validate(llm_response)
 
     for feature in [
         "Glucose",
@@ -300,7 +147,7 @@ if __name__ == "__main__":
     ]:
         df = apply_method(FE.FeatureCreation.LABEL_ENCODE, df, feature)
 
-    console.print(result_3)
+    console.print(result)
     console.print(df)
 
     X = df.drop(columns="Outcome")

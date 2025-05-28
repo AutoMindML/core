@@ -97,7 +97,7 @@ class DataCleaner:
                 self.operation_history.append(
                     {
                         "column": column,
-                        "operation": DC.Outliers.REMOVE_OUTLIERS.name,
+                        "operation": DC.Outliers.IQR_REMOVE_OUTLIERS.name,
                         "reason": "Numerical column outlier strategy",
                         "success": True,
                     }
@@ -105,7 +105,7 @@ class DataCleaner:
 
             elif method == "winsorize":
                 result_df = apply_method(
-                    DC.Outliers.WINSORIZE_OUTLIERS,
+                    DC.Outliers.WINSORIZE_REMOVE_OUTLIERS,
                     pd.DataFrame(result_df),
                     column,
                     method=outlier_detection,
@@ -115,7 +115,7 @@ class DataCleaner:
                 self.operation_history.append(
                     {
                         "column": column,
-                        "operation": DC.Outliers.WINSORIZE_OUTLIERS.name,
+                        "operation": DC.Outliers.WINSORIZE_REMOVE_OUTLIERS.name,
                         "reason": "Numerical column outlier strategy",
                         "success": True,
                     }

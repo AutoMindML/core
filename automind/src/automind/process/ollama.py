@@ -15,16 +15,14 @@ env = dotenv_values()
 
 
 class AvailibleModel(enum.Enum):
-    deepseek_r1_7b = "deepseek-r1:7b"
-    deepseek_r1_8b = "deepseek-r1:8b"
     deepseek_r1_14b = "deepseek-r1:14b"
     gemma3_12b = "gemma3:12b"
-    llama3_1_8b = "llama3.1:8b"
+    mistral_7b = "mistral:7b"
 
 
 CMD = "ollama"
 END_OF_STREAM = "<<END_OF_STREAM>>"
-DEFAULT_MODEL = AvailibleModel.llama3_1_8b.value
+DEFAULT_MODEL = AvailibleModel.mistral_7b.value
 TEST_PROMPT = "generate random python code."
 
 

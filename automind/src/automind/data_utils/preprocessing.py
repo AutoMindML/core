@@ -31,8 +31,8 @@ class DC:
         # IMPUTE_REGRESSION = auto()  # advanced
 
     class Outliers(Enum):
-        REMOVE_OUTLIERS = auto()
-        WINSORIZE_OUTLIERS = auto()
+        IQR_REMOVE_OUTLIERS = auto()
+        WINSORIZE_REMOVE_OUTLIERS = auto()
         # CAP_OUTLIERS = auto()  # optional alternative
         # DETECT_OUTLIERS = auto()  # advanced
 
@@ -235,7 +235,7 @@ class FeatureSelectionRecommendation(BaseModel):
 
 class DataCleaningRecommendations(BaseModel):
     missing_values: List[MissingValueRecommendation]
-    # outliers: List[OutlierRecommendation]
+    outliers: List[OutlierRecommendation]
     duplicates: List[DuplicateRecommendation]
 
 
@@ -455,7 +455,7 @@ def identify_outliers(
         raise ValueError(f"Unknown outlier detection method: {method}")
 
 
-@register_method(DC.Outliers.REMOVE_OUTLIERS)
+@register_method(DC.Outliers.IQR_REMOVE_OUTLIERS)
 def remove_outliers(
     df: pd.DataFrame, column: str, method: str = "iqr", factor: float = 1.5
 ) -> pd.DataFrame:
@@ -485,7 +485,7 @@ def remove_outliers(
     return df.loc[~outlier_mask]
 
 
-@register_method(DC.Outliers.WINSORIZE_OUTLIERS)
+@register_method(DC.Outliers.WINSORIZE_REMOVE_OUTLIERS)
 def winsorize_outliers(
     df: pd.DataFrame, column: str, method: str = "iqr", factor: float = 1.5
 ) -> pd.DataFrame:
