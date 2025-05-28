@@ -570,7 +570,49 @@ class MetaGenerator:
                     for k, v in list(target_info["mutual_information"].items())[:5]
                 ]
 
-        # Format the query
+        # Method Lists:
+        #
+        # - data quality list:
+        # {DataQualityType._member_names_}
+        #
+        # - overall quality list:
+        # {OverallQuality._member_names_}
+        #
+        # - missing value list:
+        # {DC.MissingValues._member_names_}
+        #
+        # - outlier list:
+        # {DC.Outliers._member_names_}
+        #
+        # - duplicate list:
+        # {DC.DuplicatesAndColumn._member_names_}
+        #
+        # - feature creation list:
+        # {FE.FeatureCreation._member_names_}
+        #
+        # - transformation list:
+        # {FE.Transformations._member_names_}
+        #
+        # - feature selection list:
+        # {FE.FeatureSelection._member_names_}
+        #
+        # - task type list:
+        # {TaskType._member_names_}
+        #
+        # - cross validation method list:
+        # {CrossValidationMethod._member_names_}
+        #
+        # - evaluation metric list:
+        # {EvaluationMetric._member_names_}
+
+
+            # "outliers": [
+            #   {{
+            #     "column": "COLUMN_NAME",
+            #     "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {DC.Outliers._member_names_}"]
+            #   }}
+            # ],
+
         query_template = f"""
         You are an expert data scientist.
 
@@ -580,54 +622,15 @@ class MetaGenerator:
         - Output must be in strict JSON format (structure provided below).
         - Use **only** the following method lists. Do **NOT** use any other method names.
         - Use **exact** key names. Do **NOT** change or rename keys (e.g., use "target", not "label").
-        - All method values must come from the corresponding method list (do not include any other method or text).
+        - All method values must from the corresponding method list (do not include any other method or text).
         - Different column must be separated, and the same column key cannot contain multiple column.
         - If a column does not need to be processed, just leave method with empty list `[]`, do not include any other method or text.
-
-        ---
-
-        Method Lists:
-
-        - data quality list:
-        {DataQualityType._member_names_}
-
-        - overall quality list:
-        {OverallQuality._member_names_}
-
-        - missing value list:
-        {DC.MissingValues._member_names_}
-
-        - outlier list:
-        {DC.Outliers._member_names_}
-
-        - duplicate list:
-        {DC.DuplicatesAndColumn._member_names_}
-
-        - feature creation list:
-        {FE.FeatureCreation._member_names_}
-
-        - transformation list:
-        {FE.Transformations._member_names_}
-
-        - feature selection list:
-        {FE.FeatureSelection._member_names_}
-
-        - task type list:
-        {TaskType._member_names_}
-
-        - cross validation method list:
-        {CrossValidationMethod._member_names_}
-
-        - evaluation metric list:
-        {EvaluationMetric._member_names_}
 
         ---
 
         Dataset Info:
         The dataset has {llm_metadata["basic_info"]["rows"]} rows and {llm_metadata["basic_info"]["columns"]} columns.
         The target column is '{llm_metadata["target"]["name"]}', which is of type '{llm_metadata["target"]["type"]}'.
-
-        ---
 
         Dataset Metadatas in JSON format:
         ```json
@@ -661,12 +664,6 @@ class MetaGenerator:
               {{
                 "column": "COLUMN_NAME",
                 "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {DC.MissingValues._member_names_}"]
-              }}
-            ],
-            "outliers": [
-              {{
-                "column": "COLUMN_NAME",
-                "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {DC.Outliers._member_names_}"]
               }}
             ],
             "duplicates": [
@@ -717,8 +714,8 @@ class MetaGenerator:
         }}
         ```
 
-        Return analysis in the exact JSON format above, use ```json ``` to surround it (do not include any other text),
-        All method values must come from the specified method lists (do not include any other method or text).
+        Return analysis in the exact JSON format above, use ```json ``` to surround it (do not include any other text).
+        You can correct the field type according to the field information given by medadata, but you cannot change the target type.
         """
 
         return query_template

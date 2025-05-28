@@ -15,16 +15,16 @@ env = dotenv_values()
 
 
 class AvailibleModel(enum.Enum):
-    llama3_2 = "llama3.2"
-    qwen3_8b = "qwen3:8b"
-    gemma3_4b = "gemma3:4b"
-    gemma3_12b = "gemma3:12b"
+    deepseek_r1_7b = "deepseek-r1:7b"
     deepseek_r1_8b = "deepseek-r1:8b"
+    deepseek_r1_14b = "deepseek-r1:14b"
+    gemma3_12b = "gemma3:12b"
+    llama3_1_8b = "llama3.1:8b"
 
 
 CMD = "ollama"
 END_OF_STREAM = "<<END_OF_STREAM>>"
-DEFAULT_MODEL = AvailibleModel.deepseek_r1_8b.value
+DEFAULT_MODEL = AvailibleModel.llama3_1_8b.value
 TEST_PROMPT = "generate random python code."
 
 
@@ -52,13 +52,13 @@ def run_ollama(prompt: str, model: str = DEFAULT_MODEL):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
-    buffer_list = []
+    buffer = ""
 
     if process.stdout is not None:
-        buffer = ""
-
         while True:
             line = process.stdout.readline()
+
+            print(line)
 
             cleaned_line = ANSI_ESCAPE.sub("", line.decode().strip())
             cleaned_line = SPINNER_SYMBOLS.sub("", cleaned_line)
@@ -69,8 +69,6 @@ def run_ollama(prompt: str, model: str = DEFAULT_MODEL):
             if env.get("OLLAMA_DEBUG") is not None:
                 print(cleaned_line, flush=True)
 
-            buffer_list.append(cleaned_line)
-
             # detect empty line or other ending
             if buffer.endswith("\n\n\n"):
                 break
@@ -78,9 +76,9 @@ def run_ollama(prompt: str, model: str = DEFAULT_MODEL):
         if env.get("OLLAMA_DEBUG") is not None:
             print(END_OF_STREAM, flush=True)
 
-        buffer_list.append(END_OF_STREAM)
+        buffer += END_OF_STREAM
 
-    return buffer_list
+    return buffer
 
 
 def ollama_stream(

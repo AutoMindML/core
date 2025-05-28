@@ -13,6 +13,7 @@ dependencies = [
   "mcp[cli]>=1.6.0",
   "pydantic",
   "ollama",
+  "imbalanced-learn",
 
 
   # === Feature === #
