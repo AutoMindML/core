@@ -33,14 +33,11 @@ class DatasetInfo:
 
 
 def load_data(
-    filename: Optional[str] = None, filetype: DatasetFileType = DatasetFileType.CSV
+    filename: DatasetInfo,
+    filetype: DatasetFileType = DatasetFileType.CSV,
 ):
-    if not filename:
-        return pd.DataFrame()
-
     base_path = Path(__file__).parent.absolute()
-    print(base_path)
-    full_path = base_path / filetype.value / f"{filename}.{filetype.value}"
+    full_path = base_path / filetype.value / f"{filename.name}.{filetype.value}"
 
     df = pd.read_csv(full_path)
 

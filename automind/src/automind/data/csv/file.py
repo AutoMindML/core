@@ -36,3 +36,5 @@ class AvailableDatasetsCSV:
         """,
         "https://www.kaggle.com/datasets/mathchi/diabetes-data-set?resource=download",
     )
+    anthrax_train = DatasetInfo("anthrax_training")
+    anthrax_test = DatasetInfo("anthrax_testing")

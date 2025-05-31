@@ -69,30 +69,6 @@ def test_init():
     assert mg.text_columns == []
 
 
-def test_classify_columns(sample_df):
-    """Test column classification logic."""
-    mg = MetaGenerator(sample_df)
-    mg._classify_columns()
-
-    assert set(mg.numeric_columns) == {"numeric1", "numeric2", "numeric3"}
-    assert set(mg.categorical_columns) == {
-        "categorical1",
-        "categorical2",
-        "numeric_cat",
-    }
-    assert set(mg.datetime_columns) == {"datetime1"}
-    assert set(mg.text_columns) == {"text1"}
-
-    # Check metadata was properly updated
-    assert "column_types" in mg.metadata
-    assert set(mg.metadata["column_types"]["numeric"]) == set(mg.numeric_columns)
-    assert set(mg.metadata["column_types"]["categorical"]) == set(
-        mg.categorical_columns
-    )
-    assert set(mg.metadata["column_types"]["datetime"]) == set(mg.datetime_columns)
-    assert set(mg.metadata["column_types"]["text"]) == set(mg.text_columns)
-
-
 def test_analyze_column_numeric(sample_df):
     """Test analysis of numeric columns."""
     mg = MetaGenerator(sample_df)

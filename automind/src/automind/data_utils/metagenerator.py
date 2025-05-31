@@ -477,7 +477,7 @@ class MetaGenerator:
         plt.close()
         return None
 
-    def generate_llm_query(self) -> str:
+    def generate_llm_query(self, task_type: Optional[TaskType] = None) -> str:
         """
         Generate a comprehensive LLM query based on the metadata.
 
@@ -570,6 +570,8 @@ class MetaGenerator:
                     for k, v in list(target_info["mutual_information"].items())[:5]
                 ]
 
+        modeling_approach_limit = 3
+
         query_template = f"""
         You are an expert data scientist.
 
@@ -579,16 +581,20 @@ class MetaGenerator:
         - Output must be in strict JSON format (structure provided below).
         - Use **only** the following method lists. Do **NOT** use any other method names.
         - Use **exact** key names. Do **NOT** change or rename keys (e.g., use "target", not "label").
-        - All method values must from the corresponding method list (do not include any other method or text).
+        - All methods of column must from the following method list (do not include any other method or text).
         - Different column must be separated, and the same column key cannot contain multiple column.
         - If a column does not need to be processed, just leave method with empty list `[]`, do not include any other method or text.
         - You can analyze the meaning of the column and treat zero as a missing value when zero is meaningless for the column.
-        - You can correct the feature column type by metadata, but you cannot change the target column type.
+        - You can analyze the meaning of the column, correct the column type and provide appropriate data processing.
+        - Please give the most appropriate data processing according to the characteristics of the model.
+        - Please give {modeling_approach_limit} suitable modeling approaches
+
         ---
 
         Dataset Info:
         The dataset has {llm_metadata["basic_info"]["rows"]} rows and {llm_metadata["basic_info"]["columns"]} columns.
         The target column is '{llm_metadata["target"]["name"]}', which is of type '{llm_metadata["target"]["type"]}'.
+        {f"This target column needs to use {task_type.name} task" if task_type is not None else ""}
 
         Dataset Metadatas in JSON format:
         ```json
@@ -616,65 +622,71 @@ class MetaGenerator:
               }}
             ]
           }},
-
-          "data_cleaning": {{
-            "missing_values": [
+          "modeling_approaches": [
               {{
-                "column": "COLUMN_NAME",
-                "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {DC.MissingValues._member_names_}"]
+                "task_type": "REPLACE_WITH_ONE_OF: {TaskType._member_names_}",
+                "target": "REPLACE_WITH_TARGET_COLUMN_NAME",
+                "recommended_algorithm": {{
+                    "name": "REPLACE_WITH_MODEL_NAME",
+                    "reason": "REPLACE_WITH_REASON"
+                    "params": "REPLACE_WITH_DICT"
+                }},
+                "data_cleaning": {{
+                    "missing_values": [
+                      {{
+                        "column": "COLUMN_NAME",
+                        "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {DC.MissingValues._member_names_}"]
+                      }}
+                    "outliers": [
+                      {{
+                        "column": "COLUMN_NAME",
+                        "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {DC.Outliers._member_names_}"]
+                      }}
+                    ],
+                    ],
+                    "duplicates": [
+                      {{
+                        "column": "COLUMN_NAME",
+                        "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {DC.DuplicatesAndColumn._member_names_}"]
+                      }}
+                    ]
+                    "balancing": [
+                      {{
+                        "column": "COLUMN_NAME",
+                        "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {DC.Balancing._member_names_}"]
+                      }}
+                    ]
+                }},
+                "feature_engineering": {{
+                    "creation": [
+                      {{
+                        "column": "COLUMN_NAME",
+                        "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {FE.FeatureCreation._member_names_}"]
+                      }}
+                    ],
+                    "transformation": [
+                      {{
+                        "column": "COLUMN_NAME",
+                        "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {FE.Transformations._member_names_}"]
+                      }}
+                    ],
+                    "selection": [
+                      {{
+                        "column": "COLUMN_NAME",
+                        "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {FE.FeatureSelection._member_names_}"]
+                      }}
+                    ]
+                }},
+                "evaluation_metrics": ["REPLACE_WITH_ONE_OR_MORE_OF: {EvaluationMetric._member_names_}"],
+                "cross_validation": {{
+                  "method": "REPLACE_WITH_ONE_OF: {CrossValidationMethod._member_names_}",
+                  "folds": "REPLACE_WITH_NUMBER",
+                  "stratified": "REPLACE_WITH_BOOLEAN" 
+                }}
+                "test_size": "REPLACE_WITH_FLOAT: between zero and one"
+                "validation_size": "REPLACE_WITH_FLOAT: between zero and one"
               }}
-            "outliers": [
-              {{
-                "column": "COLUMN_NAME",
-                "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {DC.Outliers._member_names_}"]
-              }}
-            ],
-            ],
-            "duplicates": [
-              {{
-                "column": "COLUMN_NAME",
-                "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {DC.DuplicatesAndColumn._member_names_}"]
-              }}
-            ]
-          }},
-
-          "feature_engineering": {{
-            "creation": [
-              {{
-                "column": "COLUMN_NAME",
-                "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {FE.FeatureCreation._member_names_}"]
-              }}
-            ],
-            "transformation": [
-              {{
-                "column": "COLUMN_NAME",
-                "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {FE.Transformations._member_names_}"]
-              }}
-            ],
-            "selection": [
-              {{
-                "column": "COLUMN_NAME",
-                "methods": ["REPLACE_WITH_ONE_OR_MORE_OF: {FE.FeatureSelection._member_names_}"]
-              }}
-            ]
-          }},
-
-          "modeling_approach": {{
-            "task_type": "REPLACE_WITH_ONE_OF: {TaskType._member_names_}",
-            "target": "REPLACE_WITH_TARGET_COLUMN_NAME",
-            "recommended_algorithms": [
-              {{
-                "name": "REPLACE_WITH_MODEL_NAME",
-                "reason": "REPLACE_WITH_REASON"
-              }}
-            ],
-            "evaluation_metrics": ["REPLACE_WITH_ONE_OR_MORE_OF: {EvaluationMetric._member_names_}"],
-            "cross_validation": {{
-              "method": "REPLACE_WITH_ONE_OF: {CrossValidationMethod._member_names_}",
-              "folds": "REPLACE_WITH_NUMBER",
-              "stratified": "REPLACE_WITH_BOOLEAN" 
-            }}
-          }}
+          ]
         }}
         ```
 

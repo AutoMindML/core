@@ -262,11 +262,11 @@ class DataParser:
             return False
 
         # Check unique ratio against threshold
-        unique_ratio = len(col_data.unique()) / len(col_data)
+        # unique_ratio = len(col_data.unique()) / len(col_data)
 
         # Small number of unique values relative to data size suggests categorical
-        if unique_ratio <= self.categorical_threshold:
-            return True
+        # if unique_ratio <= self.categorical_threshold:
+        #     return True
 
         # Check for common categorical patterns like 0/1 encoding
         unique_values = set(col_data.unique())

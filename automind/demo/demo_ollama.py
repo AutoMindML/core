@@ -9,8 +9,8 @@ def main():
     df = load_data(AvailableDatasetsCSV.diabetes.name)
     meta_generator = MetaGenerator(df, target_column="Outcome")
 
-    meta_generator.extract_metadata()
     llm_prompt = meta_generator.generate_llm_query()
+    meta_generator.extract_metadata()
 
     print("Generated LLM Prompt:")
     console.print(llm_prompt)

@@ -88,7 +88,6 @@ class DataCleaner:
                 # Create a mask of non-outlier rows for this column
                 outlier_mask = identify_outliers(
                     pd.Series(result_df[column]),
-                    method=outlier_detection,
                     factor=factor,
                 )
 
@@ -105,17 +104,16 @@ class DataCleaner:
 
             elif method == "winsorize":
                 result_df = apply_method(
-                    DC.Outliers.WINSORIZE_REMOVE_OUTLIERS,
+                    DC.Outliers.IQR_WINSORIZE_OUTLIERS,
                     pd.DataFrame(result_df),
                     column,
-                    method=outlier_detection,
                     factor=factor,
                 )
 
                 self.operation_history.append(
                     {
                         "column": column,
-                        "operation": DC.Outliers.WINSORIZE_REMOVE_OUTLIERS.name,
+                        "operation": DC.Outliers.IQR_WINSORIZE_OUTLIERS.name,
                         "reason": "Numerical column outlier strategy",
                         "success": True,
                     }
