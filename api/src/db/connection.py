@@ -2,7 +2,9 @@ import json
 from pathlib import Path
 
 import mindsdb_sdk
+from mindsdb_sdk.server import Server
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 
 
 def get_mindsdb_ml_engine_upload_url():
@@ -16,10 +18,11 @@ def get_mindsdb_ml_engine_upload_url():
     return f"http://{host}:{port}/api/handlers/byom"
 
 
-def create_mssql_engine():
+def create_mssql_engine() -> Engine:
     f = open(f"{Path(__file__).parent.parent.parent.absolute()}/config.json")
     json_file = json.load(f)
     f.close()
+
     config = json_file["server"]["systemdb"]
     driver = config["driver"]
     user = config["user"]
@@ -30,10 +33,12 @@ def create_mssql_engine():
     db = config["db"]
     url = f"mssql+pyodbc://{user}:{password}@{host}{instance}:{port}/{db}?driver={driver}&trustServerCertificate=yes"
 
-    return create_engine(url, fast_executemany=False)
+    engine = create_engine(url, fast_executemany=False)
+
+    return engine
 
 
-def connect_mindsdb_server():
+def connect_mindsdb_server() -> Server:
     f = open(f"{Path(__file__).parent.parent.parent.absolute()}/config.json")
     json_file = json.load(f)
     f.close()

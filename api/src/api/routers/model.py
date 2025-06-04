@@ -4,8 +4,10 @@ from typing import Annotated
 import pandas as pd
 import sqlalchemy as sql
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.exc import DBAPIError
+from starlette.status import HTTP_404_NOT_FOUND
 
 from ...db.connection import connect_mindsdb_server, create_mssql_engine
 from .utils import verify_member_id
@@ -159,71 +161,75 @@ def add_model(
 
         project_name = f"project_{req.cid}"
 
-        if project_name in [project.name for project in mindsdb_server.list_projects()]:
-            project = mindsdb_server.get_project(project_name)
-            model_name = f"model_{new_id}"
+        if project_name not in [
+            project.name for project in mindsdb_server.list_projects()
+        ]:
+            return JSONResponse(None, HTTP_404_NOT_FOUND)
 
-            params = {"model_id": new_id}
-            query = sql.text(
-                """
-                select data_source_md5, engine_md5, data_source_type from vd_Model where model_id = :model_id;
+        project = mindsdb_server.get_project(project_name)
+        model_name = f"model_{new_id}"
+
+        params = {"model_id": new_id}
+        query = sql.text(
             """
+            select data_source_md5, engine_md5, data_source_type from vd_Model where model_id = :model_id;
+        """
+        )
+
+        model_object = connection.execute(query, params).fetchone()
+
+        if model_object is None:
+            raise HTTPException(
+                500,
+                "Failed to create model. reason: can't find model id from vd_Model.",
             )
 
-            model_object = connection.execute(query, params).fetchone()
+        model_object = model_object._tuple()
+        data_source_md5 = model_object[0]
+        engine_md5 = model_object[1]
+        data_source_type = model_object[2]
 
-            if model_object is None:
-                raise HTTPException(
-                    500,
-                    "Failed to create model. reason: can't find model id from vd_Model.",
-                )
+        if data_source_type == "file":
+            select_data_query = f"""
+                select * from {data_source_md5}
+            """
+            project.create_model(
+                model_name,
+                req.predict,
+                engine_md5,
+                select_data_query,
+                "files",
+            )
+        else:
+            project.create_model(
+                model_name,
+                req.predict,
+                engine_md5,
+                req.select_data_query,
+                data_source_md5,
+            )
 
-            model_object = model_object._tuple()
-            data_source_md5 = model_object[0]
-            engine_md5 = model_object[1]
-            data_source_type = model_object[2]
+        if model_name in [model.name for model in project.list_models()]:
+            model = project.get_model(model_name)
+            model_info = pd.DataFrame(model.describe("info"))
+            model_inputs = model_info.get("inputs")
+            model_outputs = model_info.get("outputs")
 
-            if data_source_type == "file":
-                select_data_query = f"""
-                    select * from {data_source_md5}
-                """
-                project.create_model(
-                    model_name,
-                    req.predict,
-                    engine_md5,
-                    select_data_query,
-                    "files",
-                )
-            else:
-                project.create_model(
-                    model_name,
-                    req.predict,
-                    engine_md5,
-                    req.select_data_query,
-                    data_source_md5,
-                )
-
-            if model_name in [model.name for model in project.list_models()]:
-                model = project.get_model(model_name)
-                model_info = pd.DataFrame(model.describe("info"))
-                model_inputs = model_info.get("inputs")
-                model_outputs = model_info.get("outputs")
-
-                if (model_inputs is not None) and (model_outputs is not None):
-                    params = {
-                        "model_id": new_id,
-                        "input": str(model_inputs[0]),
-                        "output": str(model_outputs[0]),
-                    }
-                    query = sql.text(
-                        """
-                        exec [dbo].[xp_set_model_info] @model_id = :model_id, @input = :input, @output = :output;
+            if (model_inputs is not None) and (model_outputs is not None):
+                params = {
+                    "model_id": new_id,
+                    "input": str(model_inputs[0]),
+                    "output": str(model_outputs[0]),
+                }
+                query = sql.text(
                     """
-                    )
+                    exec [dbo].[xp_set_model_info] @model_id = :model_id, @input = :input, @output = :output;
+                """
+                )
 
-                    connection.execute(query, params)
+                connection.execute(query, params)
 
-            background_tasks.add_task(update_model, req.cid, new_id)
+        background_tasks.add_task(update_model, req.cid, new_id)
 
     return {
         "status": 0,

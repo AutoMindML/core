@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 
 import requests
 import sqlalchemy as sql
-from automind.routers.ollama import ollama_router
 from fastapi import FastAPI
 
 from ..db.connection import connect_mindsdb_server, create_mssql_engine
@@ -37,4 +36,3 @@ app.include_router(data_router, prefix="/api/data")
 app.include_router(model_router, prefix="/api/model")
 app.include_router(app_router, prefix="/api/app")
 app.include_router(service_router, prefix="/api/service")
-app.include_router(ollama_router, prefix="/api/ollama")

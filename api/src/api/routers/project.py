@@ -66,7 +66,7 @@ def add_project(
         except DBAPIError:
             res.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
 
-    return {"new_id": new_id}
+    return {"newId": str(new_id)}
 
 
 class ProjectDeleteRequest(BaseModel):

@@ -7,9 +7,8 @@ from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.exc import DBAPIError
 
-from .utils import verify_member_id
-
 from ...db.connection import create_mssql_engine
+from .utils import verify_member_id
 
 router = APIRouter()
 
@@ -20,8 +19,6 @@ class AppPredictionAddRequest(BaseModel):
     model_id: int
     name: str
     des: str
-
-    model_config = ConfigDict(protected_namespaces=())
 
 
 def generate_api_key(id):

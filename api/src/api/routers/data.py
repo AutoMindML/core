@@ -137,7 +137,11 @@ class DeleteDataSouce(BaseModel):
 
 
 @router.delete("/")
-def delete_data_source(req: DeleteDataSouce, res: Response, mid: Annotated[int | None, Depends(verify_member_id)] = None):
+def delete_data_source(
+    req: DeleteDataSouce,
+    res: Response,
+    mid: Annotated[int | None, Depends(verify_member_id)] = None,
+):
     if mid is None:
         res.status_code = status.HTTP_401_UNAUTHORIZED
         return {"message": "session not found."}
@@ -168,7 +172,11 @@ def delete_data_source(req: DeleteDataSouce, res: Response, mid: Annotated[int |
 
 
 @router.get("/")
-def get_data_source_file(oid: int, res: Response, mid: Annotated[int | None, Depends(verify_member_id)] = None):
+def get_data_source_file(
+    oid: int,
+    res: Response,
+    mid: Annotated[int | None, Depends(verify_member_id)] = None,
+):
     if mid is None:
         res.status_code = status.HTTP_401_UNAUTHORIZED
         return {"message": "session not found."}
