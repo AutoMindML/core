@@ -6,7 +6,7 @@ set Password=.automl.
 
 copy *.dll %Directory%
 
-echo "Create SQLPredictor Database with I3S Schema"
+echo "Create AutoMind Database with I3S Schema"
 
 sqlcmd -S %Server% -E -v DBName = "%DBName%" DirPath = "%Directory%" -i sql\00_database.sql
 sqlcmd -S %Server% -E -v DBName = "%DBName%" DirPath = "%Directory%" -i sql\01_account.sql

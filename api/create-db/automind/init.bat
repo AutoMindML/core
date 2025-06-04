@@ -4,7 +4,7 @@ set Directory=C:\DB\MSSQL
 set UID=automl
 set Password=.automl.
 
-echo "Initial SQLPredictor Database Tuple, Function, View, SP"
+echo "Initial AutoMind Database Tuple, Function, View, SP"
 
 sqlcmd -S %Server% -E -v DBName = "%DBName%" DirPath = "%Directory%" -i sql\00_init_system.sql
 sqlcmd -S %Server% -E -v DBName = "%DBName%" DirPath = "%Directory%" -i sql\01_1_init_member.sql
