@@ -9,7 +9,7 @@ import seaborn as sns
 from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
 from sklearn.preprocessing import LabelEncoder
 
-from automind.data_utils.parser import ColumnType, DataParser
+from automind.data_utils.parser import DataColumnType, DataParser
 from automind.data_utils.preprocessing import (
     DC,
     FE,
@@ -109,13 +109,13 @@ class MetaGenerator:
         self.text_columns = []
 
         for col, col_type in column_types.items():
-            if col_type == ColumnType.NUMERIC:
+            if col_type == DataColumnType.NUMERIC:
                 self.numeric_columns.append(col)
-            elif col_type == ColumnType.CATEGORICAL:
+            elif col_type == DataColumnType.CATEGORICAL:
                 self.categorical_columns.append(col)
-            elif col_type == ColumnType.DATETIME:
+            elif col_type == DataColumnType.DATETIME:
                 self.datetime_columns.append(col)
-            elif col_type == ColumnType.TEXT:
+            elif col_type == DataColumnType.TEXT:
                 self.text_columns.append(col)
 
         self.metadata["column_types"] = {
@@ -286,14 +286,14 @@ class MetaGenerator:
     def _analyze_target(self) -> Dict:
         """Analyze the target variable and its relationship with features."""
         target_data = self.df[self.target_column]
-        target_info: Dict[str, dict | str | ColumnType] = {"column_type": "unknown"}
+        target_info: Dict[str, dict | str | DataColumnType] = {"column_type": "unknown"}
 
         # Get the column type from our classified lists
         if (
             self.target_column in self.categorical_columns
             or self.target_column in self.text_columns
         ):
-            target_info["column_type"] = ColumnType.CATEGORICAL.name.lower()
+            target_info["column_type"] = DataColumnType.CATEGORICAL.name.lower()
             target_info["class_distribution"] = dict(
                 target_data.value_counts(normalize=True).to_dict()
             )
@@ -346,7 +346,7 @@ class MetaGenerator:
             }
 
         elif self.target_column in self.numeric_columns:
-            target_info["column_type"] = ColumnType.NUMERIC.name.lower()
+            target_info["column_type"] = DataColumnType.NUMERIC.name.lower()
 
             # Calculate correlations with target
             correlations = {}
@@ -390,7 +390,7 @@ class MetaGenerator:
             }
 
         elif self.target_column in self.datetime_columns:
-            target_info["column_type"] = ColumnType.DATETIME.name.lower()
+            target_info["column_type"] = DataColumnType.DATETIME.name.lower()
             # TODO:
             # Handle datetime target if needed
             # This could include temporal analysis specific to datetime targets
@@ -742,7 +742,7 @@ class MetaGenerator:
         return json_text
 
     def _json_serializer(self, obj):
-        if isinstance(obj, ColumnType):
+        if isinstance(obj, DataColumnType):
             return str(obj)
         elif type(obj) in [np.int64, np.int32]:
             return int(obj)

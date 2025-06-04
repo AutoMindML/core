@@ -21,4 +21,11 @@ async def read_output(stream: StreamReader, name):
         if not line:
             break
 
-        print_format_output(name, line.decode("utf-8").strip())
+        decoded_line = None
+
+        try:
+            decoded_line = line.decode("utf-8").strip()
+        except UnicodeDecodeError:
+            decoded_line = line.decode("big5").strip()
+
+        print_format_output(name, decoded_line)

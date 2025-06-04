@@ -6,11 +6,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 
-class ColumnType(Enum):
-    """
-    Enumeration of possible data column types.
-    """
-
+class DataColumnType(Enum):
     DATETIME = auto()
     NUMERIC = auto()
     CATEGORICAL = auto()
@@ -83,15 +79,15 @@ class DataParser:
         ]
 
         # Column type cache
-        self._col_types: Optional[Dict[str, ColumnType]] = None
+        self._col_types: Optional[Dict[str, DataColumnType]] = None
         self.pre_identified_col_types = {}
         self.pre_identified_col_names = []
 
-    def set_pre_identified_column_types(self, col_types: Dict[str, ColumnType]):
+    def set_pre_identified_column_types(self, col_types: Dict[str, DataColumnType]):
         self.pre_identified_col_types = col_types
         self.pre_identified_col_names = col_types.keys()
 
-    def identify_column_types(self) -> Dict[str, ColumnType]:
+    def identify_column_types(self) -> Dict[str, DataColumnType]:
         """
         Identify the type of each column in the DataFrame.
 
@@ -103,37 +99,37 @@ class DataParser:
         if self._col_types is not None:
             return self._col_types
 
-        col_types: Dict[str, ColumnType] = {}
+        col_types: Dict[str, DataColumnType] = {}
 
         # First pass: Identify obvious types based on pandas dtypes
         for col in self.df.columns:
             if col in self.pre_identified_col_names:
                 col_types[col] = (
-                    self.pre_identified_col_types.get(col) or ColumnType.CATEGORICAL
+                    self.pre_identified_col_types.get(col) or DataColumnType.CATEGORICAL
                 )
             elif pd.api.types.is_datetime64_any_dtype(self.df[col]):
-                col_types[col] = ColumnType.DATETIME
+                col_types[col] = DataColumnType.DATETIME
             elif pd.api.types.is_numeric_dtype(
                 self.df[col]
             ) and not pd.api.types.is_bool_dtype(self.df[col]):
                 # Initially mark as numerical, but will check cardinality later
-                col_types[col] = ColumnType.NUMERIC
+                col_types[col] = DataColumnType.NUMERIC
             elif pd.api.types.is_bool_dtype(self.df[col]) or isinstance(
                 self.df[col].dtype, pd.CategoricalDtype
             ):
-                col_types[col] = ColumnType.CATEGORICAL
+                col_types[col] = DataColumnType.CATEGORICAL
             else:
                 # String or object columns - check if they're time series or categorical
                 if self._check_if_time_series(col):
-                    col_types[col] = ColumnType.DATETIME
+                    col_types[col] = DataColumnType.DATETIME
                 else:
-                    col_types[col] = ColumnType.CATEGORICAL
+                    col_types[col] = DataColumnType.CATEGORICAL
 
         # Second pass: Check for numeric columns that might be categorical
         for col in self.df.columns:
-            if col_types[col] == ColumnType.NUMERIC:
+            if col_types[col] == DataColumnType.NUMERIC:
                 if self._is_numeric_categorical(col):
-                    col_types[col] = ColumnType.CATEGORICAL
+                    col_types[col] = DataColumnType.CATEGORICAL
 
         # Identify if categorical column is possible text column
         # TODO: adjustable threshold
@@ -145,11 +141,11 @@ class DataParser:
         len_threshold = 15
 
         for col, col_type in col_types.items():
-            if col_type == ColumnType.CATEGORICAL:
+            if col_type == DataColumnType.CATEGORICAL:
                 unique_ratio = self.df[col].nunique(dropna=True) / len(self.df[col])
                 avg_length = self.df[col].dropna().astype(str).map(len).mean()
                 if unique_ratio >= cat_threshold and avg_length >= len_threshold:
-                    col_types[col] = ColumnType.TEXT
+                    col_types[col] = DataColumnType.TEXT
 
         self._col_types = col_types
         return col_types
@@ -295,7 +291,7 @@ class DataParser:
 
         return False
 
-    def get_columns_by_type(self, col_type: ColumnType) -> List[str]:
+    def get_columns_by_type(self, col_type: DataColumnType) -> List[str]:
         """
         Get all columns of a specific type.
 
@@ -327,7 +323,7 @@ class DataParser:
             DataFrame with time series columns converted to datetime
         """
         df_copy = self.df.copy()
-        time_series_cols = self.get_columns_by_type(ColumnType.DATETIME)
+        time_series_cols = self.get_columns_by_type(DataColumnType.DATETIME)
 
         for col in time_series_cols:
             try:
@@ -379,7 +375,7 @@ class DataParser:
             }
 
             # Add type-specific stats
-            if col_types[col] == ColumnType.NUMERIC:
+            if col_types[col] == DataColumnType.NUMERIC:
                 col_stat.update(
                     {
                         "min": self.df[col].min(),
@@ -394,7 +390,7 @@ class DataParser:
                 )
             elif col_types[
                 col
-            ] == ColumnType.DATETIME and pd.api.types.is_datetime64_any_dtype(
+            ] == DataColumnType.DATETIME and pd.api.types.is_datetime64_any_dtype(
                 self.df[col]
             ):
                 col_stat.update(
@@ -407,7 +403,7 @@ class DataParser:
                         else None,
                     }
                 )
-            elif col_types[col] == ColumnType.CATEGORICAL:
+            elif col_types[col] == DataColumnType.CATEGORICAL:
                 # Get top 5 most frequent values
                 top_values = self.df[col].value_counts().nlargest(5)
                 col_stat.update(
