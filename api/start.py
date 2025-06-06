@@ -1,6 +1,6 @@
 import asyncio
 
-from automind.console import read_output
+from automind.console import console, read_output
 from dotenv import dotenv_values, load_dotenv
 
 load_dotenv()
@@ -23,6 +23,9 @@ api_args = [
 mindsdb_python = "../../mindsdb/.venv/Scripts/python.exe"
 mindsdb_args = ["-m", "mindsdb", "--config", "config.json", "--no_studio"]
 
+api_name = "API"
+mindsdb_name = "MINDSDB"
+
 
 async def run_api():
     process = await asyncio.create_subprocess_exec(
@@ -32,10 +35,13 @@ async def run_api():
         stderr=asyncio.subprocess.STDOUT,
     )
 
-    if process.stdout is not None:
-        asyncio.create_task(read_output(process.stdout, "API"))
+    io = asyncio.create_task(read_output(process.stdout, api_name), name=api_name)
 
-    await process.wait()
+    try:
+        await process.wait()
+    finally:
+        io.cancel()
+        process.terminate()
 
 
 async def run_mindsdb():
@@ -46,18 +52,36 @@ async def run_mindsdb():
         stderr=asyncio.subprocess.STDOUT,
     )
 
-    if process.stdout is not None:
-        asyncio.create_task(read_output(process.stdout, "MINDSDB", "bold cyan"))
+    io = asyncio.create_task(
+        read_output(process.stdout, mindsdb_name, "bold cyan"), name=mindsdb_name
+    )
 
-    await process.wait()
+    try:
+        await process.wait()
+    finally:
+        io.cancel()
+        process.terminate()
 
 
 async def main():
     api_process = run_api()
     mindsdb_process = run_mindsdb()
 
-    await asyncio.gather(api_process, mindsdb_process)
+    try:
+        await asyncio.gather(api_process, mindsdb_process)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        console.print("Terminating subprocesses...")
+
+        api_process.close()
+        mindsdb_process.close()
+
+        console.print("All subprocesses terminated.")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        console.print("Received KeyboardInterrupt.")
