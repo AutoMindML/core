@@ -20,6 +20,9 @@ api_args = [
     "8080",
 ]
 
+mindsdb_python = "../../mindsdb/.venv/Scripts/python.exe"
+mindsdb_args = ["-m", "mindsdb", "--config", "config.json", "--no_studio"]
+
 
 async def run_api():
     process = await asyncio.create_subprocess_exec(
@@ -32,13 +35,28 @@ async def run_api():
     if process.stdout is not None:
         asyncio.create_task(read_output(process.stdout, "API"))
 
-    return process
+    await process.wait()
+
+
+async def run_mindsdb():
+    process = await asyncio.create_subprocess_exec(
+        mindsdb_python,
+        *mindsdb_args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+
+    if process.stdout is not None:
+        asyncio.create_task(read_output(process.stdout, "MINDSDB", "bold cyan"))
+
+    await process.wait()
 
 
 async def main():
-    process = await run_api()
+    api_process = run_api()
+    mindsdb_process = run_mindsdb()
 
-    await process.wait()
+    await asyncio.gather(api_process, mindsdb_process)
 
 
 if __name__ == "__main__":
