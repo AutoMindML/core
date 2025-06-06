@@ -21,7 +21,7 @@ api_args = [
 ]
 
 mindsdb_python = "../../mindsdb/.venv/Scripts/python.exe"
-mindsdb_args = ["-m", "mindsdb", "--config", "config.json", "--no_studio"]
+mindsdb_args = ["-m", "mindsdb", "--config", "mindsdb-config.json", "--no_studio"]
 
 api_name = "API"
 mindsdb_name = "MINDSDB"

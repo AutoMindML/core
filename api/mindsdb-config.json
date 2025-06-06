@@ -1,0 +1,25 @@
+{
+  "auth": {
+    "username": "mindsdb",
+    "password": ""
+  },
+  "api": {
+    "http": {
+      "host": "10.21.20.205",
+      "port": "47334"
+    },
+    "mysql": {
+      "host": "10.21.20.205",
+      "port": "47335",
+      "database": "mindsdb",
+      "ssl": true
+    },
+    "mcp": {
+      "host": "10.21.20.205",
+      "port": "47337"
+    }
+  },
+  "paths": {
+    "root": "C:/mindsdb/var"
+  }
+}
