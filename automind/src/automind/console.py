@@ -16,7 +16,7 @@ def print_format_output(name, content, color="bold red"):
 
 
 async def read_output(stream: StreamReader, name, color=None):
-    while True:
+    while not stream.at_eof():
         line = await stream.readline()
 
         if not line:
