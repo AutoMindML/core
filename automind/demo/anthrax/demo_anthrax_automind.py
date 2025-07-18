@@ -1,7 +1,7 @@
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 
-from automind.console import console
+from automind.console import rich_console
 from automind.data.csv.file import AvailableDatasetsCSV
 from automind.data.main import load_data
 from automind.data_utils.metagenerator import MetaGenerator
@@ -180,7 +180,7 @@ def generate_llm_query():
     df = range_binning(df, "發芽率", bins)
     meta_generator = MetaGenerator(df, target_column="發芽率")
     llm_prompt = meta_generator.generate_llm_query(TaskType.CLASSIFICATION)
-    console.print(llm_prompt)
+    rich_console.print(llm_prompt)
 
 
 def validation():

@@ -31,6 +31,7 @@ dependencies = [
 
   # === Unit Test === #
   "pytest",
+  "psutil",
 
   # === Package Util === #
   "setuptools",
@@ -47,13 +48,17 @@ dependencies = [
   "rich",
 ]
 
-# also self install torch_opt_automl
+# also self install automind
 [build-system]
 requires = ["setuptools"]
 
 # define package entry
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# more setting refer to: https://microsoft.github.io/pyright/#/configuration?id=sample-pyprojecttoml-file
+# [tool.pyright]
+# reportUnusedVariable = false
 
 [tool.ruff]
 ignore = ["F403"]

@@ -21,6 +21,8 @@ from sklearn.preprocessing import (
 
 
 class DC:
+    """Data Cleaning methods enumeration."""
+
     class MissingValues(Enum):
         IMPUTE_MEAN = auto()
         IMPUTE_MEDIAN = auto()
@@ -29,18 +31,16 @@ class DC:
         IMPUTE_FORWARD_FILL = auto()
         IMPUTE_BACKWARD_FILL = auto()
         TREAT_ZERO_AS_MISSING_VALUE = auto()
-        # IMPUTE_KNN = auto()  # advanced
-        # IMPUTE_REGRESSION = auto()  # advanced
 
     class Outliers(Enum):
         IQR_REMOVE_OUTLIERS = auto()
         IQR_WINSORIZE_OUTLIERS = auto()
-        # CAP_OUTLIERS = auto()  # optional alternative
-        # DETECT_OUTLIERS = auto()  # advanced
+        REMOVE_INFINITE = auto()
 
     class DuplicatesAndColumn(Enum):
-        REMOVE_DUPLICATES = auto()
+        DROP_DUPLICATE_ROWS = auto()
         DROP_COLUMN = auto()
+        RENAME_DUPLICATE_COLUMNS = auto()
         RENAME_COLUMN = auto()
 
     class Balancing(Enum):
@@ -49,54 +49,30 @@ class DC:
 
 
 class FE:
+    """Feature Engineering methods enumeration."""
+
     class Transformations(Enum):
-        STANDARDIZE = auto()  # Z-score
+        STANDARDIZE = auto()
         MIN_MAX_SCALE = auto()
         ROBUST_SCALE = auto()
         LOG_TRANSFORM = auto()
-        NORMALIZE = auto()  # optional
+        NORMALIZE = auto()
         UNIFORM_DISCRETIZE = auto()
         QUANTILE_DISCRETIZE = auto()
 
     class FeatureCreation(Enum):
-        # Encoding
         ONE_HOT_ENCODE = auto()
         LABEL_ENCODE = auto()
         TARGET_ENCODE = auto()
-        # FREQUENCY_ENCODE = auto()  # optional
-        # GROUP_RARE_CATEGORIES = auto()  # optional
-
-        # Datetime
         CONVERT_TO_DATETIME = auto()
         EXTRACT_DATE_PARTS = auto()
 
-        # Advance FE
-        # CREATE_POLYNOMIAL_FEATURES = auto()
-        # CREATE_INTERACTION_FEATURES = auto()
-        # CREATE_LAG_FEATURES = auto()
-        # CREATE_ROLLING_FEATURES = auto()
-        # CREATE_CYCLICAL_FEATURES = auto()
-        # TEXT_VECTORIZE = auto()
-
     class FeatureSelection(Enum):
         APPLY_PCA = auto()
-        # FEATURE_RECOMMENDATION = auto()
-        # APPLY_TSNE = auto()  # visualization only
-        # APPLY_UMAP = auto()  # visualization only
-        # FEATURE_SELECTION_MODEL_BASED = auto()
-        # FEATURE_SELECTION_CORRELATION = auto()
-        # REMOVE_LOW_VARIANCE = auto()
-        # SELECT_K_BEST = auto()
-
-
-# === LLM Req Res Model ===
 
 
 class EnumByName:
-    """
-    This class refer to discussions below
-    https://github.com/pydantic/pydantic/discussions/2980#discussioncomment-12977507
-    """
+    """Pydantic validator for Enum fields that accepts both enum instances and string names."""
 
     def __init__(self, *, ignore_case: bool = True):
         self.ignore_case = ignore_case
@@ -140,7 +116,7 @@ class EnumByName:
         )
 
 
-# === Data Quality ===
+# === Data Quality Models ===
 class DataQualityType(Enum):
     MISSING_VALUES = auto()
     OUTLIERS = auto()
@@ -149,7 +125,6 @@ class DataQualityType(Enum):
     INCONSISTENT_TYPES = auto()
     HIGH_COMPLETENESS = auto()
     CONSISTENT_SCHEMA = auto()
-    # WELL_NAMED_COLUMNS = auto()
 
 
 class OverallQuality(Enum):
@@ -171,21 +146,19 @@ class CrossValidationMethod(Enum):
 
 
 class EvaluationMetric(Enum):
-    # Regression
+    # Regression metrics
     RMSE = auto()
     MAE = auto()
     R2 = auto()
     MAPE = auto()
-
-    # Binary Classification
+    # Binary classification metrics
     ACCURACY = auto()
     PRECISION = auto()
     RECALL = auto()
     F1 = auto()
     AUC = auto()
     LOG_LOSS = auto()
-
-    # Multiclass Classification
+    # Multiclass classification metrics
     MACRO_F1 = auto()
     WEIGHTED_F1 = auto()
     TOP_K_ACCURACY = auto()
@@ -209,7 +182,7 @@ class DataQualityReport(BaseModel):
     strengths: List[Strength]
 
 
-# === Recommendations ===
+# === Recommendation Models ===
 class MissingValueRecommendation(BaseModel):
     column: str
     methods: List[Annotated[DC.MissingValues, EnumByName()]]
@@ -258,7 +231,7 @@ class FeatureEngineeringRecommendations(BaseModel):
     selection: List[FeatureSelectionRecommendation]
 
 
-# === Modeling ===
+# === Modeling Models ===
 class RecommendedAlgorithm(BaseModel):
     name: str
     reason: str
@@ -288,6 +261,7 @@ class LLMOutputSchema(BaseModel):
     modeling_approaches: List[ModelingApproach]
 
 
+# === Method Registry ===
 ALL_PROCESSING_METHOD = Union[
     DC.MissingValues,
     DC.Outliers,
@@ -302,6 +276,8 @@ method_registry = {}
 
 
 def register_method(processing_method: ALL_PROCESSING_METHOD):
+    """Decorator to register processing methods in the method registry."""
+
     def decorator(func):
         method_registry[processing_method.name] = func
         return func
@@ -309,30 +285,36 @@ def register_method(processing_method: ALL_PROCESSING_METHOD):
     return decorator
 
 
+# === Missing Value Imputation Methods ===
 @register_method(DC.MissingValues.IMPUTE_MEAN)
 def impute_mean(df: pd.DataFrame, column: str) -> pd.DataFrame:
-    """Impute missing values with mean."""
+    """Impute missing values with mean for numeric columns."""
     df = df.copy()
-    series = df[column].copy()
+    series = df[column]
 
     if not pd.api.types.is_numeric_dtype(series):
         raise TypeError("Column must be numeric for mean imputation")
 
     imputer = SimpleImputer(strategy="mean")
 
-    series = pd.Series(
-        imputer.fit_transform(np.array(series.to_numpy()).reshape(-1, 1)).ravel(),
-        index=series.index,
-    )
+    if series.isna().all():
+        return df
+
+    try:
+        series = pd.Series(
+            imputer.fit_transform(series.values.reshape(-1, 1)).ravel(),
+            index=series.index,
+        )
+    except ValueError:
+        return df
 
     df[column] = series
-
     return df
 
 
 @register_method(DC.MissingValues.IMPUTE_MEDIAN)
 def impute_median(df: pd.DataFrame, column: str) -> pd.DataFrame:
-    """Impute missing values with median."""
+    """Impute missing values with median for numeric columns."""
     df = df.copy()
     series = df[column].copy()
 
@@ -340,32 +322,26 @@ def impute_median(df: pd.DataFrame, column: str) -> pd.DataFrame:
         raise TypeError("Column must be numeric for median imputation")
 
     imputer = SimpleImputer(strategy="median")
-
     series = pd.Series(
-        imputer.fit_transform(np.array(series.to_numpy()).reshape(-1, 1)).ravel(),
+        imputer.fit_transform(series.values.reshape(-1, 1)).ravel(),
         index=series.index,
     )
-
     df[column] = series
-
     return df
 
 
 @register_method(DC.MissingValues.IMPUTE_MODE)
 def impute_mode(df: pd.DataFrame, column: str) -> pd.DataFrame:
-    """Impute missing values with mode."""
+    """Impute missing values with mode (most frequent value)."""
     df = df.copy()
     series = df[column].copy()
 
-    imputer = SimpleImputer(strategy="most_frequent", missing_values=pd.NA)  # pyright: ignore[reportArgumentType]
-
+    imputer = SimpleImputer(strategy="most_frequent", missing_values=pd.NA)
     series = pd.Series(
-        imputer.fit_transform(np.array(series.to_numpy()).reshape(-1, 1)).ravel(),
+        imputer.fit_transform(series.values.reshape(-1, 1)).ravel(),
         index=series.index,
     )
-
     df[column] = series
-
     return df
 
 
@@ -373,11 +349,7 @@ def impute_mode(df: pd.DataFrame, column: str) -> pd.DataFrame:
 def impute_constant(df: pd.DataFrame, column: str, value: int = 0) -> pd.DataFrame:
     """Impute missing values with a constant value."""
     df = df.copy()
-    series = pd.Series(df[column].copy())
-    series = series.fillna(value)
-
-    df[column] = series
-
+    df[column] = df[column].fillna(value)
     return df
 
 
@@ -385,11 +357,7 @@ def impute_constant(df: pd.DataFrame, column: str, value: int = 0) -> pd.DataFra
 def impute_forward_fill(df: pd.DataFrame, column: str) -> pd.DataFrame:
     """Impute missing values using forward fill."""
     df = df.copy()
-    series = pd.Series(df[column].copy())
-    series = series.ffill()
-
-    df[column] = series
-
+    df[column] = df[column].ffill()
     return df
 
 
@@ -397,76 +365,46 @@ def impute_forward_fill(df: pd.DataFrame, column: str) -> pd.DataFrame:
 def impute_backward_fill(df: pd.DataFrame, column: str) -> pd.DataFrame:
     """Impute missing values using backward fill."""
     df = df.copy()
-    series = pd.Series(df[column].copy())
-    series = series.bfill()
-
-    df[column] = series
-
+    df[column] = df[column].bfill()
     return df
 
 
 @register_method(DC.MissingValues.TREAT_ZERO_AS_MISSING_VALUE)
 def treat_zero_as_missing_value(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    """Convert zero values to NaN for proper missing value handling."""
     df = df.copy()
     df[column] = df[column].replace(0, np.nan)
-
     return df
 
 
-def iqr(series: pd.Series, factor=1.5):
+# === Outlier Detection and Handling ===
+def calculate_iqr_bounds(series: pd.Series, factor: float = 1.5) -> Tuple[float, float]:
+    """Calculate IQR-based outlier bounds."""
     q1 = series.quantile(0.25)
     q3 = series.quantile(0.75)
     iqr = q3 - q1
     lower_bound = q1 - factor * iqr
     upper_bound = q3 + factor * iqr
-
     return lower_bound, upper_bound
 
 
 def identify_outliers(
     series: pd.Series, method: str = "iqr", factor: float = 1.5
 ) -> pd.Series:
-    """
-    Identify outliers in a series.
-
-    Parameters:
-    -----------
-    series : pd.Series
-        Series to check for outliers
-    method : str, default='iqr'
-        Method to identify outliers: 'iqr', 'zscore', or 'percentile'
-    factor : float, default=1.5
-        Factor for IQR or number of standard deviations for zscore
-
-    Returns:
-    --------
-    pd.Series
-        Boolean mask where True indicates an outlier
-    """
-    series = series.copy()
-
+    """Identify outliers using various methods."""
     if not pd.api.types.is_numeric_dtype(series):
         raise TypeError("Outlier detection requires numeric data")
 
     if method == "iqr":
-        q1 = series.quantile(0.25)
-        q3 = series.quantile(0.75)
-        iqr = q3 - q1
-        lower_bound = q1 - factor * iqr
-        upper_bound = q3 + factor * iqr
+        lower_bound, upper_bound = calculate_iqr_bounds(series, factor)
         return (series < lower_bound) | (series > upper_bound)
-
     elif method == "zscore":
-        mean = series.mean()
-        std = series.std()
-        z_scores = (series - mean) / std
-        return z_scores.abs() > factor
-
+        z_scores = np.abs((series - series.mean()) / series.std())
+        return z_scores > factor
     elif method == "percentile":
         lower_bound = series.quantile(0.01)
         upper_bound = series.quantile(0.99)
         return (series < lower_bound) | (series > upper_bound)
-
     else:
         raise ValueError(f"Unknown outlier detection method: {method}")
 
@@ -475,11 +413,11 @@ def identify_outliers(
 def iqr_remove_outliers(
     df: pd.DataFrame, column: str, factor: float = 1.5
 ) -> pd.DataFrame:
+    """Remove outliers using IQR method."""
     df = df.copy()
-    series = pd.Series(df[column].copy())
-    lower_bound, upper_bound = iqr(series, factor)
+    series = df[column]
+    lower_bound, upper_bound = calculate_iqr_bounds(series, factor)
     outlier_mask = (series < lower_bound) | (series > upper_bound)
-
     return df.loc[~outlier_mask]
 
 
@@ -487,102 +425,90 @@ def iqr_remove_outliers(
 def iqr_winsorize_outliers(
     df: pd.DataFrame, column: str, factor: float = 1.5
 ) -> pd.DataFrame:
+    """Winsorize outliers using IQR method (clip to bounds)."""
     df = df.copy()
-    series = pd.Series(df[column].copy())
+    series = df[column]
 
     if not pd.api.types.is_numeric_dtype(series):
         raise TypeError("Winsorization requires numeric data")
 
-    lower_bound, upper_bound = iqr(series, factor)
-
+    lower_bound, upper_bound = calculate_iqr_bounds(series, factor)
     df[column] = series.clip(lower=lower_bound, upper=upper_bound)
-
     return df
 
-    # if method == "iqr":
-    #     q1 = series.quantile(0.25)
-    #     q3 = series.quantile(0.75)
-    #     iqr = q3 - q1
-    #     lower_bound = q1 - factor * iqr
-    #     upper_bound = q3 + factor * iqr
-    # elif method == "zscore":
-    #     mean = series.mean()
-    #     std = series.std()
-    #     lower_bound = mean - factor * std
-    #     upper_bound = mean + factor * std
-    # elif method == "percentile":
-    #     lower_bound = series.quantile(0.01)
-    #     upper_bound = series.quantile(0.99)
-    # else:
-    #     raise ValueError(f"Unknown outlier detection method: {method}")
+
+@register_method(DC.Outliers.REMOVE_INFINITE)
+def remove_infinite(df: pd.DataFrame, column: str | None) -> pd.DataFrame:
+    df = df.copy()
+    return df.loc[np.isfinite(df if column is None else df[column])]
 
 
+# === Balancing Methods ===
 @register_method(DC.Balancing.SMOTE)
-def smote(X: ArrayLike | pd.DataFrame, y: ArrayLike | pd.DataFrame, random_state=42):
+def smote(
+    X: ArrayLike | pd.DataFrame, y: ArrayLike | pd.DataFrame, random_state: int = 42
+):
+    """Apply SMOTE for balancing imbalanced datasets."""
     sm = SMOTE(random_state=random_state)
-    X_res, y_res = sm.fit_resample(X, y)  # pyright: ignore [reportAssignmentType]
-
+    X_res, y_res = sm.fit_resample(X, y)
     return X_res, y_res
 
 
 @register_method(DC.Balancing.BorderlineSMOTE)
 def borderline_smote(
-    X: ArrayLike | pd.DataFrame, y: ArrayLike | pd.DataFrame, random_state=42
+    X: ArrayLike | pd.DataFrame, y: ArrayLike | pd.DataFrame, random_state: int = 42
 ):
+    """Apply BorderlineSMOTE for balancing imbalanced datasets."""
     sm = BorderlineSMOTE(random_state=random_state)
-    X_res, y_res = sm.fit_resample(X, y)  # pyright: ignore [reportAssignmentType]
-
+    X_res, y_res = sm.fit_resample(X, y)
     return X_res, y_res
 
 
+# === Feature Transformation Methods ===
 @register_method(FE.Transformations.STANDARDIZE)
-def standardize(df: pd.DataFrame, column: str) -> pd.DataFrame:
+def standardize(df: pd.DataFrame, column: str) -> Tuple[pd.DataFrame, StandardScaler]:
+    """Apply standardization (z-score normalization)."""
     df = df.copy()
-    series = df[column].copy()
 
-    if not pd.api.types.is_numeric_dtype(series):
-        raise TypeError("Standard requires numeric data")
+    if not pd.api.types.is_numeric_dtype(df[column]):
+        raise TypeError("Standardization requires numeric data")
 
     scaler = StandardScaler()
-    df[column] = scaler.fit_transform(
-        pd.DataFrame(series),
-    )
-
+    df[column] = scaler.fit_transform(df[[column]])
     return df, scaler
 
 
 @register_method(FE.Transformations.MIN_MAX_SCALE)
-def min_max_scale(df: pd.DataFrame, column: str) -> pd.DataFrame:
+def min_max_scale(df: pd.DataFrame, column: str) -> Tuple[pd.DataFrame, MinMaxScaler]:
+    """Apply min-max scaling to [0, 1] range."""
     df = df.copy()
-    series = df[column].copy()
 
-    if not pd.api.types.is_numeric_dtype(series):
-        raise TypeError("Min-max scale requires numeric data")
+    if not pd.api.types.is_numeric_dtype(df[column]):
+        raise TypeError("Min-max scaling requires numeric data")
 
     scaler = MinMaxScaler()
-    df[column] = scaler.fit_transform(pd.DataFrame(series))
-
+    df[column] = scaler.fit_transform(df[[column]])
     return df, scaler
 
 
 @register_method(FE.Transformations.ROBUST_SCALE)
-def robust_scale(df: pd.DataFrame, column: str):
+def robust_scale(df: pd.DataFrame, column: str) -> Tuple[pd.DataFrame, RobustScaler]:
+    """Apply robust scaling using median and IQR."""
     df = df.copy()
-    series = df[column].copy()
 
-    if not pd.api.types.is_numeric_dtype(series):
-        raise TypeError("Robust scale requires numeric data")
+    if not pd.api.types.is_numeric_dtype(df[column]):
+        raise TypeError("Robust scaling requires numeric data")
 
     scaler = RobustScaler()
-    df[column] = scaler.fit_transform(pd.DataFrame(series))
-
+    df[column] = scaler.fit_transform(df[[column]])
     return df, scaler
 
 
 @register_method(FE.Transformations.LOG_TRANSFORM)
 def log_transform(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    """Apply logarithmic transformation."""
     df = df.copy()
-    series = df[column].copy()
+    series = df[column]
 
     if not pd.api.types.is_numeric_dtype(series):
         raise TypeError("Log transform requires numeric data")
@@ -591,109 +517,78 @@ def log_transform(df: pd.DataFrame, column: str) -> pd.DataFrame:
         df[f"{column}_log"] = np.log(series)
     elif (series >= 0).all():
         df[f"{column}_log"] = np.log1p(series)
-
-    return df
-
-
-def range_binning(
-    df: pd.DataFrame,
-    column: str,
-    bins: ArrayLike,
-    labels: ArrayLike | None = None,
-    include_lowest=True,
-):
-    df = df.copy()
-    df[column] = pd.cut(
-        df[column],
-        bins=bins,
-        labels=labels if labels else False,
-        include_lowest=include_lowest,
-    )
+    else:
+        raise ValueError("Log transform requires non-negative values")
 
     return df
 
 
 @register_method(FE.Transformations.UNIFORM_DISCRETIZE)
 def uniform_discretize(
-    df: pd.DataFrame,
-    column: str,
-    n_bins=3,
-) -> pd.DataFrame:
+    df: pd.DataFrame, column: str, n_bins: int = 3
+) -> Tuple[pd.DataFrame, KBinsDiscretizer]:
+    """Discretize continuous features into uniform bins."""
     df = df.copy()
 
-    # strategy='uniform' = cut
-    # strategy='quantile' = qcut
-    # strategy='kmeans' advanced
     kbd = KBinsDiscretizer(n_bins=n_bins, encode="ordinal", strategy="uniform")
-    df[column] = kbd.fit_transform(pd.DataFrame(df[column]))
-
+    df[column] = kbd.fit_transform(df[[column]])
     return df, kbd
 
 
 @register_method(FE.Transformations.QUANTILE_DISCRETIZE)
 def quantile_discretize(
-    df: pd.DataFrame,
-    column: str,
-    n_bins=3,
-) -> pd.DataFrame:
+    df: pd.DataFrame, column: str, n_bins: int = 3
+) -> Tuple[pd.DataFrame, KBinsDiscretizer]:
+    """Discretize continuous features into quantile-based bins."""
     df = df.copy()
 
     kbd = KBinsDiscretizer(n_bins=n_bins, encode="ordinal", strategy="quantile")
-    df[column] = kbd.fit_transform(pd.DataFrame(df[column]))
-
+    df[column] = kbd.fit_transform(df[[column]])
     return df, kbd
 
 
 @register_method(FE.Transformations.NORMALIZE)
-def normalize(df: pd.DataFrame, column: str) -> pd.DataFrame:
+def normalize(df: pd.DataFrame, column: str) -> Tuple[pd.DataFrame, Normalizer]:
+    """Apply L2 normalization to scale individual samples."""
     df = df.copy()
-    series = df[column].copy()
 
     normalizer = Normalizer()
-    df[column] = normalizer.fit_transform(series)
-
+    df[column] = normalizer.fit_transform(df[[column]])
     return df, normalizer
 
 
+# === Feature Creation Methods ===
 @register_method(FE.FeatureCreation.ONE_HOT_ENCODE)
 def one_hot_encode(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    """Apply one-hot encoding to categorical variables."""
     df = df.copy()
-    series = df[column].copy()
 
     try:
-        one_hot = pd.get_dummies(series, prefix=column, drop_first=False)
+        one_hot = pd.get_dummies(df[column], prefix=column, drop_first=False)
         df = pd.concat([df, one_hot], axis=1)
-        df.drop(columns=[column], axis=1)
-    except Exception:
-        raise ValueError("Try to do one-hot encode error, skip operation.")
+        df = df.drop(columns=[column])
+    except Exception as e:
+        raise ValueError(f"One-hot encoding failed: {e}")
 
     return df
 
 
 @register_method(FE.FeatureCreation.LABEL_ENCODE)
-def label_encode(df: pd.DataFrame, column: str) -> pd.DataFrame:
+def label_encode(df: pd.DataFrame, column: str) -> Tuple[pd.DataFrame, LabelEncoder]:
+    """Apply label encoding to categorical variables."""
     df = df.copy()
-    series = df[column].copy()
 
     le = LabelEncoder()
-
     try:
-        df[column] = le.fit_transform(series)
-    except Exception:
-        raise ValueError("Try to do label encode error, skip operation.")
+        df[column] = le.fit_transform(df[column])
+    except Exception as e:
+        raise ValueError(f"Label encoding failed: {e}")
 
     return df, le
 
 
-# @register_method(FE.FeatureCreation.TARGET_ENCODE)
-# def target_encode(df: pd.DataFrame, column: str) -> pd.DataFrame:
-#     df = df.copy()
-#     series = df[column].copy()
-#
-#     return df
-
-
-_datetime_formats = [
+# === DateTime Processing ===
+_DATETIME_FORMATS = [
     "%Y-%m-%d",
     "%d/%m/%Y",
     "%m/%d/%Y",
@@ -711,115 +606,109 @@ _datetime_formats = [
 ]
 
 
-def try_convert_to_datetime(
-    df: pd.DataFrame,
-    column: str,
-    format: Optional[str] = None,
-    datetime_ratio: float = 0.80,
-) -> str | None:
-    df = df.copy()
-    series = df[column].copy()
+def detect_datetime_format(
+    df: pd.DataFrame, column: str, datetime_ratio: float = 0.8
+) -> Optional[str]:
+    """Detect datetime format in a column."""
+    series = df[column].dropna()
 
-    # Skip conversion if more than 20% of values are missing
-    if series.isna().mean() > 1 - datetime_ratio:
+    if series.empty or len(series) < 2:
         return None
 
-    # Get a sample of non-null values to check (avoid checking entire large columns)
-    sample = series.dropna().sample(min(100, len(series.dropna())))
+    # Sample for performance
+    sample = series.sample(min(100, len(series)))
 
-    # Try specified format first
-    try:
-        parsed_series = pd.to_datetime(sample, errors="coerce", format=format)
-
-        if (parsed_series.notna().sum() / len(parsed_series)) > datetime_ratio:
-            return format
-
-    except (ValueError, TypeError):
-        pass
-
-    # Try explicit formats
-    for fmt in _datetime_formats:
+    # Try each format
+    for fmt in _DATETIME_FORMATS:
         try:
-            success_count = 0
-            for val in sample:
-                try:
-                    if isinstance(val, str):
-                        datetime.strptime(val, fmt)
-                        success_count += 1
-                except (ValueError, TypeError):
-                    continue
-
-            # If more than 80% of the sample was successfully parsed, consider it a datetime
+            success_count = sum(1 for val in sample if _try_parse_datetime(val, fmt))
             if success_count / len(sample) > datetime_ratio:
                 return fmt
         except Exception:
             continue
 
-    # Finally, try mixed format
+    # Try pandas mixed format
     try:
-        parsed_series = pd.to_datetime(sample, errors="coerce", format="mixed")
-
-        if (parsed_series.notna().sum() / len(parsed_series)) > datetime_ratio:
+        parsed = pd.to_datetime(sample, errors="coerce", format="mixed")
+        if parsed.notna().sum() / len(sample) > datetime_ratio:
             return "mixed"
-
-    except (ValueError, TypeError):
+    except Exception:
         pass
 
     return None
 
 
+def _try_parse_datetime(value: Any, fmt: str) -> bool:
+    """Helper to try parsing a single datetime value."""
+    try:
+        if isinstance(value, str):
+            datetime.strptime(value, fmt)
+            return True
+    except (ValueError, TypeError):
+        pass
+    return False
+
+
 @register_method(FE.FeatureCreation.CONVERT_TO_DATETIME)
-def convert_to_datetime(df: pd.DataFrame, column: str, format: str) -> pd.DataFrame:
+def convert_to_datetime(
+    df: pd.DataFrame, column: str, format: Optional[str] = None
+) -> pd.DataFrame:
+    """Convert column to datetime format."""
     df = df.copy()
-    series = df[column].copy()
 
-    verified_fmt = try_convert_to_datetime(df, column, format)
+    if format is None:
+        format = detect_datetime_format(df, column)
 
-    if verified_fmt is None:
-        raise TypeError("This column can't convert to datetime.")
+    if format is None:
+        raise TypeError("Cannot detect datetime format for this column")
 
     try:
-        parsed_series = pd.to_datetime(series, errors="coerce", format=verified_fmt)
-        df[column] = parsed_series
-        return df
-    except (ValueError, TypeError):
-        raise ValueError("Convert to datetime failed, skip operation.")
+        df[column] = pd.to_datetime(df[column], errors="coerce", format=format)
+    except Exception as e:
+        raise ValueError(f"DateTime conversion failed: {e}")
+
+    return df
 
 
 @register_method(FE.FeatureCreation.EXTRACT_DATE_PARTS)
 def extract_date_parts(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    """Extract datetime components into separate columns."""
     df = df.copy()
-    series = df[column].copy()
+    series = df[column]
 
     if not pd.api.types.is_datetime64_any_dtype(series):
-        raise TypeError("Extract date parts requires datetime column.")
+        raise TypeError("Extract date parts requires datetime column")
 
+    # Extract basic date parts
     df[f"{column}_year"] = series.dt.year
     df[f"{column}_month"] = series.dt.month
     df[f"{column}_day"] = series.dt.day
     df[f"{column}_dayofweek"] = series.dt.dayofweek
     df[f"{column}_quarter"] = series.dt.quarter
 
-    # Add time components if time exists
+    # Extract time components if present
     if (series.dt.hour != 0).any() or (series.dt.minute != 0).any():
         df[f"{column}_hour"] = series.dt.hour
         df[f"{column}_minute"] = series.dt.minute
 
-    df = df.drop(columns=[column], axis=1)
-
+    df = df.drop(columns=[column])
     return df
 
 
+# === Feature Selection Methods ===
 @register_method(FE.FeatureSelection.APPLY_PCA)
-def apply_pca(df: pd.DataFrame, column: str, n_components=5) -> pd.DataFrame:
+def apply_pca(
+    df: pd.DataFrame, column: str, n_components: int = 5
+) -> Tuple[pd.DataFrame, PCA]:
+    """Apply PCA for dimensionality reduction."""
     df = df.copy()
-    series = df[column].copy()
 
-    if not pd.api.types.is_numeric_dtype(series):
+    if not pd.api.types.is_numeric_dtype(df[column]):
         raise TypeError("PCA requires numeric data")
 
+    # Standardize before PCA
     scaler = StandardScaler()
-    scaled_data = scaler.fit_transform(series)
+    scaled_data = scaler.fit_transform(df[[column]])
 
     pca = PCA(n_components=n_components)
     pca_result = pca.fit_transform(scaled_data)
@@ -829,28 +718,45 @@ def apply_pca(df: pd.DataFrame, column: str, n_components=5) -> pd.DataFrame:
         df[f"{column}_pca_component_{i + 1}"] = pca_result[:, i]
 
     df = df.drop(columns=[column])
-
     return df, pca
 
 
-# @register_method(FE.FeatureSelection.FEATURE_RECOMMENDATION)
-# def feature_recommendation(df: pd.DataFrame, column: str) -> pd.DataFrame:
-#     df = df.copy()
-#     series = df[column].copy()
-#
-#     return df
+@register_method(DC.DuplicatesAndColumn.DROP_DUPLICATE_ROWS)
+def drop_duplicate_rows(
+    df: pd.DataFrame,
+):
+    df = df.copy()
+    return df.drop_duplicates()
 
 
+@register_method(DC.DuplicatesAndColumn.RENAME_DUPLICATE_COLUMNS)
+def rename_duplicate_columns(df: pd.DataFrame):
+    df = df.copy()
+    df.columns = (
+        pd.Series(df.columns)
+        .astype(str)
+        .groupby(df.columns)
+        .cumcount()
+        .astype(str)
+        .radd("_")
+        .radd(df.columns)
+        .where(df.columns.duplicated(), df.columns)
+    )
+    return df
+
+
+# === Utility Functions ===
 def apply_method(
     processing_method: ALL_PROCESSING_METHOD,
-    df: pd.DataFrame | ArrayLike,
+    df: pd.DataFrame,
     column: Optional[str] = None,
     **kwargs,
-) -> tuple[pd.DataFrame, Any]:
+) -> Tuple[pd.DataFrame, Any]:
+    """Apply a registered processing method to a DataFrame."""
     func = method_registry.get(processing_method.name)
 
     if not func:
-        raise NotImplementedError(f"method has not been implement: {processing_method}")
+        raise NotImplementedError(f"Method not implemented: {processing_method}")
 
     return func(df=df, column=column, **kwargs)
 
@@ -861,16 +767,17 @@ def apply_method_transform(
     y: pd.DataFrame | ArrayLike | None = None,
     **kwargs,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Apply a registered method for X, y transformation (e.g., SMOTE)."""
     func = method_registry.get(processing_method.name)
 
     if not func:
-        raise NotImplementedError(f"method has not been implement: {processing_method}")
+        raise NotImplementedError(f"Method not implemented: {processing_method}")
 
     return func(X=X, y=y, **kwargs)
 
 
-def apply_scaler(df: pd.DataFrame, column: str, scaler):
+def apply_scaler(df: pd.DataFrame, column: str, scaler) -> pd.DataFrame:
+    """Apply a fitted scaler to transform data."""
     df = df.copy()
-    df[column] = scaler.transform(pd.DataFrame(df[column]))
-
+    df[column] = scaler.transform(df[[column]])
     return df

@@ -6,20 +6,20 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 
-class DataColumnType(Enum):
+class ColumnType(Enum):
+    """Enumeration for different column data types."""
+
     DATETIME = auto()
     NUMERIC = auto()
     CATEGORICAL = auto()
-    TEXT = auto()
 
 
 class DataParser:
     """
-    A class for identifying column types in a pandas DataFrame.
-    Uses ColumnType enum for types:
-    - TIME_SERIES: datetime columns or columns containing date/time information
-    - NUMERICAL: integer, float, or numeric columns
-    - CATEGORICAL: string, boolean, or low-cardinality numeric columns
+    A class for automatically identifying and parsing column types in pandas DataFrames.
+
+    This parser can identify datetime, numeric, and categorical columns based on their
+    content and structure, with configurable thresholds and formats.
     """
 
     def __init__(
@@ -29,23 +29,25 @@ class DataParser:
         datetime_formats: Optional[List[str]] = None,
     ):
         """
-        Initialize the DataColTypeParser with a DataFrame.
+        Initialize the DataParser.
 
-        Parameters:
-        -----------
-        df : pd.DataFrame
-            The DataFrame to analyze
-        categorical_threshold : float, default=0.1
-            Threshold for determining if a numeric column is categorical based on unique ratio
-            (num_unique / num_rows). Lower values make it more likely to classify as categorical.
-        datetime_formats : Optional[List[str]], default=None
-            Additional datetime formats to check when identifying time series columns
+        Args:
+            df: Input DataFrame to analyze
+            categorical_threshold: Threshold for determining categorical columns (currently unused)
+            datetime_formats: Custom datetime formats to try when parsing
         """
         self.df = df.copy()
         self.categorical_threshold = categorical_threshold
+        self.datetime_formats = datetime_formats or self._get_default_datetime_formats()
+        self.datetime_col_patterns = self._get_datetime_column_patterns()
 
-        # Default datetime formats to check
-        self.datetime_formats = datetime_formats or [
+        # Cache for column type identification
+        self._col_types: Optional[Dict[str, ColumnType]] = None
+        self.pre_identified_col_types: Dict[str, ColumnType] = {}
+
+    def _get_default_datetime_formats(self) -> List[str]:
+        """Get default datetime formats to check during parsing."""
+        return [
             "%Y-%m-%d",
             "%d/%m/%Y",
             "%m/%d/%Y",
@@ -62,8 +64,9 @@ class DataParser:
             "%Y-%m-%d %H:%M:%S.%f",
         ]
 
-        # Common datetime column name patterns
-        self.datetime_col_patterns = [
+    def _get_datetime_column_patterns(self) -> List[str]:
+        """Get regex patterns for identifying datetime columns by name."""
+        return [
             r"date",
             r"time",
             r"timestamp",
@@ -78,100 +81,84 @@ class DataParser:
             r"ordered",
         ]
 
-        # Column type cache
-        self._col_types: Optional[Dict[str, DataColumnType]] = None
-        self.pre_identified_col_types = {}
-        self.pre_identified_col_names = []
+    def set_pre_identified_column_types(self, col_types: Dict[str, ColumnType]) -> None:
+        """
+        Set pre-identified column types to override automatic detection.
 
-    def set_pre_identified_column_types(self, col_types: Dict[str, DataColumnType]):
+        Args:
+            col_types: Dictionary mapping column names to their types
+        """
         self.pre_identified_col_types = col_types
-        self.pre_identified_col_names = col_types.keys()
 
-    def identify_column_types(self) -> Dict[str, DataColumnType]:
+    def identify_column_types(self) -> Dict[str, ColumnType]:
         """
         Identify the type of each column in the DataFrame.
 
         Returns:
-        --------
-        Dict[str, ColumnType]
-            Dictionary mapping column names to their types as ColumnType enum values
+            Dictionary mapping column names to their identified types
         """
         if self._col_types is not None:
             return self._col_types
 
-        col_types: Dict[str, DataColumnType] = {}
+        col_types: Dict[str, ColumnType] = {}
 
-        # First pass: Identify obvious types based on pandas dtypes
+        # First pass: Identify based on pandas dtypes and pre-identified types
         for col in self.df.columns:
-            if col in self.pre_identified_col_names:
-                col_types[col] = (
-                    self.pre_identified_col_types.get(col) or DataColumnType.CATEGORICAL
-                )
+            if col in self.pre_identified_col_types:
+                col_types[col] = self.pre_identified_col_types[col]
             elif pd.api.types.is_datetime64_any_dtype(self.df[col]):
-                col_types[col] = DataColumnType.DATETIME
-            elif pd.api.types.is_numeric_dtype(
-                self.df[col]
-            ) and not pd.api.types.is_bool_dtype(self.df[col]):
-                # Initially mark as numerical, but will check cardinality later
-                col_types[col] = DataColumnType.NUMERIC
-            elif pd.api.types.is_bool_dtype(self.df[col]) or isinstance(
-                self.df[col].dtype, pd.CategoricalDtype
-            ):
-                col_types[col] = DataColumnType.CATEGORICAL
+                col_types[col] = ColumnType.DATETIME
+            elif self._is_numeric_column(col):
+                col_types[col] = ColumnType.NUMERIC
+            elif self._is_boolean_or_categorical_dtype(col):
+                col_types[col] = ColumnType.CATEGORICAL
             else:
-                # String or object columns - check if they're time series or categorical
-                if self._check_if_time_series(col):
-                    col_types[col] = DataColumnType.DATETIME
-                else:
-                    col_types[col] = DataColumnType.CATEGORICAL
+                # Check string/object columns for datetime patterns
+                col_types[col] = (
+                    ColumnType.DATETIME
+                    if self._check_if_datetime_column(col)
+                    else ColumnType.CATEGORICAL
+                )
 
-        # Second pass: Check for numeric columns that might be categorical
+        # Second pass: Check numeric columns for categorical patterns
         for col in self.df.columns:
-            if col_types[col] == DataColumnType.NUMERIC:
-                if self._is_numeric_categorical(col):
-                    col_types[col] = DataColumnType.CATEGORICAL
-
-        # Identify if categorical column is possible text column
-        # TODO: adjustable threshold
-
-        # 0.05 - 0.10
-        cat_threshold = 0.05
-
-        # 15 - 20
-        len_threshold = 15
-
-        for col, col_type in col_types.items():
-            if col_type == DataColumnType.CATEGORICAL:
-                unique_ratio = self.df[col].nunique(dropna=True) / len(self.df[col])
-                avg_length = self.df[col].dropna().astype(str).map(len).mean()
-                if unique_ratio >= cat_threshold and avg_length >= len_threshold:
-                    col_types[col] = DataColumnType.TEXT
+            if col_types[col] == ColumnType.NUMERIC and self._is_numeric_categorical(
+                col
+            ):
+                col_types[col] = ColumnType.CATEGORICAL
 
         self._col_types = col_types
         return col_types
 
-    def _check_if_time_series(self, column: str) -> bool:
-        """
-        Check if a column contains datetime information.
+    def _is_numeric_column(self, column: str) -> bool:
+        """Check if column is numeric but not boolean."""
+        return pd.api.types.is_numeric_dtype(
+            self.df[column]
+        ) and not pd.api.types.is_bool_dtype(self.df[column])
 
-        Parameters:
-        -----------
-        column : str
-            Column name to check
+    def _is_boolean_or_categorical_dtype(self, column: str) -> bool:
+        """Check if column has boolean or categorical dtype."""
+        return pd.api.types.is_bool_dtype(self.df[column]) or isinstance(
+            self.df[column].dtype, pd.CategoricalDtype
+        )
+
+    def _check_if_datetime_column(self, column: str) -> bool:
+        """
+        Check if a column contains datetime data based on name patterns and content.
+
+        Args:
+            column: Column name to check
 
         Returns:
-        --------
-        bool
-            True if the column is identified as a time series, False otherwise
+            True if column appears to contain datetime data
         """
-        # Check if column name suggests datetime
+        # Check column name patterns
         col_lower = column.lower()
         if any(re.search(pattern, col_lower) for pattern in self.datetime_col_patterns):
-            # Try to convert to datetime if the name matches patterns
             if self._try_convert_to_datetime(column):
                 return True
 
-        # For object or string dtypes, check if they can be parsed as datetime
+        # Check content for string/object columns
         if pd.api.types.is_object_dtype(
             self.df[column]
         ) or pd.api.types.is_string_dtype(self.df[column]):
@@ -180,156 +167,110 @@ class DataParser:
         return False
 
     def _try_convert_to_datetime(
-        self, column: str, time_series_ratio: float = 0.80
+        self, column: str, success_threshold: float = 0.80
     ) -> bool:
         """
-        Try to convert a column to datetime using various formats.
+        Attempt to convert column values to datetime format.
 
-        Parameters:
-        -----------
-        column : str
-            Column name to try to convert
-
-        time_series_ratio : float
-            Define the ratio of time series that should be containing in df
-            Value should be within [0, 1]
+        Args:
+            column: Column name to test
+            success_threshold: Minimum ratio of successful conversions required
 
         Returns:
-        --------
-        bool
-            True if conversion succeeds for most values, False otherwise
+            True if conversion is successful for enough values
         """
-        # Skip conversion if more than 20% of values are missing
-        if self.df[column].isna().mean() > 1 - time_series_ratio:
+        # Skip if too many missing values
+        if self.df[column].isna().mean() > (1 - success_threshold):
             return False
 
-        # Get a sample of non-null values to check (avoid checking entire large columns)
+        # Sample non-null values for testing
         sample = (
             self.df[column].dropna().sample(min(100, len(self.df[column].dropna())))
         )
 
+        # Try pandas automatic datetime parsing
         try:
             parsed_df = pd.to_datetime(sample, errors="coerce", format="mixed")
-
-            if (parsed_df.notna().sum() / len(parsed_df)) > time_series_ratio:
+            if (parsed_df.notna().sum() / len(parsed_df)) > success_threshold:
                 return True
-
         except (ValueError, TypeError):
             pass
 
-        # Try explicit formats
+        # Try explicit datetime formats
         for fmt in self.datetime_formats:
             try:
-                success_count = 0
-                for val in sample:
-                    try:
-                        if isinstance(val, str):
-                            datetime.strptime(val, fmt)
-                            success_count += 1
-                    except (ValueError, TypeError):
-                        continue
-
-                # If more than 80% of the sample was successfully parsed, consider it a datetime
-                if success_count / len(sample) > time_series_ratio:
+                success_count = sum(
+                    1
+                    for val in sample
+                    if isinstance(val, str) and self._try_parse_datetime(val, fmt)
+                )
+                if success_count / len(sample) > success_threshold:
                     return True
             except Exception:
                 continue
 
         return False
 
+    def _try_parse_datetime(self, value: str, format_str: str) -> bool:
+        """Safely attempt to parse a single datetime value."""
+        try:
+            datetime.strptime(value, format_str)
+            return True
+        except (ValueError, TypeError):
+            return False
+
     def _is_numeric_categorical(self, column: str) -> bool:
         """
-        Check if a numeric column should be considered categorical.
+        Check if a numeric column should be treated as categorical.
 
-        Parameters:
-        -----------
-        column : str
-            Column name to check
+        Args:
+            column: Column name to check
 
         Returns:
-        --------
-        bool
-            True if the numeric column is identified as categorical, False otherwise
+            True if column should be treated as categorical
         """
-        # Check if numeric column has low cardinality
         col_data = self.df[column].dropna()
 
         if len(col_data) == 0:
             return False
 
-        # Check unique ratio against threshold
-        # unique_ratio = len(col_data.unique()) / len(col_data)
-
-        # Small number of unique values relative to data size suggests categorical
-        # if unique_ratio <= self.categorical_threshold:
-        #     return True
-
-        # Check for common categorical patterns like 0/1 encoding
         unique_values = set(col_data.unique())
 
-        # Binary features are likely categorical
-        if unique_values == {0, 1} or unique_values == {0.0, 1.0}:
-            return True
+        # Binary features (0/1) are categorical
+        return unique_values in [{0, 1}, {0.0, 1.0}]
 
-        # TODO: how to identify numerical or categorical properly?
-
-        # Check if values are mostly integers
-        # if pd.api.types.is_float_dtype(col_data):
-        #     # Check if values are effectively integers (no decimal part)
-        #     if np.mean((col_data.dropna() % 1 == 0)) > 0.95:
-        #         # If mostly integers with low cardinality, likely categorical
-        #         if len(col_data.unique()) <= 20:
-        #             return True
-
-        # Small set of integers is likely categorical
-        # if len(unique_values) <= 10 and all(
-        #     isinstance(x, (int, np.integer))
-        #     or (isinstance(x, float) and x.is_integer())
-        #     for x in unique_values
-        # ):
-        #     return True
-
-        return False
-
-    def get_columns_by_type(self, col_type: DataColumnType) -> List[str]:
+    def get_columns_by_type(self, col_type: ColumnType) -> List[str]:
         """
         Get all columns of a specific type.
 
-        Parameters:
-        -----------
-        col_type : ColumnType
-            Column type to filter by (ColumnType enum value)
+        Args:
+            col_type: Type of columns to retrieve
 
         Returns:
-        --------
-        List[str]
-            List of column names of the specified type
+            List of column names matching the specified type
         """
         if self._col_types is None:
             self.identify_column_types()
 
-        if self._col_types is not None:
-            return [col for col, dtype in self._col_types.items() if dtype == col_type]
-
-        return []
+        return [
+            col for col, dtype in (self._col_types or {}).items() if dtype == col_type
+        ]
 
     def convert_time_series_columns(self) -> pd.DataFrame:
         """
-        Convert all identified time series columns to datetime objects.
+        Convert identified datetime columns to pandas datetime format.
 
         Returns:
-        --------
-        pd.DataFrame
-            DataFrame with time series columns converted to datetime
+            DataFrame with datetime columns converted
         """
         df_copy = self.df.copy()
-        time_series_cols = self.get_columns_by_type(DataColumnType.DATETIME)
+        time_series_cols = self.get_columns_by_type(ColumnType.DATETIME)
 
         for col in time_series_cols:
             try:
                 df_copy[col] = pd.to_datetime(df_copy[col], errors="coerce")
             except Exception:
-                # Keep original if conversion fails
+                # Keep original values if conversion fails
                 pass
 
         return df_copy
@@ -339,22 +280,16 @@ class DataParser:
         Get the number of unique values for each column.
 
         Returns:
-        --------
-        Dict[str, int]
-            Dictionary mapping column names to their cardinality (number of unique values)
+            Dictionary mapping column names to their unique value counts
         """
-        return {
-            col: int(self.df[col].nunique()) for col in list(self.df.columns.to_list())
-        }
+        return {col: int(self.df[col].nunique()) for col in self.df.columns}
 
     def get_column_stats(self) -> pd.DataFrame:
         """
-        Get comprehensive statistics about each column.
+        Generate comprehensive statistics for all columns.
 
         Returns:
-        --------
-        pd.DataFrame
-            DataFrame with column statistics including type, missing values, cardinality, etc.
+            DataFrame with detailed statistics for each column
         """
         col_types = self.identify_column_types()
         cardinality = self.get_column_cardinality()
@@ -366,7 +301,7 @@ class DataParser:
 
             col_stat = {
                 "column": col,
-                "type": col_types[col].value,  # Convert enum to string value
+                "type": col_types[col].value,
                 "dtype": str(self.df[col].dtype),
                 "unique_values": cardinality[col],
                 "missing_count": missing_count,
@@ -374,46 +309,50 @@ class DataParser:
                 "memory_usage_bytes": self.df[col].memory_usage(deep=True),
             }
 
-            # Add type-specific stats
-            if col_types[col] == DataColumnType.NUMERIC:
-                col_stat.update(
-                    {
-                        "min": self.df[col].min(),
-                        "max": self.df[col].max(),
-                        "mean": self.df[col].mean()
-                        if pd.api.types.is_numeric_dtype(self.df[col])
-                        else None,
-                        "std": self.df[col].std()
-                        if pd.api.types.is_numeric_dtype(self.df[col])
-                        else None,
-                    }
-                )
-            elif col_types[
-                col
-            ] == DataColumnType.DATETIME and pd.api.types.is_datetime64_any_dtype(
-                self.df[col]
-            ):
-                col_stat.update(
-                    {
-                        "min_date": self.df[col].min(),
-                        "max_date": self.df[col].max(),
-                        "range_days": (self.df[col].max() - self.df[col].min()).days
-                        if not pd.isna(self.df[col].min()).to_list()[0]
-                        and not pd.isna(self.df[col].max()).to_list()[0]
-                        else None,
-                    }
-                )
-            elif col_types[col] == DataColumnType.CATEGORICAL:
-                # Get top 5 most frequent values
-                top_values = self.df[col].value_counts().nlargest(5)
-                col_stat.update(
-                    {
-                        "top_values": dict(
-                            zip(top_values.index.astype(str), top_values.values)
-                        )
-                    }
-                )
+            # Add type-specific statistics
+            if col_types[col] == ColumnType.NUMERIC:
+                col_stat.update(self._get_numeric_stats(col))
+            elif col_types[col] == ColumnType.DATETIME:
+                col_stat.update(self._get_datetime_stats(col))
+            elif col_types[col] == ColumnType.CATEGORICAL:
+                col_stat.update(self._get_categorical_stats(col))
 
             stats.append(col_stat)
 
         return pd.DataFrame(stats)
+
+    def _get_numeric_stats(self, column: str) -> Dict:
+        """Get statistics specific to numeric columns."""
+        return {
+            "min": self.df[column].min(),
+            "max": self.df[column].max(),
+            "mean": self.df[column].mean()
+            if pd.api.types.is_numeric_dtype(self.df[column])
+            else None,
+            "std": self.df[column].std()
+            if pd.api.types.is_numeric_dtype(self.df[column])
+            else None,
+        }
+
+    def _get_datetime_stats(self, column: str) -> Dict:
+        """Get statistics specific to datetime columns."""
+        if not pd.api.types.is_datetime64_any_dtype(self.df[column]):
+            return {}
+
+        min_date = self.df[column].min()
+        max_date = self.df[column].max()
+
+        return {
+            "min_date": min_date,
+            "max_date": max_date,
+            "range_days": (max_date - min_date).days
+            if pd.notna(min_date) and pd.notna(max_date)
+            else None,
+        }
+
+    def _get_categorical_stats(self, column: str) -> Dict:
+        """Get statistics specific to categorical columns."""
+        top_values = self.df[column].value_counts().nlargest(5)
+        return {
+            "top_values": dict(zip(top_values.index.astype(str), top_values.values))
+        }

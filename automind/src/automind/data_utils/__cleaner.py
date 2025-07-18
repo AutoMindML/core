@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 from automind.data_utils.parser import (
-    DataColumnType,
+    ColumnType,
     DataParser,
 )
 from automind.data_utils.preprocessing import DC, apply_method, identify_outliers
@@ -75,7 +75,7 @@ class DataCleaner:
         """
         # Default to all numerical columns if none specified
         if columns is None:
-            columns = self.parser.get_columns_by_type(DataColumnType.NUMERIC)
+            columns = self.parser.get_columns_by_type(ColumnType.NUMERIC)
 
         result_df = self.df.copy()
 
@@ -168,13 +168,13 @@ class DataCleaner:
             for col in cols_with_na:
                 col_type = self.column_types[col]
 
-                if col_type == DataColumnType.NUMERIC:
+                if col_type == ColumnType.NUMERIC:
                     df = apply_method(DC.MissingValues.IMPUTE_MEDIAN, df, col)
 
-                elif col_type == DataColumnType.CATEGORICAL:
+                elif col_type == ColumnType.CATEGORICAL:
                     df = apply_method(DC.MissingValues.IMPUTE_MODE, df, col)
 
-                elif col_type == DataColumnType.DATETIME:
+                elif col_type == ColumnType.DATETIME:
                     df = apply_method(DC.MissingValues.IMPUTE_FORWARD_FILL, df, col)
                     # Backward fill any remaining NAs at the beginning
                     df = apply_method(DC.MissingValues.IMPUTE_BACKWARD_FILL, df, col)
@@ -271,7 +271,7 @@ class DataCleaner:
         self.df = self.handle_missing_values(strategy=handle_missing)
 
         # Handle outliers in numerical columns
-        numerical_cols = self.parser.get_columns_by_type(DataColumnType.NUMERIC)
+        numerical_cols = self.parser.get_columns_by_type(ColumnType.NUMERIC)
         if numerical_cols:
             self.df = self.detect_and_handle_outliers(
                 columns=list(set(numerical_cols) - set(cols_to_drop)),

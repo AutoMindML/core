@@ -6,7 +6,7 @@ from sklearn.base import clone
 from sklearn.metrics import classification_report
 from sklearn.model_selection import KFold, StratifiedKFold
 
-from automind.console import console
+from automind.console import rich_console
 
 ALL_CROSS_VALIDATION_METHOD = Union[KFold, StratifiedKFold]
 
@@ -54,7 +54,7 @@ def cross_validation(
 def print_classification_report(
     y_true: ArrayLike, y_pred: ArrayLike, name: Optional[str] = "Classification Report"
 ):
-    console.print(
+    rich_console.print(
         "\n",
         f"[green]{name}[/green]",
         "\n\n",
