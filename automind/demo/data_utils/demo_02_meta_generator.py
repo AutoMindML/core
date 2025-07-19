@@ -3,9 +3,8 @@ import pandas as pd
 from automind.data_utils.meta_generator import MetaGenerator
 
 
-def demo_meta_generator():
-    # Create a sample DataFrame with numeric, categorical, datetime and missing values
-    df = pd.DataFrame(
+def create_sample_data():
+    return pd.DataFrame(
         {
             "age": [25, 30, 22, 40, 28, None],
             "salary": [50000, 60000, 45000, 80000, None, 70000],
@@ -14,8 +13,12 @@ def demo_meta_generator():
         }
     )
 
-    # Define the target column for analysis
-    target_column = "salary"
+
+target_column = "salary"
+
+
+def demo_meta_generator():
+    df = create_sample_data()
 
     # Initialize the MetaGenerator with the DataFrame and target column
     mg = MetaGenerator(df, target_column=target_column)

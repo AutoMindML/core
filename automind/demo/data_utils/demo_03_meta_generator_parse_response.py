@@ -675,13 +675,11 @@ llm_response_claude = """
 
 
 def demo_parse_llm_response():
-    mg = MetaGenerator()
-
-    parsed_response = mg.parse_llm_response(llm_response_openai)
+    parsed_response = MetaGenerator.parse_llm_response(llm_response_openai)
     rich_console.print("\n", parsed_response)
 
-    assert mg.parse_llm_response(llm_response_openai_limited) is not None
-    assert mg.parse_llm_response(llm_response_claude) is not None
+    assert MetaGenerator.parse_llm_response(llm_response_openai_limited) is not None
+    assert MetaGenerator.parse_llm_response(llm_response_claude) is not None
 
 
 if __name__ == "__main__":

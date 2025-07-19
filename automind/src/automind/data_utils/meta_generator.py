@@ -539,7 +539,8 @@ class MetaGenerator:
 
         return llm_metadata
 
-    def parse_llm_response(self, response_text: str) -> Optional[LLMOutputSchema]:
+    @classmethod
+    def parse_llm_response(cls, response_text: str) -> Optional[LLMOutputSchema]:
         """
         Parse and validate LLM response to extract structured data analysis recommendations.
 
@@ -561,7 +562,7 @@ class MetaGenerator:
             try:
                 parsed_json = json.loads(match)
             except json.JSONDecodeError:
-                cleaned_json = self._clean_json_text(match)
+                cleaned_json = cls._clean_json_text(match)
 
                 try:
                     parsed_json = json.loads(cleaned_json)
@@ -577,7 +578,8 @@ class MetaGenerator:
 
         return None
 
-    def _clean_json_text(self, json_text: str) -> str:
+    @staticmethod
+    def _clean_json_text(json_text: str) -> str:
         """
         Clean up malformed JSON text by removing common formatting issues.
 
