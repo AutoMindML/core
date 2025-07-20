@@ -1,6 +1,6 @@
 import asyncio
 
-from automind.console import console, read_output
+from automind.console import read_output, rich_console
 from dotenv import dotenv_values, load_dotenv
 
 load_dotenv()
@@ -72,16 +72,16 @@ async def main():
     except asyncio.CancelledError:
         pass
     finally:
-        console.print("Terminating subprocesses...")
+        rich_console.print("Terminating subprocesses...")
 
         api_process.close()
         mindsdb_process.close()
 
-        console.print("All subprocesses terminated.")
+        rich_console.print("All subprocesses terminated.")
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        console.print("Received KeyboardInterrupt.")
+        rich_console.print("Received KeyboardInterrupt.")
