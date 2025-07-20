@@ -501,4 +501,4 @@ class TestLogicApplierEdgeCases:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    pytest.main(["-v", __file__])

@@ -1058,5 +1058,4 @@ class TestIntegrationScenarios:
 
 
 if __name__ == "__main__":
-    # Run the tests
-    pytest.main([__file__, "-v", "--tb=short"])
+    pytest.main(["-v", __file__])

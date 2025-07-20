@@ -186,3 +186,7 @@ def test_get_json_metadata(sample_df):
 
     for key in ["basic_info", "columns", "missing_values", "statistics"]:
         assert key in json_data
+
+
+if __name__ == "__main__":
+    pytest.main(["-v", __file__])
