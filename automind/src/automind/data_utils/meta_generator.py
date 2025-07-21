@@ -14,6 +14,7 @@ from automind.data_utils.preprocessing import (
     LLMOutputSchema,
     TaskType,
 )
+from automind.data_utils.statistics import find_outlier_iqr
 from automind.data_utils.template import (
     escape_tag_end,
     escape_tag_start,
@@ -84,12 +85,13 @@ class MetaGenerator:
 
         # Populate lists based on column types
         for col, col_type in column_types.items():
-            if col_type == ColumnType.NUMERIC:
-                self.numeric_columns.append(col)
-            elif col_type == ColumnType.CATEGORICAL:
-                self.categorical_columns.append(col)
-            elif col_type == ColumnType.DATETIME:
-                self.datetime_columns.append(col)
+            match col_type:
+                case ColumnType.NUMERIC:
+                    self.numeric_columns.append(col)
+                case ColumnType.CATEGORICAL:
+                    self.categorical_columns.append(col)
+                case ColumnType.DATETIME:
+                    self.datetime_columns.append(col)
 
         self.metadata["column_types"] = {
             "numeric": self.numeric_columns,
@@ -113,12 +115,13 @@ class MetaGenerator:
             "unique_values": column_data.nunique(),
         }
 
-        if column in self.numeric_columns:
-            column_info.update(self._analyze_numeric_column(column_data))
-        elif column in self.categorical_columns:
-            column_info.update(self._analyze_categorical_column(column_data))
-        elif column in self.datetime_columns:
-            column_info.update(self._analyze_datetime_column(column_data))
+        match column:
+            case _ if column in self.numeric_columns:
+                column_info.update(self._analyze_numeric_column(column_data))
+            case _ if column in self.categorical_columns:
+                column_info.update(self._analyze_categorical_column(column_data))
+            case _ if column in self.datetime_columns:
+                column_info.update(self._analyze_datetime_column(column_data))
 
         return column_info
 
@@ -144,12 +147,8 @@ class MetaGenerator:
             },
         }
 
-        # Outlier detection using IQR method
-        Q1, Q3 = column_data.quantile(0.25), column_data.quantile(0.75)
-        IQR = Q3 - Q1
-        outliers = column_data[
-            (column_data < (Q1 - 1.5 * IQR)) | (column_data > (Q3 + 1.5 * IQR))
-        ]
+        outliers = find_outlier_iqr(column_data)
+
         basic_stats.update(
             {
                 "outliers_count": len(outliers),
@@ -262,12 +261,13 @@ class MetaGenerator:
         target_data = self.df[self.target_column]
         target_info = {"column_type": "unknown"}
 
-        if self.target_column in self.categorical_columns:
-            target_info.update(self._analyze_categorical_target(target_data))
-        elif self.target_column in self.numeric_columns:
-            target_info.update(self._analyze_numeric_target(target_data))
-        elif self.target_column in self.datetime_columns:
-            target_info["column_type"] = ColumnType.DATETIME.name.lower()
+        match self.target_column:
+            case _ if self.target_column in self.categorical_columns:
+                target_info.update(self._analyze_categorical_target(target_data))
+            case _ if self.target_column in self.numeric_columns:
+                target_info.update(self._analyze_numeric_target(target_data))
+            case _ if self.target_column in self.datetime_columns:
+                target_info["column_type"] = ColumnType.DATETIME.name.lower()
 
         self.metadata["target_analysis"] = target_info
 
@@ -425,19 +425,21 @@ class MetaGenerator:
 
     def _plot_target_distribution(self) -> None:
         """Plot target variable distribution based on its type."""
-        if self.target_column in self.categorical_columns:
-            sns.countplot(x=self.target_column, data=self.df)
-            plt.title(f"Target Distribution: {self.target_column}")
-        elif self.target_column in self.numeric_columns:
-            sns.histplot(self.df[self.target_column].dropna(), kde=True)
-            plt.title(f"Target Distribution: {self.target_column}")
-        elif self.target_column in self.datetime_columns:
-            try:
-                date_series = pd.to_datetime(self.df[self.target_column])
-                date_series.dt.year.value_counts().sort_index().plot(kind="bar")
-                plt.title(f"Distribution by Year: {self.target_column}")
-            except (ValueError, TypeError):
-                pass
+
+        match self.target_column:
+            case _ if self.target_column in self.categorical_columns:
+                sns.countplot(x=self.target_column, data=self.df)
+                plt.title(f"Target Distribution: {self.target_column}")
+            case _ if self.target_column in self.numeric_columns:
+                sns.histplot(self.df[self.target_column].dropna(), kde=True)
+                plt.title(f"Target Distribution: {self.target_column}")
+            case _ if self.target_column in self.datetime_columns:
+                try:
+                    date_series = pd.to_datetime(self.df[self.target_column])
+                    date_series.dt.year.value_counts().sort_index().plot(kind="bar")
+                    plt.title(f"Distribution by Year: {self.target_column}")
+                except (ValueError, TypeError):
+                    pass
 
     def generate_llm_query(self, task_type: Optional[TaskType] = None) -> str:
         """
@@ -482,28 +484,30 @@ class MetaGenerator:
                 "unique_values": info["unique_values"],
             }
 
-            if col in self.numeric_columns:
-                col_summary.update(
-                    {
-                        "min": float(info["min"]),
-                        "max": float(info["max"]),
-                        "mean": float(info["mean"]),
-                        "std": float(info["std"]),
-                        "outliers_percentage": info["outliers_percentage"],
+            match col:
+                case _ if col in self.numeric_columns:
+                    col_summary.update(
+                        {
+                            "min": float(info["min"]),
+                            "max": float(info["max"]),
+                            "mean": float(info["mean"]),
+                            "std": float(info["std"]),
+                            "outliers_percentage": info["outliers_percentage"],
+                        }
+                    )
+                case _ if col in self.categorical_columns:
+                    col_summary["top_values"] = {
+                        str(k): float(v)
+                        for k, v in list(info["top_values"].items())[:3]
                     }
-                )
-            elif col in self.categorical_columns:
-                col_summary["top_values"] = {
-                    str(k): float(v) for k, v in list(info["top_values"].items())[:3]
-                }
-            elif col in self.datetime_columns and "min_date" in info:
-                col_summary.update(
-                    {
-                        "min_date": str(info["min_date"]),
-                        "max_date": str(info["max_date"]),
-                        "range_days": info["range_days"],
-                    }
-                )
+                case _ if col in self.datetime_columns:
+                    col_summary.update(
+                        {
+                            "min_date": str(info["min_date"]),
+                            "max_date": str(info["max_date"]),
+                            "range_days": info["range_days"],
+                        }
+                    )
 
             llm_metadata["columns"][col] = col_summary
 
@@ -604,12 +608,14 @@ class MetaGenerator:
 
     def _json_serializer(self, obj):
         """Custom JSON serializer for handling pandas/numpy types."""
-        if isinstance(obj, ColumnType):
-            return str(obj)
-        elif isinstance(obj, (np.int64, np.int32)):
-            return int(obj)
-        elif isinstance(obj, pd.Timestamp):
-            return obj.isoformat()
+        match obj:
+            case _ if isinstance(obj, ColumnType):
+                return str(obj)
+            case _ if isinstance(obj, (np.int64, np.int32)):
+                return int(obj)
+            case _ if isinstance(obj, pd.Timestamp):
+                return obj.isoformat()
+
         raise TypeError(f"Type {type(obj)} not serializable")
 
     def get_json_metadata(self) -> str:
