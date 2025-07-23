@@ -20,7 +20,6 @@ from automind.data_utils.preprocessing import (
     DataCleaningRecommendations,
     DataQualityReport,
     DataQualityType,
-    EnumByName,
     FeatureEngineeringRecommendations,
     Issue,
     ModelingApproach,
@@ -62,6 +61,7 @@ from automind.data_utils.preprocessing import (
     treat_zero_as_missing_value,
     uniform_discretize,
 )
+from automind.data_utils.shared import EnumByName
 
 
 class TestEnumByName:

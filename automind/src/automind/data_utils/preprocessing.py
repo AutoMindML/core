@@ -1,13 +1,12 @@
 from datetime import datetime
 from enum import Enum, auto
-from typing import Annotated, Any, List, Optional, Tuple, Union, cast
+from typing import Annotated, Any, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from numpy.typing import ArrayLike
-from pydantic import BaseModel, GetCoreSchemaHandler
-from pydantic_core import core_schema
+from pydantic import BaseModel
 from sklearn.decomposition import PCA
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import (
@@ -18,6 +17,8 @@ from sklearn.preprocessing import (
     RobustScaler,
     StandardScaler,
 )
+
+from automind.data_utils.shared import EnumByName
 
 
 class DC:
@@ -69,51 +70,6 @@ class FE:
 
     class FeatureSelection(Enum):
         APPLY_PCA = auto()
-
-
-class EnumByName:
-    """Pydantic validator for Enum fields that accepts both enum instances and string names."""
-
-    def __init__(self, *, ignore_case: bool = True):
-        self.ignore_case = ignore_case
-
-    def __get_pydantic_core_schema__(
-        self, enum_cls: type[Enum], _handler: GetCoreSchemaHandler
-    ):
-        name_enum = Enum("name_enum", {member.name: member.name for member in enum_cls})
-        name_enum = cast(type[Enum], name_enum)
-
-        def enum_or_name(value: Enum | str) -> Enum:
-            if isinstance(value, str):
-                if not self.ignore_case:
-                    try:
-                        return enum_cls[value]
-                    except KeyError:
-                        raise ValueError(f"Enum name not found: {value}")
-                try:
-                    return next(
-                        member
-                        for member in enum_cls
-                        if member.name.lower() == value.lower()
-                    )
-                except StopIteration:
-                    raise ValueError(f"Enum name not found: {value}")
-            elif isinstance(value, enum_cls):
-                return value
-            raise ValueError(
-                f"Expected enum member or name, got {type(value).__name__}: {value}"
-            )
-
-        return core_schema.no_info_plain_validator_function(
-            enum_or_name,
-            json_schema_input_schema=core_schema.enum_schema(
-                enum_cls, list(name_enum.__members__.values())
-            ),
-            ref=enum_cls.__name__,
-            serialization=core_schema.plain_serializer_function_ser_schema(
-                lambda e: e.name
-            ),
-        )
 
 
 # === Data Quality Models ===
@@ -757,7 +713,6 @@ def apply_method(
 
     if not func:
         raise NotImplementedError(f"Method not implemented: {processing_method}")
-
     return func(df=df, column=column, **kwargs)
 
 
