@@ -104,21 +104,22 @@ class DataParser:
 
         # First pass: Identify based on pandas dtypes and pre-identified types
         for col in self.df.columns:
-            if col in self.pre_identified_col_types:
-                col_types[col] = self.pre_identified_col_types[col]
-            elif pd.api.types.is_datetime64_any_dtype(self.df[col]):
-                col_types[col] = ColumnType.DATETIME
-            elif self._is_numeric_column(col):
-                col_types[col] = ColumnType.NUMERIC
-            elif self._is_boolean_or_categorical_dtype(col):
-                col_types[col] = ColumnType.CATEGORICAL
-            else:
-                # Check string/object columns for datetime patterns
-                col_types[col] = (
-                    ColumnType.DATETIME
-                    if self._check_if_datetime_column(col)
-                    else ColumnType.CATEGORICAL
-                )
+            match col:
+                case _ if col in self.pre_identified_col_types:
+                    col_types[col] = self.pre_identified_col_types[col]
+                case _ if pd.api.types.is_datetime64_any_dtype(self.df[col]):
+                    col_types[col] = ColumnType.DATETIME
+                case _ if self._is_numeric_column(col):
+                    col_types[col] = ColumnType.NUMERIC
+                case _ if self._is_boolean_or_categorical_dtype(col):
+                    col_types[col] = ColumnType.CATEGORICAL
+                case _:
+                    # Check string/object columns for datetime patterns
+                    col_types[col] = (
+                        ColumnType.DATETIME
+                        if self._check_if_datetime_column(col)
+                        else ColumnType.CATEGORICAL
+                    )
 
         # Second pass: Check numeric columns for categorical patterns
         for col in self.df.columns:

@@ -242,27 +242,27 @@ llm_response_openai_limited = """
 {
   "data_quality_report": {
     "overall_quality": "MODERATE",
-    "summary": "Dataset contains missing values in multiple columns and one numeric column with outliers. No duplicates detected. The dataset is very small with only 6 rows, limiting modeling potential.",
+    "summary": "Dataset has missing values in multiple columns and some outliers in 'age'. No duplicates found. High correlation between 'age' and 'salary'.",
     "issues": [
       {
         "type": "MISSING_VALUES",
         "columns": ["age", "salary", "department"],
-        "description": "Each of these columns has one missing value (16.67%), with missingness in 'age' and 'department' perfectly correlated."
+        "description": "Each of these columns contains missing values (~16.67%), with some missing values correlated between 'age' and 'department'."
       },
       {
         "type": "OUTLIERS",
         "columns": ["age"],
-        "description": "One outlier detected in 'age' column accounting for 20% of non-missing values."
+        "description": "Detected outlier(s) in 'age' (~20% of data), which may affect modeling."
       }
     ],
     "strengths": [
       {
-        "type": "CONSISTENT_SCHEMA",
-        "description": "Column types are correctly assigned and consistent with data semantics (numeric, categorical, datetime)."
+        "type": "DUPLICATES",
+        "description": "No duplicate rows found, ensuring data uniqueness."
       },
       {
-        "type": "DUPLICATES",
-        "description": "No duplicate rows detected."
+        "type": "CONSISTENT_SCHEMA",
+        "description": "Column types align well with data semantics."
       }
     ]
   },
@@ -271,72 +271,8 @@ llm_response_openai_limited = """
       "task_type": "REGRESSION",
       "target": "salary",
       "recommended_algorithm": {
-        "name": "Linear Regression",
-        "reason": "The target 'salary' is numeric and strongly correlated with 'age'. Linear Regression is suitable for this small dataset and can exploit this relationship.",
-        "params": {}
-      },
-      "data_cleaning": {
-        "missing_values": [
-          {
-            "column": "age",
-            "methods": ["IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "salary",
-            "methods": ["IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "department",
-            "methods": ["IMPUTE_MODE"]
-          }
-        ],
-        "outliers": [
-          {
-            "column": "age",
-            "methods": ["IQR_WINSORIZE_OUTLIERS"]
-          }
-        ],
-        "duplicates": [],
-        "balancing": []
-      },
-      "feature_engineering": {
-        "creation": [
-          {
-            "column": "department",
-            "methods": ["ONE_HOT_ENCODE"]
-          },
-          {
-            "column": "join_date",
-            "methods": ["EXTRACT_DATE_PARTS"]
-          }
-        ],
-        "transformation": [
-          {
-            "column": "age",
-            "methods": ["STANDARDIZE"]
-          },
-          {
-            "column": "salary",
-            "methods": []
-          }
-        ],
-        "selection": []
-      },
-      "evaluation_metrics": ["RMSE", "MAE", "R2"],
-      "cross_validation": {
-        "method": "K_FOLD",
-        "folds": 3,
-        "stratified": false
-      },
-      "test_size": 0.2,
-      "validation_size": 0.2
-    },
-    {
-      "task_type": "REGRESSION",
-      "target": "salary",
-      "recommended_algorithm": {
-        "name": "Random Forest Regressor",
-        "reason": "Random Forest can handle non-linear relationships and small datasets with mixed feature types, and is robust to outliers after winsorization.",
+        "name": "RandomForestRegressor",
+        "reason": "Handles small datasets well, robust to outliers and missing values, and can capture nonlinear relationships.",
         "params": {
           "n_estimators": 100,
           "max_depth": 5,
@@ -381,7 +317,7 @@ llm_response_openai_limited = """
         "transformation": [
           {
             "column": "age",
-            "methods": []
+            "methods": ["STANDARDIZE"]
           }
         ],
         "selection": []
@@ -389,18 +325,18 @@ llm_response_openai_limited = """
       "evaluation_metrics": ["RMSE", "MAE", "R2"],
       "cross_validation": {
         "method": "K_FOLD",
-        "folds": 3,
+        "folds": 5,
         "stratified": false
       },
       "test_size": 0.2,
-      "validation_size": 0.2
+      "validation_size": 0.1
     },
     {
       "task_type": "REGRESSION",
       "target": "salary",
       "recommended_algorithm": {
-        "name": "Gradient Boosting Regressor",
-        "reason": "Gradient Boosting models perform well on small datasets and can capture complex relationships, suitable given the strong correlation between 'age' and 'salary'.",
+        "name": "GradientBoostingRegressor",
+        "reason": "Effective for small datasets with continuous numeric targets and can handle feature heterogeneity.",
         "params": {
           "n_estimators": 100,
           "learning_rate": 0.1,
@@ -446,7 +382,7 @@ llm_response_openai_limited = """
         "transformation": [
           {
             "column": "age",
-            "methods": []
+            "methods": ["STANDARDIZE"]
           }
         ],
         "selection": []
@@ -454,11 +390,71 @@ llm_response_openai_limited = """
       "evaluation_metrics": ["RMSE", "MAE", "R2"],
       "cross_validation": {
         "method": "K_FOLD",
-        "folds": 3,
+        "folds": 5,
         "stratified": false
       },
       "test_size": 0.2,
-      "validation_size": 0.2
+      "validation_size": 0.1
+    },
+    {
+      "task_type": "REGRESSION",
+      "target": "salary",
+      "recommended_algorithm": {
+        "name": "LinearRegression",
+        "reason": "Simple baseline model suitable due to strong linear correlation between 'age' and 'salary'.",
+        "params": {}
+      },
+      "data_cleaning": {
+        "missing_values": [
+          {
+            "column": "age",
+            "methods": ["IMPUTE_MEDIAN"]
+          },
+          {
+            "column": "salary",
+            "methods": ["IMPUTE_MEDIAN"]
+          },
+          {
+            "column": "department",
+            "methods": ["IMPUTE_MODE"]
+          }
+        ],
+        "outliers": [
+          {
+            "column": "age",
+            "methods": ["IQR_WINSORIZE_OUTLIERS"]
+          }
+        ],
+        "duplicates": [],
+        "balancing": []
+      },
+      "feature_engineering": {
+        "creation": [
+          {
+            "column": "department",
+            "methods": ["ONE_HOT_ENCODE"]
+          },
+          {
+            "column": "join_date",
+            "methods": ["EXTRACT_DATE_PARTS"]
+          }
+        ],
+        "transformation": [
+          {
+            "column": "age",
+            "methods": ["STANDARDIZE"]
+          }
+        ],
+        "selection": []
+      },
+      "evaluation_metrics": ["RMSE", "MAE", "R2"],
+      "cross_validation": {
+        "method": "K_FOLD",
+        "folds": 5,
+        "stratified": false
+      },
+      "test_size": 0.2,
+      "validation_size": 0.1
     }
   ]
 }

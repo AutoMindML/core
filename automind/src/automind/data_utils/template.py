@@ -21,8 +21,6 @@ def get_llm_prompt_template(
     task_type: Optional[TaskType] = None,
 ):
     return f"""
-    
-System Instructions
 You are an expert data scientist.
 
 Your task is to analyze the provided dataset metadata and generate recommendations for:
@@ -35,7 +33,7 @@ Output Rules
 - Respond only with valid JSON, strictly following the schema below.
 - Do not include any additional text, explanations, or markdown outside of the JSON.
 - If no processing is needed for a column, use an empty array `[]`.
-- Use only the allowed enumerations where specified (CHOOSE_ONE, CHOOSE_FROM).
+- Use only the allowed enumerations where specified.
 - Keep key names exactly as defined; do not modify or rename keys.
 
 Dataset Context
@@ -146,5 +144,6 @@ Required JSON Schema
 Response
 Respond strictly with the JSON in the schema above.
 No text, no markdown, no explanations before or after the JSON.
-JSON is surrounded by {escape_tag_start} and {escape_tag_end}
+JSON is surrounded by {escape_tag_start} and {escape_tag_end}.
+Stop output when {escape_tag_end} is reached.
 """
