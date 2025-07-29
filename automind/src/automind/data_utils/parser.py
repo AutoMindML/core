@@ -3,6 +3,7 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 
 
@@ -37,6 +38,7 @@ class DataParser:
             datetime_formats: Custom datetime formats to try when parsing
         """
         self.df = df.copy()
+        self.df_optimized: Optional[pd.DataFrame] = None
         self.categorical_threshold = categorical_threshold
         self.datetime_formats = datetime_formats or self._get_default_datetime_formats()
         self.datetime_col_patterns = self._get_datetime_column_patterns()
@@ -129,6 +131,8 @@ class DataParser:
                 col_types[col] = ColumnType.CATEGORICAL
 
         self._col_types = col_types
+        self.convert_columns_to_optimal_types()
+
         return col_types
 
     def _is_numeric_column(self, column: str) -> bool:
@@ -357,3 +361,189 @@ class DataParser:
         return {
             "top_values": dict(zip(top_values.index.astype(str), top_values.values))
         }
+
+    def convert_columns_to_optimal_types(self):
+        """
+        Convert columns to their optimal pandas/numpy data types based on identified column types.
+
+        This method should be called after identify_column_types() has been run.
+        Converts:
+        - ColumnType.CATEGORICAL columns to pandas category dtype
+        - ColumnType.NUMERIC columns to appropriate numpy numeric types
+        - ColumnType.DATETIME columns remain as datetime64 (handled by convert_time_series_columns)
+        """
+        df_optimized = self.df.copy()
+
+        # Convert datetime columns first
+        # datetime_cols = self.get_columns_by_type(ColumnType.DATETIME)
+        # for col in datetime_cols:
+        #     try:
+        #         df_optimized[col] = pd.to_datetime(df_optimized[col], errors="coerce")
+        #     except Exception:
+        #         # Keep original values if conversion fails
+        #         pass
+
+        # Convert categorical columns to pandas category
+        categorical_cols = self.get_columns_by_type(ColumnType.CATEGORICAL)
+        for col in categorical_cols:
+            try:
+                # Handle missing values and convert to category
+                df_optimized[col] = df_optimized[col].astype("category")
+            except Exception as e:
+                print(f"Warning: Could not convert column '{col}' to category: {e}")
+                # Keep original dtype if conversion fails
+                pass
+
+        # Convert numeric columns to optimal numeric types
+        numeric_cols = self.get_columns_by_type(ColumnType.NUMERIC)
+        for col in numeric_cols:
+            try:
+                df_optimized[col] = self._convert_to_optimal_numeric_type(
+                    df_optimized[col]
+                )
+            except Exception as e:
+                print(f"Warning: Could not optimize numeric column '{col}': {e}")
+                # Keep original dtype if conversion fails
+                pass
+
+        self.df_optimized = df_optimized
+
+    def _convert_to_optimal_numeric_type(self, series: pd.Series) -> pd.Series:
+        """
+        Convert a numeric series to the most memory-efficient numpy numeric type.
+
+        Args:
+            series: Input pandas Series with numeric data
+
+        Returns:
+            Series converted to optimal numeric dtype
+        """
+        # Skip if already optimized or contains non-numeric data
+        if not pd.api.types.is_numeric_dtype(series):
+            return series
+
+        # Handle integer types
+        if pd.api.types.is_integer_dtype(series):
+            return self._optimize_integer_series(series)
+
+        # Handle float types
+        elif pd.api.types.is_float_dtype(series):
+            return self._optimize_float_series(series)
+
+        return series
+
+    def _optimize_integer_series(self, series: pd.Series) -> pd.Series:
+        """
+        Optimize integer series to smallest possible integer type.
+
+        Args:
+            series: Integer series to optimize
+
+        Returns:
+            Series with optimized integer dtype
+        """
+        # Check for missing values - if present, we need nullable integer types
+        has_na = series.isna().any()
+
+        if has_na:
+            # Use nullable integer types (pandas extension types)
+            min_val = series.min()
+            max_val = series.max()
+
+            if pd.isna(min_val) or pd.isna(max_val):
+                return series.astype("Int64")  # Default to Int64 if all values are NaN
+
+            # Choose smallest nullable integer type that can hold the data
+            if min_val >= 0:  # Unsigned integers
+                if max_val <= np.iinfo(np.uint8).max:
+                    return series.astype("UInt8")
+                elif max_val <= np.iinfo(np.uint16).max:
+                    return series.astype("UInt16")
+                elif max_val <= np.iinfo(np.uint32).max:
+                    return series.astype("UInt32")
+                else:
+                    return series.astype("UInt64")
+            else:  # Signed integers
+                if (
+                    min_val >= np.iinfo(np.int8).min
+                    and max_val <= np.iinfo(np.int8).max
+                ):
+                    return series.astype("Int8")
+                elif (
+                    min_val >= np.iinfo(np.int16).min
+                    and max_val <= np.iinfo(np.int16).max
+                ):
+                    return series.astype("Int16")
+                elif (
+                    min_val >= np.iinfo(np.int32).min
+                    and max_val <= np.iinfo(np.int32).max
+                ):
+                    return series.astype("Int32")
+                else:
+                    return series.astype("Int64")
+        else:
+            # No missing values - use standard numpy integer types
+            min_val = series.min()
+            max_val = series.max()
+
+            # Choose smallest integer type that can hold the data
+            if min_val >= 0:  # Unsigned integers
+                if max_val <= np.iinfo(np.uint8).max:
+                    return series.astype(np.uint8)
+                elif max_val <= np.iinfo(np.uint16).max:
+                    return series.astype(np.uint16)
+                elif max_val <= np.iinfo(np.uint32).max:
+                    return series.astype(np.uint32)
+                else:
+                    return series.astype(np.uint64)
+            else:  # Signed integers
+                if (
+                    min_val >= np.iinfo(np.int8).min
+                    and max_val <= np.iinfo(np.int8).max
+                ):
+                    return series.astype(np.int8)
+                elif (
+                    min_val >= np.iinfo(np.int16).min
+                    and max_val <= np.iinfo(np.int16).max
+                ):
+                    return series.astype(np.int16)
+                elif (
+                    min_val >= np.iinfo(np.int32).min
+                    and max_val <= np.iinfo(np.int32).max
+                ):
+                    return series.astype(np.int32)
+                else:
+                    return series.astype(np.int64)
+
+    def _optimize_float_series(self, series: pd.Series) -> pd.Series:
+        """
+        Optimize float series to smallest possible float type while preserving precision.
+
+        Args:
+            series: Float series to optimize
+
+        Returns:
+            Series with optimized float dtype
+        """
+        # Check if values can fit in float32 without losing precision
+        try:
+            # Convert to float32 and back to check for precision loss
+            series_float32 = series.astype(np.float32)
+
+            # Compare original and converted values (accounting for NaN)
+            mask_valid = pd.notna(series) & pd.notna(series_float32)
+            if mask_valid.any():
+                precision_lost = not np.allclose(
+                    series[mask_valid],
+                    series_float32[mask_valid],
+                    rtol=1e-7,
+                    equal_nan=True,
+                )
+
+                if not precision_lost:
+                    return series_float32
+        except (ValueError, OverflowError):
+            pass
+
+        # If float32 loses precision or fails, keep as float64
+        return series.astype(np.float64)

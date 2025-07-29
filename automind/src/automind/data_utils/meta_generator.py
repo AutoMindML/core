@@ -40,6 +40,7 @@ class MetaGenerator:
             target_column: Optional target column for supervised learning tasks
         """
         self.df = df.copy() if df is not None else pd.DataFrame()
+        self.df_optimized: Optional[pd.DataFrame] = None
         self.target_column = target_column
         self.metadata = {}
         self.parser = DataParser(self.df)
@@ -77,6 +78,7 @@ class MetaGenerator:
     def _classify_columns(self) -> None:
         """Classify columns using DataParser's column type identification."""
         column_types = self.parser.identify_column_types()
+        self.df_optimized = self.parser.df_optimized
 
         # Initialize column type lists
         self.numeric_columns = []
@@ -102,8 +104,14 @@ class MetaGenerator:
     def _analyze_columns(self) -> None:
         """Analyze all columns and populate metadata."""
         self.metadata["columns"] = {}
+
         for col in self.df.columns:
             self.metadata["columns"][col] = self._analyze_column(col)
+
+        # TODO: meta-features
+        # self.metadata["meta-features"] = compute_all_measures(
+        #     self.df_optimized, self.target_column
+        # )
 
     def _analyze_column(self, column: str) -> Dict:
         """Analyze a single column and return its metadata."""
@@ -609,6 +617,8 @@ class MetaGenerator:
     def _json_serializer(self, obj):
         """Custom JSON serializer for handling pandas/numpy types."""
         match obj:
+            case _ if isinstance(obj, np.ndarray):
+                return obj.tolist()
             case _ if isinstance(obj, ColumnType):
                 return str(obj)
             case _ if isinstance(obj, (np.int64, np.int32)):

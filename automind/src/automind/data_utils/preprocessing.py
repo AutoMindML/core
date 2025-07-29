@@ -18,7 +18,7 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 
-from automind.data_utils.shared import EnumByName
+from automind.data_utils.shared import EnumByName, method_registry, register_method
 
 
 class DC:
@@ -227,18 +227,6 @@ ALL_PROCESSING_METHOD = Union[
     FE.FeatureCreation,
     FE.FeatureSelection,
 ]
-
-method_registry = {}
-
-
-def register_method(processing_method: ALL_PROCESSING_METHOD):
-    """Decorator to register processing methods in the method registry."""
-
-    def decorator(func):
-        method_registry[processing_method.name] = func
-        return func
-
-    return decorator
 
 
 # === Missing Value Imputation Methods ===
