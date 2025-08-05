@@ -6,15 +6,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
-from sklearn.preprocessing import LabelEncoder
 
+from automind.data_utils.measure import compute_all_measures
 from automind.data_utils.parser import ColumnType, DataParser
 from automind.data_utils.preprocessing import (
     LLMOutputSchema,
     TaskType,
 )
-from automind.data_utils.statistics import find_outlier_iqr
 from automind.data_utils.template import (
     escape_tag_end,
     escape_tag_start,
@@ -54,15 +52,17 @@ class MetaGenerator:
         """Extract comprehensive metadata from the DataFrame."""
         self._extract_basic_info()
         self._classify_columns()
-        self._analyze_columns()
-        self._analyze_missing_values()
-        self._generate_statistics()
-
-        if len(self.numeric_columns) >= 2:
-            self._analyze_correlations()
 
         if self.target_column and self.target_column in self.df.columns:
             self._analyze_target()
+
+        # TODO: meta-features
+
+        self.metadata["meta-features"] = compute_all_measures(
+            self.df_optimized, self.target_column
+        )
+
+        self.meta_features = compute_all_measures(self.df_optimized, self.target_column)
 
         return self.metadata
 
@@ -101,169 +101,6 @@ class MetaGenerator:
             "datetime": self.datetime_columns,
         }
 
-    def _analyze_columns(self) -> None:
-        """Analyze all columns and populate metadata."""
-        self.metadata["columns"] = {}
-
-        for col in self.df.columns:
-            self.metadata["columns"][col] = self._analyze_column(col)
-
-        # TODO: meta-features
-        # self.metadata["meta-features"] = compute_all_measures(
-        #     self.df_optimized, self.target_column
-        # )
-
-    def _analyze_column(self, column: str) -> Dict:
-        """Analyze a single column and return its metadata."""
-        column_data = self.df[column]
-        column_info = {
-            "dtype": str(column_data.dtype),
-            "missing_count": column_data.isna().sum(),
-            "missing_percentage": round(100 * column_data.isna().mean(), 2),
-            "unique_values": column_data.nunique(),
-        }
-
-        match column:
-            case _ if column in self.numeric_columns:
-                column_info.update(self._analyze_numeric_column(column_data))
-            case _ if column in self.categorical_columns:
-                column_info.update(self._analyze_categorical_column(column_data))
-            case _ if column in self.datetime_columns:
-                column_info.update(self._analyze_datetime_column(column_data))
-
-        return column_info
-
-    def _analyze_numeric_column(self, column_data: pd.Series) -> Dict:
-        """Analyze numeric column statistics and outliers."""
-        basic_stats = {
-            "min": column_data.min(),
-            "max": column_data.max(),
-            "mean": column_data.mean(),
-            "median": column_data.median(),
-            "std": column_data.std(),
-            "skewness": column_data.skew(),
-            "kurtosis": column_data.kurtosis(),
-            "zeros_count": (column_data == 0).sum(),
-            "zeros_percentage": round(100 * (column_data == 0).mean(), 2),
-            "quantiles": {
-                "25%": column_data.quantile(0.25),
-                "50%": column_data.quantile(0.5),
-                "75%": column_data.quantile(0.75),
-                "90%": column_data.quantile(0.9),
-                "95%": column_data.quantile(0.95),
-                "99%": column_data.quantile(0.99),
-            },
-        }
-
-        outliers = find_outlier_iqr(column_data)
-
-        basic_stats.update(
-            {
-                "outliers_count": len(outliers),
-                "outliers_percentage": round(
-                    100 * len(outliers) / len(column_data.dropna()), 2
-                ),
-            }
-        )
-
-        return basic_stats
-
-    def _analyze_categorical_column(self, column_data: pd.Series) -> Dict:
-        """Analyze categorical column distribution and entropy."""
-        value_counts = column_data.value_counts(dropna=False)
-        return {
-            "top_values": value_counts.head(5).to_dict(),
-            "entropy": self._calculate_entropy(column_data),
-        }
-
-    def _analyze_datetime_column(self, column_data: pd.Series) -> Dict:
-        """Analyze datetime column range and statistics."""
-        if not pd.api.types.is_datetime64_any_dtype(column_data):
-            try:
-                column_data = pd.to_datetime(column_data, errors="coerce")
-            except (ValueError, TypeError):
-                return {}
-
-        if pd.api.types.is_datetime64_any_dtype(column_data):
-            min_date, max_date = column_data.min(), column_data.max()
-            return {
-                "min_date": min_date,
-                "max_date": max_date,
-                "range_days": (max_date - min_date).days
-                if not pd.isna(min_date) and not pd.isna(max_date)
-                else None,
-            }
-        return {}
-
-    def _analyze_missing_values(self) -> None:
-        """Analyze missing value patterns and correlations."""
-        missing_data = self.df.isna()
-        missing_info = {
-            "total_missing": missing_data.sum().sum(),
-            "missing_percentage": round(
-                100 * missing_data.sum().sum() / (self.df.shape[0] * self.df.shape[1]),
-                2,
-            ),
-            "columns_with_missing": missing_data.sum()[
-                missing_data.sum() > 0
-            ].to_dict(),
-            "rows_with_missing": missing_data.sum(axis=1)
-            .value_counts()
-            .sort_index()
-            .to_dict(),
-        }
-
-        # Find columns with correlated missing values
-        if len(self.df.columns) > 1:
-            missing_corr = missing_data.corr()
-            highly_correlated = []
-
-            for i in range(len(missing_corr.columns)):
-                for j in range(i + 1, len(missing_corr.columns)):
-                    col1, col2 = missing_corr.columns[i], missing_corr.columns[j]
-                    corr = missing_corr.loc[col1, col2]
-                    if abs(corr) > 0.5:
-                        highly_correlated.append((col1, col2, corr))
-
-            missing_info["correlated_missing"] = highly_correlated
-
-        self.metadata["missing_values"] = missing_info
-
-    def _generate_statistics(self) -> None:
-        """Generate overall dataset statistics."""
-        stats = {
-            "numeric_summary": self.df[self.numeric_columns].describe().to_dict()
-            if self.numeric_columns
-            else {},
-        }
-
-        # Duplicate row analysis
-        duplicates = self.df.duplicated()
-        stats["duplicate_rows"] = {
-            "count": duplicates.sum(),
-            "percentage": round(100 * duplicates.sum() / len(self.df), 2),
-        }
-
-        self.metadata["statistics"] = stats
-
-    def _analyze_correlations(self) -> None:
-        """Analyze correlations between numeric features."""
-        numeric_corr = self.df[self.numeric_columns].corr()
-
-        # Find highly correlated feature pairs
-        high_correlations = []
-        for i in range(len(numeric_corr.columns)):
-            for j in range(i + 1, len(numeric_corr.columns)):
-                col1, col2 = numeric_corr.columns[i], numeric_corr.columns[j]
-                corr = numeric_corr.loc[col1, col2]
-                if abs(corr) > 0.7:
-                    high_correlations.append((col1, col2, corr))
-
-        self.metadata["correlations"] = {
-            "pearson_correlation_matrix": numeric_corr.to_dict(),
-            "high_correlations": high_correlations,
-        }
-
     def _analyze_target(self) -> None:
         """Analyze target variable and its relationship with features."""
         target_data = self.df[self.target_column]
@@ -287,86 +124,13 @@ class MetaGenerator:
             "class_count": target_data.value_counts().to_dict(),
         }
 
-        # Compute mutual information scores
-        target_encoded = LabelEncoder().fit_transform(target_data.fillna("missing"))
-        mi_scores = {}
-
-        # Mutual information for numeric features
-        for col in self.numeric_columns:
-            if col != self.target_column:
-                feature = self.df[col].fillna(self.df[col].median())
-                mi_scores[col] = self._safe_mutual_info_classif(feature, target_encoded)
-
-        # Mutual information for categorical features
-        for col in self.categorical_columns:
-            if col != self.target_column:
-                feature = LabelEncoder().fit_transform(
-                    self.df[col].astype("str").fillna("missing")
-                )
-                mi_scores[col] = self._safe_mutual_info_classif(feature, target_encoded)
-
-        target_info["mutual_information"] = dict(
-            sorted(mi_scores.items(), key=lambda x: x[1], reverse=True)
-        )
         return target_info
 
     def _analyze_numeric_target(self, target_data: pd.Series) -> Dict:
         """Analyze numeric target variable and compute correlations."""
         target_info = {"column_type": ColumnType.NUMERIC.name.lower()}
 
-        # Compute correlations with numeric features
-        correlations = {}
-        for col in self.numeric_columns:
-            if col != self.target_column:
-                correlations[col] = self.df[[col, self.target_column]].corr().iloc[0, 1]
-
-        target_info["correlations"] = dict(
-            sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)
-        )
-
-        # Compute mutual information scores
-        mi_scores = {}
-        target_filled = target_data.fillna(target_data.median())
-
-        for col in self.numeric_columns:
-            if col != self.target_column:
-                feature = self.df[col].fillna(self.df[col].median())
-                mi_scores[col] = mutual_info_regression(
-                    feature.values.reshape(-1, 1),
-                    target_filled,
-                    discrete_features="auto",
-                )[0]
-
-        for col in self.categorical_columns:
-            feature = LabelEncoder().fit_transform(self.df[col].fillna("missing"))
-            mi_scores[col] = mutual_info_regression(
-                feature.reshape(-1, 1), target_filled, discrete_features="auto"
-            )[0]
-
-        target_info["mutual_information"] = dict(
-            sorted(mi_scores.items(), key=lambda x: x[1], reverse=True)
-        )
         return target_info
-
-    def _safe_mutual_info_classif(
-        self, feature: pd.Series, target_encoded: np.ndarray
-    ) -> float:
-        """Safely compute mutual information for classification with error handling."""
-        try:
-            feature = pd.Series(feature)
-
-            return mutual_info_classif(
-                feature.values.reshape(-1, 1), target_encoded, discrete_features="auto"
-            )[0]
-        except ValueError:
-            return mutual_info_classif(
-                feature.values.reshape(-1, 1), target_encoded, discrete_features=True
-            )[0]
-
-    def _calculate_entropy(self, series: pd.Series) -> float:
-        """Calculate Shannon entropy of a series."""
-        value_counts = series.value_counts(normalize=True, dropna=False)
-        return -np.sum(value_counts * np.log2(value_counts))
 
     def generate_visualization(
         self, output_file: Optional[str] = None
@@ -464,6 +228,7 @@ class MetaGenerator:
             self.extract_metadata()
 
         metadata = self._prepare_llm_metadata()
+
         return get_llm_prompt_template(
             metadata, self.get_json_metadata(), task_type=task_type
         )
@@ -473,63 +238,9 @@ class MetaGenerator:
         llm_metadata = {
             "basic_info": self.metadata["basic_info"],
             "column_types": self.metadata["column_types"],
-            "missing_values": {
-                "total_missing": self.metadata["missing_values"]["total_missing"],
-                "missing_percentage": self.metadata["missing_values"][
-                    "missing_percentage"
-                ],
-                "columns_with_missing": self.metadata["missing_values"][
-                    "columns_with_missing"
-                ],
-            },
-            "columns": {},
+            "meta-features": self.metadata["meta-features"],
         }
 
-        # Summarize column information
-        for col, info in self.metadata["columns"].items():
-            col_summary = {
-                "missing_percentage": info["missing_percentage"],
-                "unique_values": info["unique_values"],
-            }
-
-            match col:
-                case _ if col in self.numeric_columns:
-                    col_summary.update(
-                        {
-                            "min": float(info["min"]),
-                            "max": float(info["max"]),
-                            "mean": float(info["mean"]),
-                            "std": float(info["std"]),
-                            "outliers_percentage": info["outliers_percentage"],
-                        }
-                    )
-                case _ if col in self.categorical_columns:
-                    col_summary["top_values"] = {
-                        str(k): float(v)
-                        for k, v in list(info["top_values"].items())[:3]
-                    }
-                case _ if col in self.datetime_columns:
-                    col_summary.update(
-                        {
-                            "min_date": str(info["min_date"]),
-                            "max_date": str(info["max_date"]),
-                            "range_days": info["range_days"],
-                        }
-                    )
-
-            llm_metadata["columns"][col] = col_summary
-
-        # Add correlation highlights
-        if (
-            "correlations" in self.metadata
-            and "high_correlations" in self.metadata["correlations"]
-        ):
-            llm_metadata["high_correlations"] = [
-                {"feature1": x[0], "feature2": x[1], "correlation": float(x[2])}
-                for x in self.metadata["correlations"]["high_correlations"][:5]
-            ]
-
-        # Add target information
         if "target_analysis" in self.metadata:
             target_info = self.metadata["target_analysis"]
             llm_metadata["target"] = {
@@ -542,12 +253,6 @@ class MetaGenerator:
                     str(k): float(v)
                     for k, v in list(target_info["class_distribution"].items())[:5]
                 }
-
-            if "mutual_information" in target_info:
-                llm_metadata["target"]["important_features"] = [
-                    {"feature": k, "importance": float(v)}
-                    for k, v in list(target_info["mutual_information"].items())[:5]
-                ]
 
         return llm_metadata
 

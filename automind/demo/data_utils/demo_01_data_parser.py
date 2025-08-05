@@ -1,62 +1,6 @@
-from datetime import datetime, timedelta
-
-import numpy as np
-import pandas as pd
+from demo_00_init import create_sample_data
 
 from automind.data_utils.parser import ColumnType, DataParser
-
-
-def create_sample_data():
-    """Create sample data to demonstrate the DataParser functionality."""
-
-    # Set random seed for reproducibility
-    np.random.seed(42)
-
-    # Create sample data with different column types
-    n_rows = 1000
-
-    # DateTime columns
-    start_date = datetime(2023, 1, 1)
-    dates = [start_date + timedelta(days=i) for i in range(n_rows)]
-    timestamps = [
-        start_date + timedelta(days=i, hours=np.random.randint(0, 24))
-        for i in range(n_rows)
-    ]
-
-    # Numeric columns
-    prices = np.random.normal(100, 20, n_rows)
-    quantities = np.random.randint(1, 100, n_rows)
-
-    # Categorical columns
-    categories = np.random.choice(["Electronics", "Books", "Clothing", "Home"], n_rows)
-    status = np.random.choice(["Active", "Inactive", "Pending"], n_rows)
-
-    # Binary numeric (should be detected as categorical)
-    is_premium = np.random.choice([0, 1], n_rows)
-
-    # Mixed string column that could be datetime
-    date_strings = [d.strftime("%Y-%m-%d") for d in dates[:500]] + ["N/A"] * 500
-
-    # Create DataFrame
-    df = pd.DataFrame(
-        {
-            "order_date": dates,
-            "created_timestamp": timestamps,
-            "price": prices,
-            "quantity": quantities,
-            "category": categories,
-            "status": status,
-            "is_premium": is_premium,
-            "date_string": date_strings,
-            "mixed_column": np.random.choice(["A", "B", "C", None], n_rows),
-        }
-    )
-
-    # Add some missing values
-    df.loc[np.random.choice(df.index, 50), "price"] = np.nan
-    df.loc[np.random.choice(df.index, 30), "category"] = np.nan
-
-    return df
 
 
 def print_section_header(title):
@@ -72,7 +16,6 @@ def demo_dataparser():
     print("DataParser Demo - Automatic Column Type Detection")
     print("=" * 60)
 
-    # Create sample data
     df = create_sample_data()
 
     print_section_header("INPUT DATA")
@@ -144,8 +87,7 @@ def demo_dataparser():
 
     # Demonstrate manual column type override
     override_types = {
-        "quantity": ColumnType.CATEGORICAL,  # Override numeric to categorical
-        "status": ColumnType.DATETIME,  # Override categorical to datetime (will fail conversion)
+        "發芽率": ColumnType.CATEGORICAL,  # Override numeric to categorical
     }
 
     parser_override = DataParser(df)

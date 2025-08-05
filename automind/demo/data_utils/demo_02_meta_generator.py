@@ -1,20 +1,8 @@
-import pandas as pd
+from demo_00_init import create_sample_data
 
 from automind.data_utils.meta_generator import MetaGenerator
 
-
-def create_sample_data():
-    return pd.DataFrame(
-        {
-            "age": [25, 30, 22, 40, 28, None],
-            "salary": [50000, 60000, 45000, 80000, None, 70000],
-            "department": ["HR", "IT", "Finance", "IT", "HR", None],
-            "join_date": pd.date_range("2020-01-01", periods=6, freq="YE"),
-        }
-    )
-
-
-target_column = "salary"
+target_column = "發芽率"
 
 
 def demo_meta_generator():

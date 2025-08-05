@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Tuple, cast
+from typing import Tuple, cast
 
 import pandas as pd
 from pydantic import GetCoreSchemaHandler
@@ -68,7 +68,7 @@ def apply_method(
     df: pd.DataFrame,
     column: [str] = None,
     **kwargs,
-) -> Tuple[pd.DataFrame, Any]:
+) -> Tuple[pd.DataFrame, ...]:
     """Apply a registered method to a DataFrame."""
     func = method_registry.get(method.name)
 

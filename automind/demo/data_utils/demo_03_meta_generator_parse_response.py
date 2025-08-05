@@ -6,61 +6,61 @@ llm_response_openai = """
 {
   "data_quality_report": {
     "overall_quality": "MODERATE",
-    "summary": "The dataset has a small number of rows, some missing values, a moderate outlier presence, and a strong correlation between features. It lacks duplicates and maintains consistent schema.",
+    "summary": "The dataset is complete with no missing values and consistent schema, but has minor outliers and class imbalance in the target.",
     "issues": [
       {
-        "type": "MISSING_VALUES",
-        "columns": ["age", "salary", "department"],
-        "description": "Three columns have missing values, including the target column."
+        "type": "OUTLIERS",
+        "columns": ["溫度", "濕度"],
+        "description": "Minor presence of outliers detected in numeric columns based on distributional statistics."
       },
       {
-        "type": "OUTLIERS",
-        "columns": ["age"],
-        "description": "The 'age' column contains one outlier, comprising 20% of its non-missing values."
+        "type": "IMBALANCE",
+        "columns": ["發芽率"],
+        "description": "The target variable has a large number of unique values with skewed frequencies, indicating imbalance."
       }
     ],
     "strengths": [
       {
-        "type": "DUPLICATES",
-        "description": "There are no duplicate rows in the dataset."
+        "type": "MISSING_VALUES",
+        "description": "No missing values across the dataset."
       },
       {
         "type": "CONSISTENT_SCHEMA",
-        "description": "The column types are consistent with their data content and inferred correctly."
+        "description": "All columns have consistent types as numeric without detected type inconsistency."
+      },
+      {
+        "type": "HIGH_COMPLETENESS",
+        "description": "The dataset is fully populated with no missing instances."
       }
     ]
   },
   "modeling_approaches": [
     {
       "task_type": "REGRESSION",
-      "target": "salary",
+      "target": "發芽率",
       "recommended_algorithm": {
         "name": "RandomForestRegressor",
-        "reason": "Robust to outliers and handles both categorical and numerical features well, suitable for small datasets with mixed types.",
+        "reason": "Handles non-linear relationships well, robust to outliers and requires minimal parameter tuning for numeric targets.",
         "params": {
           "n_estimators": 100,
-          "max_depth": 5,
+          "max_depth": null,
           "random_state": 42
         }
       },
       "data_cleaning": {
         "missing_values": [
           {
-            "column": "age",
-            "methods": ["IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "salary",
-            "methods": ["IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "department",
-            "methods": ["IMPUTE_MODE"]
+            "column": "時間",
+            "methods": ["TREAT_ZERO_AS_MISSING_VALUE"]
           }
         ],
         "outliers": [
           {
-            "column": "age",
+            "column": "濕度",
+            "methods": ["IQR_WINSORIZE_OUTLIERS"]
+          },
+          {
+            "column": "溫度",
             "methods": ["IQR_WINSORIZE_OUTLIERS"]
           }
         ],
@@ -68,23 +68,18 @@ llm_response_openai = """
         "balancing": []
       },
       "feature_engineering": {
-        "creation": [
-          {
-            "column": "department",
-            "methods": ["ONE_HOT_ENCODE"]
-          },
-          {
-            "column": "join_date",
-            "methods": ["EXTRACT_DATE_PARTS"]
-          }
-        ],
+        "creation": [],
         "transformation": [
           {
-            "column": "age",
+            "column": "時間",
+            "methods": ["MIN_MAX_SCALE"]
+          },
+          {
+            "column": "溫度",
             "methods": ["STANDARDIZE"]
           },
           {
-            "column": "salary",
+            "column": "濕度",
             "methods": ["STANDARDIZE"]
           }
         ],
@@ -93,7 +88,7 @@ llm_response_openai = """
       "evaluation_metrics": ["RMSE", "MAE", "R2"],
       "cross_validation": {
         "method": "K_FOLD",
-        "folds": 3,
+        "folds": 5,
         "stratified": false
       },
       "test_size": 0.2,
@@ -101,54 +96,105 @@ llm_response_openai = """
     },
     {
       "task_type": "REGRESSION",
-      "target": "salary",
+      "target": "發芽率",
+      "recommended_algorithm": {
+        "name": "XGBoostRegressor",
+        "reason": "Performs well with small to medium tabular data and can handle target variance effectively.",
+        "params": {
+          "n_estimators": 100,
+          "learning_rate": 0.1,
+          "max_depth": 6,
+          "random_state": 42
+        }
+      },
+      "data_cleaning": {
+        "missing_values": [
+          {
+            "column": "時間",
+            "methods": ["TREAT_ZERO_AS_MISSING_VALUE"]
+          }
+        ],
+        "outliers": [
+          {
+            "column": "濕度",
+            "methods": ["IQR_REMOVE_OUTLIERS"]
+          },
+          {
+            "column": "溫度",
+            "methods": ["IQR_REMOVE_OUTLIERS"]
+          }
+        ],
+        "duplicates": [],
+        "balancing": []
+      },
+      "feature_engineering": {
+        "creation": [],
+        "transformation": [
+          {
+            "column": "時間",
+            "methods": ["MIN_MAX_SCALE"]
+          },
+          {
+            "column": "溫度",
+            "methods": ["STANDARDIZE"]
+          },
+          {
+            "column": "濕度",
+            "methods": ["STANDARDIZE"]
+          }
+        ],
+        "selection": []
+      },
+      "evaluation_metrics": ["RMSE", "MAE", "R2"],
+      "cross_validation": {
+        "method": "K_FOLD",
+        "folds": 5,
+        "stratified": false
+      },
+      "test_size": 0.2,
+      "validation_size": 0.1
+    },
+    {
+      "task_type": "REGRESSION",
+      "target": "發芽率",
       "recommended_algorithm": {
         "name": "LinearRegression",
-        "reason": "Suitable for small datasets with high feature correlation; offers interpretability.",
+        "reason": "Simple baseline model to evaluate linear relationships before using complex models.",
         "params": {}
       },
       "data_cleaning": {
         "missing_values": [
           {
-            "column": "age",
-            "methods": ["IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "salary",
-            "methods": ["IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "department",
-            "methods": ["IMPUTE_MODE"]
+            "column": "時間",
+            "methods": ["TREAT_ZERO_AS_MISSING_VALUE"]
           }
         ],
         "outliers": [
           {
-            "column": "age",
-            "methods": ["IQR_WINSORIZE_OUTLIERS"]
+            "column": "濕度",
+            "methods": ["IQR_REMOVE_OUTLIERS"]
+          },
+          {
+            "column": "溫度",
+            "methods": ["IQR_REMOVE_OUTLIERS"]
           }
         ],
         "duplicates": [],
         "balancing": []
       },
       "feature_engineering": {
-        "creation": [
-          {
-            "column": "department",
-            "methods": ["ONE_HOT_ENCODE"]
-          },
-          {
-            "column": "join_date",
-            "methods": ["EXTRACT_DATE_PARTS"]
-          }
-        ],
+        "creation": [],
         "transformation": [
           {
-            "column": "age",
+            "column": "時間",
             "methods": ["STANDARDIZE"]
           },
           {
-            "column": "salary",
+            "column": "溫度",
+            "methods": ["STANDARDIZE"]
+          },
+          {
+            "column": "濕度",
             "methods": ["STANDARDIZE"]
           }
         ],
@@ -157,76 +203,7 @@ llm_response_openai = """
       "evaluation_metrics": ["RMSE", "MAE", "R2"],
       "cross_validation": {
         "method": "K_FOLD",
-        "folds": 3,
-        "stratified": false
-      },
-      "test_size": 0.2,
-      "validation_size": 0.1
-    },
-    {
-      "task_type": "REGRESSION",
-      "target": "salary",
-      "recommended_algorithm": {
-        "name": "GradientBoostingRegressor",
-        "reason": "Effective for small datasets with potential non-linear patterns and outliers.",
-        "params": {
-          "n_estimators": 100,
-          "learning_rate": 0.1,
-          "max_depth": 3,
-          "random_state": 42
-        }
-      },
-      "data_cleaning": {
-        "missing_values": [
-          {
-            "column": "age",
-            "methods": ["IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "salary",
-            "methods": ["IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "department",
-            "methods": ["IMPUTE_MODE"]
-          }
-        ],
-        "outliers": [
-          {
-            "column": "age",
-            "methods": ["IQR_WINSORIZE_OUTLIERS"]
-          }
-        ],
-        "duplicates": [],
-        "balancing": []
-      },
-      "feature_engineering": {
-        "creation": [
-          {
-            "column": "department",
-            "methods": ["ONE_HOT_ENCODE"]
-          },
-          {
-            "column": "join_date",
-            "methods": ["EXTRACT_DATE_PARTS"]
-          }
-        ],
-        "transformation": [
-          {
-            "column": "age",
-            "methods": ["STANDARDIZE"]
-          },
-          {
-            "column": "salary",
-            "methods": ["STANDARDIZE"]
-          }
-        ],
-        "selection": []
-      },
-      "evaluation_metrics": ["RMSE", "MAE", "R2"],
-      "cross_validation": {
-        "method": "K_FOLD",
-        "folds": 3,
+        "folds": 5,
         "stratified": false
       },
       "test_size": 0.2,

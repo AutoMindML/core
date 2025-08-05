@@ -9,8 +9,8 @@ from enum import Enum, auto
 # Meta-features for meta-learning. Knowledge-Based Systems, 240, 108101 in section 4.1, page 4.
 
 # Annotations:
-# d_bar: mean of number of attributes
-# n_bar: mean of number of instances
+# d_bar: mean of number of attributes (multi-dataset or multi-measure results)
+# n_bar: mean of number of instances (multi-dataset or multi-measure results)
 # q: number of classes
 
 
