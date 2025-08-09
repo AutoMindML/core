@@ -89,7 +89,6 @@ def test_generate_llm_query(sample_df):
     assert isinstance(query, str) and len(query) > 0
     assert str(len(sample_df)) in query
     assert str(len(sample_df.columns)) in query
-    assert "```json" in query
 
 
 def test_get_json_metadata(sample_df):

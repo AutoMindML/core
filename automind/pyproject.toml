@@ -59,7 +59,10 @@ where = ["src"]
 # more setting refer to: https://microsoft.github.io/pyright/#/configuration?id=sample-pyprojecttoml-file
 # [tool.pyright]
 # reportUnusedVariable = false
+# typeCheckingMode = "basic"
+
+[tool.ruff.lint]
+ignore = ["F403"]
 
 [tool.ruff]
-ignore = ["F403"]
 exclude = ["**/__init__.py"]

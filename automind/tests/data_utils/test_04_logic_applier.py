@@ -7,6 +7,7 @@ import pytest
 from automind.data_utils.logic_applier import LogicApplier
 from automind.data_utils.preprocessing import (
     DC,
+    BalancingRecommendation,
     LLMOutputSchema,
 )
 
@@ -47,7 +48,9 @@ class TestLogicApplier:
         approach.data_cleaning.missing_values = []
         approach.data_cleaning.outliers = []
         approach.data_cleaning.duplicates = []
-        approach.data_cleaning.balancing = []
+        approach.data_cleaning.balancing = [
+            BalancingRecommendation(column="target", methods=[DC.Balancing.SMOTE])
+        ]
 
         # Mock feature engineering
         approach.feature_engineering.creation = []
@@ -195,17 +198,16 @@ class TestLogicApplier:
     def test_prepare_datasets_without_target(self, sample_dataframe):
         """Test preparing datasets without target column."""
         df_no_target = sample_dataframe.drop(columns=["target"])
-        print(df_no_target)
         applier = LogicApplier(df_no_target)
 
         datasets = applier._prepare_datasets(test_size=0.2, validation_size=0.1)
 
-        assert datasets["y_train"] is None
-        assert datasets["y_test"] is None
-        assert datasets["y_val"] is None
-        assert datasets["X_train"] is not None
-        assert datasets["X_test"] is not None
-        assert datasets["X_val"] is not None
+        assert datasets["y_train"].size == 0
+        assert datasets["y_test"].size == 0
+        assert datasets["y_val"].size == 0
+        assert datasets["X_train"].size > 0
+        assert datasets["X_test"].size > 0
+        assert datasets["X_val"].size > 0
 
     def test_prepare_datasets_no_validation(self, sample_dataframe):
         """Test preparing datasets without validation set."""
@@ -213,16 +215,16 @@ class TestLogicApplier:
 
         datasets = applier._prepare_datasets(test_size=0.2, validation_size=0.0)
 
-        assert datasets["X_train"] is not None
-        assert datasets["X_test"] is not None
-        assert datasets["X_val"] is None
+        assert datasets["X_train"].size > 0
+        assert datasets["X_test"].size > 0
+        assert datasets["X_val"].size == 0
 
     def test_is_classification_target_categorical(self, sample_dataframe):
         """Test classification target detection with categorical data."""
         applier = LogicApplier(sample_dataframe)
 
         # Test with categorical dtype
-        categorical_target = pd.Categorical(["A", "B", "A", "B"] * 25)
+        categorical_target = pd.Series(pd.Categorical(["A", "B", "A", "B"] * 25))
         assert applier._is_classification_target(categorical_target) is True
 
         # Test with object dtype
@@ -242,25 +244,24 @@ class TestLogicApplier:
         assert applier._is_classification_target(continuous_target) is False
 
     @patch("automind.data_utils.logic_applier.apply_method_transform")
-    def test_apply_balancing(self, mock_apply_method_transform, sample_dataframe):
+    def test_apply_balancing(
+        self, mock_apply_method_transform, sample_dataframe, mock_modeling_approach
+    ):
         """Test applying balancing techniques."""
         applier = LogicApplier(sample_dataframe, target_column="target")
 
         # Prepare datasets first
         datasets = applier._prepare_datasets(test_size=0.2, validation_size=0.1)
 
-        # Mock balancing method
-        mock_balancing_rec = Mock()
-        mock_balancing_rec.column = "target"
-        mock_balancing_rec.methods = [Mock()]
-        mock_balancing_rec.methods[0].name = "SMOTE"
-
         # Mock the transform result
         X_balanced = datasets["X_train"].copy()
         y_balanced = datasets["y_train"].copy()
+
         mock_apply_method_transform.return_value = (X_balanced, y_balanced)
 
-        result_datasets = applier._apply_balancing(datasets, [mock_balancing_rec])
+        _ = applier._apply_balancing(
+            datasets, mock_modeling_approach.data_cleaning.balancing
+        )
 
         # Check that balancing was applied
         mock_apply_method_transform.assert_called_once()
@@ -273,8 +274,7 @@ class TestLogicApplier:
         applier = LogicApplier(df_no_target)
 
         datasets = applier._prepare_datasets(test_size=0.2, validation_size=0.1)
-
-        result_datasets = applier._apply_balancing(datasets, [Mock()])
+        result_datasets = applier._apply_balancing(datasets, [])
 
         # Should return datasets unchanged
         assert result_datasets == datasets
@@ -389,14 +389,7 @@ class TestLogicApplier:
         """Test that target column is updated from modeling approach."""
         applier = LogicApplier(sample_dataframe, target_column="old_target")
         mock_llm_response.modeling_approaches[0].target = "target"
-
-        with patch.multiple(
-            applier,
-            _apply_data_cleaning_recommendations=Mock(),
-            _apply_feature_engineering_recommendations=Mock(),
-            _prepare_datasets=Mock(return_value={}),
-        ):
-            applier.apply_llm_recommendations(mock_llm_response)
+        applier.apply_llm_recommendations(mock_llm_response)
 
         assert applier.target_column == "target"
 

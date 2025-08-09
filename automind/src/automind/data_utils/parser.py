@@ -351,7 +351,7 @@ class DataParser:
             "min_date": min_date,
             "max_date": max_date,
             "range_days": (max_date - min_date).days
-            if pd.notna(min_date) and pd.notna(max_date)
+            if bool(pd.notna(min_date)) and bool(pd.notna(max_date))
             else None,
         }
 
@@ -374,6 +374,7 @@ class DataParser:
         """
         df_optimized = self.df.copy()
 
+        # TODO: how to handle datetime convert to category for numeric
         # Convert datetime columns first
         # datetime_cols = self.get_columns_by_type(ColumnType.DATETIME)
         # for col in datetime_cols:
@@ -391,20 +392,16 @@ class DataParser:
                 df_optimized[col] = df_optimized[col].astype("category")
             except Exception as e:
                 print(f"Warning: Could not convert column '{col}' to category: {e}")
-                # Keep original dtype if conversion fails
-                pass
 
         # Convert numeric columns to optimal numeric types
         numeric_cols = self.get_columns_by_type(ColumnType.NUMERIC)
         for col in numeric_cols:
             try:
                 df_optimized[col] = self._convert_to_optimal_numeric_type(
-                    df_optimized[col]
+                    pd.Series(df_optimized[col])
                 )
             except Exception as e:
                 print(f"Warning: Could not optimize numeric column '{col}': {e}")
-                # Keep original dtype if conversion fails
-                pass
 
         self.df_optimized = df_optimized
 

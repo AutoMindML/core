@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -48,7 +48,7 @@ class MetaGenerator:
         self.categorical_columns: List[str] = []
         self.datetime_columns: List[str] = []
 
-    def extract_metadata(self) -> Dict:
+    def extract_metadata(self) -> Dict[str, Any]:
         """Extract comprehensive metadata from the DataFrame."""
         self._extract_basic_info()
         self._classify_columns()
@@ -58,11 +58,12 @@ class MetaGenerator:
 
         # TODO: meta-features
 
-        self.metadata["meta-features"] = compute_all_measures(
-            self.df_optimized, self.target_column
-        )
+        if self.df_optimized is not None:
+            self.meta_features = compute_all_measures(
+                self.df_optimized, self.target_column
+            )
 
-        self.meta_features = compute_all_measures(self.df_optimized, self.target_column)
+            self.metadata["meta-features"] = self.meta_features
 
         return self.metadata
 
@@ -103,7 +104,7 @@ class MetaGenerator:
 
     def _analyze_target(self) -> None:
         """Analyze target variable and its relationship with features."""
-        target_data = self.df[self.target_column]
+        target_data = pd.Series(self.df[self.target_column])
         target_info = {"column_type": "unknown"}
 
         match self.target_column:
@@ -159,7 +160,7 @@ class MetaGenerator:
         # Feature correlation heatmap
         if len(self.numeric_columns) >= 2:
             plt.subplot(2, 2, 2)
-            corr_matrix = self.df[self.numeric_columns].corr()
+            corr_matrix = pd.DataFrame(self.df[self.numeric_columns]).corr()
             mask = np.triu(np.ones_like(corr_matrix))
             sns.heatmap(
                 corr_matrix,
@@ -176,7 +177,7 @@ class MetaGenerator:
         if self.numeric_columns:
             plt.subplot(2, 2, 3)
             for col in self.numeric_columns[:5]:  # Limit to first 5 columns
-                sns.kdeplot(self.df[col].dropna(), label=col)
+                sns.kdeplot(self.df[col].dropna().tolist(), label=col)
             plt.title("Distribution of Top Numeric Features")
             plt.legend()
 
@@ -203,7 +204,7 @@ class MetaGenerator:
                 sns.countplot(x=self.target_column, data=self.df)
                 plt.title(f"Target Distribution: {self.target_column}")
             case _ if self.target_column in self.numeric_columns:
-                sns.histplot(self.df[self.target_column].dropna(), kde=True)
+                sns.histplot(self.df[self.target_column].dropna().tolist(), kde=True)
                 plt.title(f"Target Distribution: {self.target_column}")
             case _ if self.target_column in self.datetime_columns:
                 try:
@@ -326,7 +327,7 @@ class MetaGenerator:
                 return obj.tolist()
             case _ if isinstance(obj, ColumnType):
                 return str(obj)
-            case _ if isinstance(obj, (np.int64, np.int32)):
+            case _ if isinstance(obj, np.number):
                 return int(obj)
             case _ if isinstance(obj, pd.Timestamp):
                 return obj.isoformat()

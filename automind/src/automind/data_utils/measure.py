@@ -3,6 +3,8 @@ from typing import Any, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
+from pandas._typing import ArrayLike
 from scipy import stats
 from scipy.linalg import eigvals
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
@@ -19,7 +21,8 @@ warnings.filterwarnings("ignore")
 
 @register_method(Simple.ATTR_TO_INST)
 def attr_to_inst(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Ratio of number of attributes to number of instances (d/n)"""
     n_instances = len(df)
@@ -30,7 +33,8 @@ def attr_to_inst(
 
 @register_method(Simple.INST_TO_ATTR)
 def inst_to_attr(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Ratio of number of instances to number of attributes (n/d)"""
     n_instances = len(df)
@@ -41,7 +45,8 @@ def inst_to_attr(
 
 @register_method(Simple.CAT_TO_NUM)
 def cat_to_num(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Ratio of categorical to numeric attributes"""
     feature_df = df.drop(columns=[column]) if column else df
@@ -61,7 +66,8 @@ def cat_to_num(
 
 @register_method(Simple.NUM_TO_CAT)
 def num_to_cat(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Ratio of numeric to categorical attributes"""
     feature_df = df.drop(columns=[column]) if column else df
@@ -81,7 +87,8 @@ def num_to_cat(
 
 @register_method(Simple.CLASS_TO_ATTR)
 def class_to_attr(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Ratio of number of classes to number of attributes (q/d)"""
     if not column:
@@ -94,7 +101,8 @@ def class_to_attr(
 
 @register_method(Simple.INST_TO_CLASS)
 def inst_to_class(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Ratio of number of instances to number of classes (n/q)"""
     if not column:
@@ -107,8 +115,9 @@ def inst_to_class(
 
 @register_method(Simple.FREQ_CLASS)
 def freq_class(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, Any, Any]:
     """Frequencies of class values"""
     if not column:
         raise ValueError("Target column must be specified for classification measures")
@@ -118,7 +127,8 @@ def freq_class(
 
 @register_method(Simple.NR_ATTR)
 def nr_attr(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Number of attributes"""
     n_attributes = len(df.columns) - (1 if column else 0)
@@ -127,17 +137,19 @@ def nr_attr(
 
 @register_method(Simple.NR_ATTR_MISSING)
 def nr_attr_missing(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Number of attributes with missing values"""
     feature_df = df.drop(columns=[column]) if column else df
-    n_missing_attrs = feature_df.isnull().any().sum()
+    n_missing_attrs = pd.Series(feature_df.isnull().any()).sum()
     return df, n_missing_attrs
 
 
 @register_method(Simple.NR_BIN)
 def nr_bin(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Number of binary attributes"""
     feature_df = df.drop(columns=[column]) if column else df
@@ -150,7 +162,8 @@ def nr_bin(
 
 @register_method(Simple.NR_CAT)
 def nr_cat(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Number of categorical attributes"""
     feature_df = df.drop(columns=[column]) if column else df
@@ -162,7 +175,8 @@ def nr_cat(
 
 @register_method(Simple.NR_CLASS)
 def nr_class(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Number of classes"""
     if not column:
@@ -173,7 +187,8 @@ def nr_class(
 
 @register_method(Simple.NR_INST)
 def nr_inst(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    _: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Number of instances"""
     n_instances = len(df)
@@ -182,16 +197,18 @@ def nr_inst(
 
 @register_method(Simple.NR_INST_MISSING)
 def nr_inst_missing(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    _: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Number of instances with missing values"""
-    n_missing_inst = df.isnull().any(axis=1).sum()
+    n_missing_inst = pd.Series(df.isnull().any(axis=1)).sum()
     return df, n_missing_inst
 
 
 @register_method(Simple.NR_MISSING)
 def nr_missing(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    _: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Total number of missing values"""
     n_missing = df.isnull().sum().sum()
@@ -200,7 +217,8 @@ def nr_missing(
 
 @register_method(Simple.NR_NUM)
 def nr_num(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Number of numeric attributes"""
     feature_df = df.drop(columns=[column]) if column else df
@@ -213,9 +231,11 @@ def nr_num(
 
 @register_method(Statistical.CAN_COR)
 def can_cor(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray[Any], Optional[ArrayLike]]:
     """Canonical correlations between predictive attributes and class"""
+
     if not column:
         raise ValueError("Target column must be specified for classification measures")
 
@@ -224,7 +244,7 @@ def can_cor(
             columns=[column], errors="ignore"
         )
         if len(feature_df.columns) == 0:
-            return df, np.array([0])
+            return df, np.array([0]), None
 
         # Encode target if categorical
         le = LabelEncoder()
@@ -235,24 +255,25 @@ def can_cor(
         lda.fit(feature_df.fillna(0), y_encoded)
 
         # Canonical correlations are related to eigenvalues
-        eigenvals = eigvals(lda.covariance_)
-        can_corrs = np.sqrt(eigenvals / (1 + eigenvals))
+        eigenvals = np.array(eigvals(lda.covariance_))
+        can_corrs = np.sqrt(eigenvals / (eigenvals + 1))
         return df, np.real(can_corrs), feature_df.columns.values
     except Exception:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
 
 @register_method(Statistical.COR)
 def cor(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Absolute attribute correlations"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) < 2:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
     corr_matrix = feature_df.corr().abs()
     # Get upper triangle excluding diagonal
@@ -268,15 +289,16 @@ def cor(
 
 @register_method(Statistical.COV)
 def cov(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Covariances"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) < 2:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
     cov_matrix = feature_df.cov()
     upper_triangle = np.triu(cov_matrix.values, k=1)
@@ -290,8 +312,9 @@ def cov(
 
 @register_method(Statistical.NR_DISC)
 def nr_disc(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, int]:
     """Number of discriminant functions"""
     if not column:
         raise ValueError("Target column must be specified for classification measures")
@@ -303,42 +326,44 @@ def nr_disc(
         n_classes = df[column].nunique()
         n_features = len(feature_df.columns)
         n_discriminants = min(n_classes - 1, n_features)
-        return df, max(0, n_discriminants), feature_df.columns.values
+        return df, max(0, n_discriminants)
     except Exception:
         return df, 0
 
 
 @register_method(Statistical.EIGHENVALUES)
 def eigenvalues(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Eigenvalues of covariance matrix"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
     try:
         cov_matrix = feature_df.cov()
-        eigenvals = eigvals(cov_matrix.values)
+        eigenvals = np.array(eigvals(cov_matrix.values))
         return df, np.real(eigenvals[eigenvals >= 0]), feature_df.columns.values
     except Exception:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
 
 @register_method(Statistical.G_MEAN)
 def g_mean(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Geometric mean"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
     # Only compute for positive values
     result = []
@@ -354,15 +379,16 @@ def g_mean(
 
 @register_method(Statistical.H_MEAN)
 def h_mean(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Harmonic mean"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
     result = []
     for col in feature_df.columns:
@@ -377,15 +403,16 @@ def h_mean(
 
 @register_method(Statistical.IQ_Range)
 def iq_range(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Interquartile range"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
     iqr_values = []
     for col in feature_df.columns:
@@ -396,15 +423,16 @@ def iq_range(
 
 @register_method(Statistical.KURTOSIS)
 def kurtosis(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Kurtosis"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
     kurt_values = []
     for col in feature_df.columns:
@@ -418,15 +446,16 @@ def kurtosis(
 
 @register_method(Statistical.MAD)
 def mad(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Median absolute deviation"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
     mad_values = []
     for col in feature_df.columns:
@@ -442,88 +471,100 @@ def mad(
 
 @register_method(Statistical.MAX)
 def max_val(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Maximum values"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
-    return df, feature_df.max().values, feature_df.columns.values
+    return df, np.array(feature_df.max().values), feature_df.columns.values
 
 
 @register_method(Statistical.MEAN)
 def mean_val(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Mean values"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
-    return df, feature_df.mean().values, feature_df.columns.values
+    return df, np.array(pd.Series(feature_df.mean()).values), feature_df.columns.values
 
 
 @register_method(Statistical.MEDIAN)
 def median_val(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Median values"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
-    return df, feature_df.median().values, feature_df.columns.values
+    return (
+        df,
+        np.array(pd.Series(feature_df.median()).values),
+        feature_df.columns.values,
+    )
 
 
 @register_method(Statistical.MIN)
 def min_val(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Minimum values"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
-    return df, feature_df.min().values, feature_df.columns.values
+    return df, np.array(feature_df.min().values), feature_df.columns.values
 
 
 @register_method(Statistical.NR_COR_ATTR)
 def nr_cor_attr(
-    df: pd.DataFrame, column: Optional[str] = None, threshold: float = 0.8, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+    threshold: float = 0.8,
+) -> Tuple[pd.DataFrame, np.float64]:
     """Number of attribute pairs with high correlation"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) < 2:
-        return df, 0
+        return df, np.float64(0)
 
     corr_matrix = feature_df.corr().abs()
     upper_triangle = np.triu(corr_matrix.values, k=1)
     high_corr_count = np.sum(upper_triangle > threshold)
     total_pairs = (len(feature_df.columns) * (len(feature_df.columns) - 1)) // 2
     ratio = high_corr_count / total_pairs if total_pairs > 0 else 0
-    return df, ratio, feature_df.columns.values
+    return df, np.float64(ratio)
 
 
 @register_method(Statistical.NR_NORM)
 def nr_norm(
-    df: pd.DataFrame, column: Optional[str] = None, alpha: float = 0.05, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+    alpha: float = 0.05,
+) -> Tuple[pd.DataFrame, int]:
     """Number of attributes with normal distribution"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
@@ -539,12 +580,13 @@ def nr_norm(
             _, p_value = stats.normaltest(vals)
             if p_value > alpha:  # Fail to reject null hypothesis of normality
                 normal_count += 1
-    return df, normal_count, feature_df.columns.values
+    return df, normal_count
 
 
 @register_method(Statistical.NR_OUTLIERS)
 def nr_outliers(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Number of attributes with outlier values"""
     feature_df = df.select_dtypes(include=[np.number])
@@ -570,38 +612,41 @@ def nr_outliers(
 
 @register_method(Statistical.RANGE)
 def range_val(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Range (max - min)"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
     return df, (feature_df.max() - feature_df.min()).values, feature_df.columns.values
 
 
 @register_method(Statistical.SD)
 def sd(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Standard deviation"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
-    return df, feature_df.std().values, feature_df.columns.values
+    return df, np.array(pd.Series(feature_df.std()).values), feature_df.columns.values
 
 
 @register_method(Statistical.SD_RATIO)
 def sd_ratio(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, float]:
     """Statistic test for homogeneity of covariances"""
     if not column:
         raise ValueError("Target column must be specified for classification measures")
@@ -622,7 +667,7 @@ def sd_ratio(
         for cls in classes:
             class_data = feature_df[df[column] == cls]
             if len(class_data) > 1:
-                cov_matrices.append(class_data.cov())
+                cov_matrices.append(pd.DataFrame(class_data).cov())
 
         if len(cov_matrices) < 2:
             return df, 1.0
@@ -630,12 +675,12 @@ def sd_ratio(
         # Compute ratio of largest to smallest eigenvalue
         all_eigenvals = []
         for cov_mat in cov_matrices:
-            eigenvals = eigvals(cov_mat.values)
+            eigenvals = np.array(eigvals(cov_mat.values))
             all_eigenvals.extend(np.real(eigenvals[eigenvals > 0]))
 
         if len(all_eigenvals) > 0:
             ratio = max(all_eigenvals) / min(all_eigenvals)
-            return df, ratio, feature_df.columns.values
+            return df, ratio
         else:
             return df, 1.0
     except Exception:
@@ -644,15 +689,16 @@ def sd_ratio(
 
 @register_method(Statistical.SKEWNESS)
 def skewness(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Skewness"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
     skew_values = []
     for col in feature_df.columns:
@@ -669,15 +715,14 @@ def t_mean(
     df: pd.DataFrame,
     column: Optional[str] = None,
     proportiontocut: float = 0.1,
-    **kwargs,
-) -> Tuple[pd.DataFrame, Any]:
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Trimmed mean"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
     trimmed_means = []
     for col in feature_df.columns:
@@ -691,23 +736,25 @@ def t_mean(
 
 @register_method(Statistical.VAR)
 def var(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Variance"""
     feature_df = df.select_dtypes(include=[np.number])
     if column and column in feature_df.columns:
         feature_df = feature_df.drop(columns=[column])
 
     if len(feature_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
-    return df, feature_df.var().values, feature_df.columns.values
+    return df, np.array(pd.Series(feature_df.var()).values), feature_df.columns.values
 
 
 @register_method(Statistical.W_LAMBDA)
 def w_lambda(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, float]:
     """Wilks lambda"""
     if not column:
         raise ValueError("Target column must be specified for classification measures")
@@ -729,7 +776,7 @@ def w_lambda(
         # Approximate Wilks lambda from eigenvalues
         eigenvals = eigvals(lda.covariance_)
         wilks_lambda = 1.0 / (1.0 + np.sum(np.real(eigenvals)))
-        return df, min(1.0, max(0.0, wilks_lambda)), feature_df.columns.values
+        return df, min(1.0, max(0.0, wilks_lambda))
     except Exception:
         return df, 1.0
 
@@ -746,14 +793,15 @@ def entropy(x):
 
 @register_method(InformationTheoretic.ATTR_ENT)
 def attr_ent(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Attributes entropy"""
     feature_df = df.drop(columns=[column]) if column else df
     categorical_df = feature_df.select_dtypes(include=["object", "category"])
 
     if len(categorical_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
     entropies = []
     for col in categorical_df.columns:
@@ -767,7 +815,8 @@ def attr_ent(
 
 @register_method(InformationTheoretic.CLASS_ENT)
 def class_ent(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
+    df: pd.DataFrame,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Class entropy"""
     if not column:
@@ -779,8 +828,9 @@ def class_ent(
 
 @register_method(InformationTheoretic.EQ_NUM_ATTR)
 def eq_num_attr(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, float]:
     """Equivalent number of attributes"""
     if not column:
         raise ValueError("Target column must be specified for classification measures")
@@ -808,13 +858,14 @@ def eq_num_attr(
             total_mutual_info += mutual_info
 
     equivalent_attrs = total_mutual_info / class_entropy if class_entropy > 0 else 0
-    return df, equivalent_attrs, categorical_df.columns.values
+    return df, equivalent_attrs
 
 
 @register_method(InformationTheoretic.JOINT_ENT)
 def joint_ent(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Joint entropy of attributes and classes"""
     if not column:
         raise ValueError("Target column must be specified for classification measures")
@@ -823,7 +874,7 @@ def joint_ent(
     categorical_df = feature_df.select_dtypes(include=["object", "category"])
 
     if len(categorical_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
     joint_entropies = []
     for col in categorical_df.columns:
@@ -841,8 +892,9 @@ def joint_ent(
 
 @register_method(InformationTheoretic.MUT_INF)
 def mut_inf(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Mutual information of attributes and classes"""
     if not column:
         raise ValueError("Target column must be specified for classification measures")
@@ -851,7 +903,7 @@ def mut_inf(
     categorical_df = feature_df.select_dtypes(include=["object", "category"])
 
     if len(categorical_df.columns) == 0:
-        return df, np.array([0])
+        return df, np.array([0]), None
 
     class_entropy = entropy(df[column].dropna())
     mutual_infos = []
@@ -868,13 +920,15 @@ def mut_inf(
             mutual_infos.append(max(0, mutual_info))
         else:
             mutual_infos.append(0)
+
     return df, np.array(mutual_infos), categorical_df.columns.values
 
 
 @register_method(InformationTheoretic.NS_RATIO)
 def ns_ratio(
-    df: pd.DataFrame, column: Optional[str] = None, **kwargs
-) -> Tuple[pd.DataFrame, Any]:
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+) -> Tuple[pd.DataFrame, float]:
     """Noisiness of attributes"""
     if not column:
         raise ValueError("Target column must be specified for classification measures")
@@ -911,7 +965,7 @@ def ns_ratio(
 
     avg_conditional_entropy = total_conditional_entropy / valid_attrs
     noise_ratio = avg_conditional_entropy / class_entropy if class_entropy > 0 else 0
-    return df, max(0, noise_ratio), categorical_df.columns.values
+    return df, max(0, noise_ratio)
 
 
 # ==================== UTILITY FUNCTIONS ====================

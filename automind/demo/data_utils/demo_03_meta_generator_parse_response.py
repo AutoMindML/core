@@ -1,36 +1,27 @@
 from automind.console import rich_console
 from automind.data_utils.meta_generator import MetaGenerator
 
-llm_response_openai = """
+llm_response_chatgpt = """
 <json>
 {
   "data_quality_report": {
     "overall_quality": "MODERATE",
-    "summary": "The dataset is complete with no missing values and consistent schema, but has minor outliers and class imbalance in the target.",
+    "summary": "The dataset is small but complete, with consistent schema and no missing values. However, potential semantic zeros, some outliers, and skewness in numeric distributions may impact modeling performance.",
     "issues": [
       {
         "type": "OUTLIERS",
         "columns": ["溫度", "濕度"],
-        "description": "Minor presence of outliers detected in numeric columns based on distributional statistics."
-      },
-      {
-        "type": "IMBALANCE",
-        "columns": ["發芽率"],
-        "description": "The target variable has a large number of unique values with skewed frequencies, indicating imbalance."
+        "description": "Detected numeric outliers, including unusually low temperature values and humidity deviations."
       }
     ],
     "strengths": [
       {
-        "type": "MISSING_VALUES",
-        "description": "No missing values across the dataset."
+        "type": "HIGH_COMPLETENESS",
+        "description": "No missing values detected across all columns."
       },
       {
         "type": "CONSISTENT_SCHEMA",
-        "description": "All columns have consistent types as numeric without detected type inconsistency."
-      },
-      {
-        "type": "HIGH_COMPLETENESS",
-        "description": "The dataset is fully populated with no missing instances."
+        "description": "Column types are consistent with expected formats."
       }
     ]
   },
@@ -40,9 +31,9 @@ llm_response_openai = """
       "target": "發芽率",
       "recommended_algorithm": {
         "name": "RandomForestRegressor",
-        "reason": "Handles non-linear relationships well, robust to outliers and requires minimal parameter tuning for numeric targets.",
+        "reason": "Performs well on small datasets, handles non-linear relationships, and is robust to outliers.",
         "params": {
-          "n_estimators": 100,
+          "n_estimators": 200,
           "max_depth": null,
           "random_state": 42
         }
@@ -50,17 +41,21 @@ llm_response_openai = """
       "data_cleaning": {
         "missing_values": [
           {
-            "column": "時間",
-            "methods": ["TREAT_ZERO_AS_MISSING_VALUE"]
+            "column": "溫度",
+            "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
+          },
+          {
+            "column": "濕度",
+            "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
           }
         ],
         "outliers": [
           {
-            "column": "濕度",
+            "column": "溫度",
             "methods": ["IQR_WINSORIZE_OUTLIERS"]
           },
           {
-            "column": "溫度",
+            "column": "濕度",
             "methods": ["IQR_WINSORIZE_OUTLIERS"]
           }
         ],
@@ -68,12 +63,13 @@ llm_response_openai = """
         "balancing": []
       },
       "feature_engineering": {
-        "creation": [],
-        "transformation": [
+        "creation": [
           {
             "column": "時間",
-            "methods": ["MIN_MAX_SCALE"]
-          },
+            "methods": ["CONVERT_TO_DATETIME", "EXTRACT_DATE_PARTS"]
+          }
+        ],
+        "transformation": [
           {
             "column": "溫度",
             "methods": ["STANDARDIZE"]
@@ -99,41 +95,46 @@ llm_response_openai = """
       "target": "發芽率",
       "recommended_algorithm": {
         "name": "XGBoostRegressor",
-        "reason": "Performs well with small to medium tabular data and can handle target variance effectively.",
+        "reason": "Captures complex interactions between features and target, with strong performance on tabular numeric data.",
         "params": {
-          "n_estimators": 100,
-          "learning_rate": 0.1,
-          "max_depth": 6,
+          "n_estimators": 300,
+          "learning_rate": 0.05,
+          "max_depth": 4,
           "random_state": 42
         }
       },
       "data_cleaning": {
         "missing_values": [
           {
-            "column": "時間",
-            "methods": ["TREAT_ZERO_AS_MISSING_VALUE"]
+            "column": "溫度",
+            "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
+          },
+          {
+            "column": "濕度",
+            "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
           }
         ],
         "outliers": [
           {
-            "column": "濕度",
-            "methods": ["IQR_REMOVE_OUTLIERS"]
+            "column": "溫度",
+            "methods": ["IQR_WINSORIZE_OUTLIERS"]
           },
           {
-            "column": "溫度",
-            "methods": ["IQR_REMOVE_OUTLIERS"]
+            "column": "濕度",
+            "methods": ["IQR_WINSORIZE_OUTLIERS"]
           }
         ],
         "duplicates": [],
         "balancing": []
       },
       "feature_engineering": {
-        "creation": [],
-        "transformation": [
+        "creation": [
           {
             "column": "時間",
-            "methods": ["MIN_MAX_SCALE"]
-          },
+            "methods": ["CONVERT_TO_DATETIME", "EXTRACT_DATE_PARTS"]
+          }
+        ],
+        "transformation": [
           {
             "column": "溫度",
             "methods": ["STANDARDIZE"]
@@ -159,23 +160,27 @@ llm_response_openai = """
       "target": "發芽率",
       "recommended_algorithm": {
         "name": "LinearRegression",
-        "reason": "Simple baseline model to evaluate linear relationships before using complex models.",
+        "reason": "Provides an interpretable baseline model and works well if the relationship between variables is linear.",
         "params": {}
       },
       "data_cleaning": {
         "missing_values": [
           {
-            "column": "時間",
-            "methods": ["TREAT_ZERO_AS_MISSING_VALUE"]
+            "column": "溫度",
+            "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
+          },
+          {
+            "column": "濕度",
+            "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
           }
         ],
         "outliers": [
           {
-            "column": "濕度",
+            "column": "溫度",
             "methods": ["IQR_REMOVE_OUTLIERS"]
           },
           {
-            "column": "溫度",
+            "column": "濕度",
             "methods": ["IQR_REMOVE_OUTLIERS"]
           }
         ],
@@ -183,12 +188,13 @@ llm_response_openai = """
         "balancing": []
       },
       "feature_engineering": {
-        "creation": [],
-        "transformation": [
+        "creation": [
           {
             "column": "時間",
-            "methods": ["STANDARDIZE"]
-          },
+            "methods": ["CONVERT_TO_DATETIME", "EXTRACT_DATE_PARTS"]
+          }
+        ],
+        "transformation": [
           {
             "column": "溫度",
             "methods": ["STANDARDIZE"]
@@ -214,7 +220,7 @@ llm_response_openai = """
 </json>
 """
 
-llm_response_openai_limited = """
+llm_response_chatgpt_limited = """
 <json>
 {
   "data_quality_report": {
@@ -648,10 +654,10 @@ llm_response_claude = """
 
 
 def demo_parse_llm_response():
-    parsed_response = MetaGenerator.parse_llm_response(llm_response_openai)
+    parsed_response = MetaGenerator.parse_llm_response(llm_response_chatgpt)
     rich_console.print("\n", parsed_response)
 
-    assert MetaGenerator.parse_llm_response(llm_response_openai_limited) is not None
+    assert MetaGenerator.parse_llm_response(llm_response_chatgpt_limited) is not None
     assert MetaGenerator.parse_llm_response(llm_response_claude) is not None
 
 

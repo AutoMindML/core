@@ -1,6 +1,6 @@
 import logging
 import warnings
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -9,6 +9,7 @@ from automind.data_utils.parser import DataParser
 from automind.data_utils.preprocessing import (
     DC,
     FE,
+    BalancingRecommendation,
     LLMOutputSchema,
     apply_method,
     apply_method_transform,
@@ -20,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 # Suppress sklearn warnings
 warnings.filterwarnings("ignore", category=UserWarning)
+
+LogicApplierDataset = Dict[str, Union[pd.DataFrame, pd.Series]]
 
 
 class LogicApplier:
@@ -449,17 +452,17 @@ class LogicApplier:
 
     def _prepare_datasets(
         self, test_size: float, validation_size: float, stratified: bool = True
-    ) -> Dict[str, pd.DataFrame]:
+    ) -> LogicApplierDataset:
         """Prepare train/validation/test splits."""
         logger.info("Preparing train/validation/test splits...")
 
-        datasets = {
-            "X_train": None,
-            "y_train": None,
-            "X_test": None,
-            "y_test": None,
-            "X_val": None,
-            "y_val": None,
+        datasets: LogicApplierDataset = {
+            "X_train": pd.DataFrame(),
+            "y_train": pd.Series(),
+            "X_test": pd.DataFrame(),
+            "y_test": pd.Series(),
+            "X_val": pd.DataFrame(),
+            "y_val": pd.Series(),
         }
 
         # Ensure target column exists
@@ -472,7 +475,7 @@ class LogicApplier:
             y = None
         else:
             X = self.processed_df.drop(columns=[self.target_column])
-            y = self.processed_df[self.target_column]
+            y = pd.Series(self.processed_df[self.target_column])
 
         if self.processed_df.shape[0] == 1:
             logger.warning(
@@ -480,7 +483,9 @@ class LogicApplier:
             )
 
             datasets["X_train"] = X
-            datasets["y_train"] = y
+
+            if y is not None:
+                datasets["y_train"] = y
 
             return datasets
 
@@ -508,7 +513,7 @@ class LogicApplier:
             if (
                 y_temp is not None
                 and stratified
-                and self._is_classification_target(y_temp)
+                and self._is_classification_target(pd.Series(y_temp))
             ):
                 X_train, X_val, y_train, y_val = train_test_split(
                     X_temp,
@@ -531,36 +536,40 @@ class LogicApplier:
             X_train, y_train = X_temp, y_temp
             X_val = y_val = None
 
-        datasets["X_train"] = X_train
-        datasets["y_train"] = y_train
-        datasets["X_test"] = X_test
-        datasets["y_test"] = y_test
+        datasets["X_train"] = pd.DataFrame(X_train)
+        datasets["y_train"] = pd.Series(y_train)
+        datasets["X_test"] = pd.DataFrame(X_test)
+        datasets["y_test"] = pd.Series(y_test)
 
         if X_val is not None:
-            datasets["X_val"] = X_val
-            datasets["y_val"] = y_val
+            datasets["X_val"] = pd.DataFrame(X_val)
+            datasets["y_val"] = pd.Series(y_val)
 
         # Log dataset shapes
-        logger.info(f"Training set shape: {X_train.shape}")
+        logger.info(f"Training set shape: {datasets['X_train'].shape}")
+
         if X_val is not None:
-            logger.info(f"Validation set shape: {X_val.shape}")
-        logger.info(f"Test set shape: {X_test.shape}")
+            logger.info(f"Validation set shape: {datasets['X_val'].shape}")
+
+        logger.info(f"Test set shape: {datasets['X_test'].shape}")
 
         return datasets
 
     def _apply_balancing(
-        self, datasets: Dict[str, pd.DataFrame], balancing_recs: List
-    ) -> Dict[str, pd.DataFrame]:
+        self,
+        datasets: LogicApplierDataset,
+        recommendations: List[BalancingRecommendation],
+    ) -> LogicApplierDataset:
         """Apply balancing techniques to training data only."""
-        if not balancing_recs or datasets["y_train"] is None:
+        if (datasets["y_train"].size == 0) or (datasets["X_train"].size == 0):
             return datasets
 
         logger.info("Applying balancing techniques to training data...")
 
         X_train, y_train = datasets["X_train"], datasets["y_train"]
 
-        for balancing_rec in balancing_recs:
-            for method in balancing_rec.methods:
+        for recommendation in recommendations:
+            for method in recommendation.methods:
                 try:
                     logger.info(f"Applying {method.name} for balancing")
 
@@ -585,7 +594,7 @@ class LogicApplier:
                         {
                             "step": "balancing",
                             "method": method.name,
-                            "column": balancing_rec.column,
+                            "column": recommendation.column,
                             "success": True,
                         }
                     )
@@ -593,7 +602,6 @@ class LogicApplier:
                     logger.info(
                         f"Balanced training set shape: {datasets['X_train'].shape}"
                     )
-                    break  # Apply only the first successful balancing method
 
                 except Exception as e:
                     logger.error(f"Failed to apply {method.name}: {str(e)}")
@@ -601,8 +609,8 @@ class LogicApplier:
                         {
                             "step": "balancing",
                             "method": method.name,
-                            "column": balancing_rec.column,
                             "success": False,
+                            "column": recommendation.column,
                             "error": str(e),
                         }
                     )
@@ -614,9 +622,8 @@ class LogicApplier:
         if isinstance(y.dtype, pd.CategoricalDtype) or pd.api.types.is_object_dtype(y):
             return True
 
-        parser = DataParser(y.to_frame(self.target_column))
-
-        return parser._is_numeric_categorical(self.target_column)
+        parser = DataParser(y.to_frame("target"))
+        return parser._is_numeric_categorical("target")
 
     def get_processing_summary(self) -> Dict[str, Any]:
         """Get summary of all processing steps applied."""
@@ -671,7 +678,9 @@ class LogicApplier:
                     column = "_".join(
                         parts[:-1]
                     )  # Rejoin in case column has underscores
-                    method = parts[-1]
+
+                    # method
+                    _ = parts[-1]
                 else:
                     continue
 
