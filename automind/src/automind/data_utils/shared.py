@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, Tuple, cast
+from typing import Optional, Tuple, Type, cast
 
 import pandas as pd
 from pydantic import GetCoreSchemaHandler
@@ -8,6 +8,7 @@ from pydantic_core import core_schema
 method_registry = {}
 
 
+# this solution is from pydantic issue: https://github.com/pydantic/pydantic/discussions/2980#discussioncomment-12977507
 class EnumByName:
     """Pydantic validator for Enum fields that accepts both enum instances and string names."""
 
@@ -15,9 +16,11 @@ class EnumByName:
         self.ignore_case = ignore_case
 
     def __get_pydantic_core_schema__(
-        self, enum_cls: type[Enum], _handler: GetCoreSchemaHandler
+        self, enum_cls: Type[Enum], _handler: GetCoreSchemaHandler
     ):
-        name_enum = Enum("name_enum", {member.name: member.name for member in enum_cls})
+        name_enum = Enum(
+            "name_enum", {member.name: member.name for member in enum_cls}
+        )
         name_enum = cast(type[Enum], name_enum)
 
         def enum_or_name(value: Enum | str) -> Enum:

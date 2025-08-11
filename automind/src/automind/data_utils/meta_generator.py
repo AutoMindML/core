@@ -28,7 +28,9 @@ class MetaGenerator:
     """
 
     def __init__(
-        self, df: Optional[pd.DataFrame] = None, target_column: Optional[str] = None
+        self,
+        df: Optional[pd.DataFrame] = None,
+        target_column: Optional[str] = None,
     ):
         """
         Initialize the MetaGenerator with a DataFrame and optional target column.
@@ -109,7 +111,9 @@ class MetaGenerator:
 
         match self.target_column:
             case _ if self.target_column in self.categorical_columns:
-                target_info.update(self._analyze_categorical_target(target_data))
+                target_info.update(
+                    self._analyze_categorical_target(target_data)
+                )
             case _ if self.target_column in self.numeric_columns:
                 target_info.update(self._analyze_numeric_target(target_data))
             case _ if self.target_column in self.datetime_columns:
@@ -121,7 +125,9 @@ class MetaGenerator:
         """Analyze categorical target variable and compute mutual information."""
         target_info = {
             "column_type": ColumnType.CATEGORICAL.name.lower(),
-            "class_distribution": target_data.value_counts(normalize=True).to_dict(),
+            "class_distribution": target_data.value_counts(
+                normalize=True
+            ).to_dict(),
             "class_count": target_data.value_counts().to_dict(),
         }
 
@@ -152,7 +158,9 @@ class MetaGenerator:
 
         # Missing values heatmap
         plt.subplot(2, 2, 1)
-        sns.heatmap(self.df.isna(), cbar=False, cmap="viridis", yticklabels=False)
+        sns.heatmap(
+            self.df.isna(), cbar=False, cmap="viridis", yticklabels=False
+        )
         plt.title("Missing Value Patterns")
         plt.xlabel("Features")
         plt.ylabel("Samples")
@@ -204,12 +212,16 @@ class MetaGenerator:
                 sns.countplot(x=self.target_column, data=self.df)
                 plt.title(f"Target Distribution: {self.target_column}")
             case _ if self.target_column in self.numeric_columns:
-                sns.histplot(self.df[self.target_column].dropna().tolist(), kde=True)
+                sns.histplot(
+                    self.df[self.target_column].dropna().tolist(), kde=True
+                )
                 plt.title(f"Target Distribution: {self.target_column}")
             case _ if self.target_column in self.datetime_columns:
                 try:
                     date_series = pd.to_datetime(self.df[self.target_column])
-                    date_series.dt.year.value_counts().sort_index().plot(kind="bar")
+                    date_series.dt.year.value_counts().sort_index().plot(
+                        kind="bar"
+                    )
                     plt.title(f"Distribution by Year: {self.target_column}")
                 except (ValueError, TypeError):
                     pass
@@ -252,13 +264,19 @@ class MetaGenerator:
             if target_info["column_type"] == "categorical":
                 llm_metadata["target"]["class_distribution"] = {
                     str(k): float(v)
-                    for k, v in list(target_info["class_distribution"].items())[:5]
+                    for k, v in list(target_info["class_distribution"].items())[
+                        :5
+                    ]
                 }
 
         return llm_metadata
 
+    # fixing json schema from llm json response
+    # https://github.com/mangiucugna/json_repair
     @classmethod
-    def parse_llm_response(cls, response_text: str) -> Optional[LLMOutputSchema]:
+    def parse_llm_response(
+        cls, response_text: str
+    ) -> Optional[LLMOutputSchema]:
         """
         Parse and validate LLM response to extract structured data analysis recommendations.
 
@@ -268,7 +286,9 @@ class MetaGenerator:
         Returns:
             Validated LLMOutputSchema object or None if parsing fails
         """
-        pattern = re.compile(rf"{escape_tag_start}\n(.*?)\n{escape_tag_end}", re.DOTALL)
+        pattern = re.compile(
+            rf"{escape_tag_start}\n(.*?)\n{escape_tag_end}", re.DOTALL
+        )
         matches = pattern.findall(response_text)
 
         if len(matches) == 0:
@@ -290,8 +310,7 @@ class MetaGenerator:
             try:
                 validated_json = LLMOutputSchema.model_validate(parsed_json)
                 return validated_json
-            except ValueError as e:
-                print(e)
+            except ValueError:
                 continue
 
         return None
@@ -344,4 +363,6 @@ class MetaGenerator:
         if not self.metadata:
             self.extract_metadata()
 
-        return json.dumps(self.metadata, indent=2, default=self._json_serializer)
+        return json.dumps(
+            self.metadata, indent=2, default=self._json_serializer
+        )

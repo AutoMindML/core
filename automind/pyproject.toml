@@ -24,6 +24,7 @@ dependencies = [
   # === Math === #
   "pandas",
   "numpy",
+  "pandas-stubs",
 
   # === Chart === #
   "matplotlib",
@@ -65,4 +66,5 @@ where = ["src"]
 ignore = ["F403"]
 
 [tool.ruff]
+line-length = 80
 exclude = ["**/__init__.py"]

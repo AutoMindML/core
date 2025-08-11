@@ -26,7 +26,9 @@ def attr_to_inst(
 ) -> Tuple[pd.DataFrame, Any]:
     """Ratio of number of attributes to number of instances (d/n)"""
     n_instances = len(df)
-    n_attributes = len(df.columns) - (1 if column else 0)  # Exclude target if specified
+    n_attributes = len(df.columns) - (
+        1 if column else 0
+    )  # Exclude target if specified
     ratio = n_attributes / n_instances if n_instances > 0 else 0
     return df, ratio
 
@@ -92,7 +94,9 @@ def class_to_attr(
 ) -> Tuple[pd.DataFrame, Any]:
     """Ratio of number of classes to number of attributes (q/d)"""
     if not column:
-        raise ValueError("Target column must be specified for classification measures")
+        raise ValueError(
+            "Target column must be specified for classification measures"
+        )
     n_classes = df[column].nunique()
     n_attributes = len(df.columns) - 1
     ratio = n_classes / n_attributes if n_attributes > 0 else 0
@@ -106,7 +110,9 @@ def inst_to_class(
 ) -> Tuple[pd.DataFrame, Any]:
     """Ratio of number of instances to number of classes (n/q)"""
     if not column:
-        raise ValueError("Target column must be specified for classification measures")
+        raise ValueError(
+            "Target column must be specified for classification measures"
+        )
     n_instances = len(df)
     n_classes = df[column].nunique()
     ratio = n_instances / n_classes if n_classes > 0 else 0
@@ -120,7 +126,9 @@ def freq_class(
 ) -> Tuple[pd.DataFrame, Any, Any]:
     """Frequencies of class values"""
     if not column:
-        raise ValueError("Target column must be specified for classification measures")
+        raise ValueError(
+            "Target column must be specified for classification measures"
+        )
     frequencies = df[column].value_counts(normalize=True).sort_index()
     return df, frequencies.values, frequencies.index.tolist()
 
@@ -180,7 +188,9 @@ def nr_class(
 ) -> Tuple[pd.DataFrame, Any]:
     """Number of classes"""
     if not column:
-        raise ValueError("Target column must be specified for classification measures")
+        raise ValueError(
+            "Target column must be specified for classification measures"
+        )
     n_classes = df[column].nunique()
     return df, n_classes
 
@@ -237,7 +247,9 @@ def can_cor(
     """Canonical correlations between predictive attributes and class"""
 
     if not column:
-        raise ValueError("Target column must be specified for classification measures")
+        raise ValueError(
+            "Target column must be specified for classification measures"
+        )
 
     try:
         feature_df = df.select_dtypes(include=[np.number]).drop(
@@ -317,7 +329,9 @@ def nr_disc(
 ) -> Tuple[pd.DataFrame, int]:
     """Number of discriminant functions"""
     if not column:
-        raise ValueError("Target column must be specified for classification measures")
+        raise ValueError(
+            "Target column must be specified for classification measures"
+        )
 
     try:
         feature_df = df.select_dtypes(include=[np.number]).drop(
@@ -498,7 +512,11 @@ def mean_val(
     if len(feature_df.columns) == 0:
         return df, np.array([0]), None
 
-    return df, np.array(pd.Series(feature_df.mean()).values), feature_df.columns.values
+    return (
+        df,
+        np.array(pd.Series(feature_df.mean()).values),
+        feature_df.columns.values,
+    )
 
 
 @register_method(Statistical.MEDIAN)
@@ -623,7 +641,11 @@ def range_val(
     if len(feature_df.columns) == 0:
         return df, np.array([0]), None
 
-    return df, (feature_df.max() - feature_df.min()).values, feature_df.columns.values
+    return (
+        df,
+        (feature_df.max() - feature_df.min()).values,
+        feature_df.columns.values,
+    )
 
 
 @register_method(Statistical.SD)
@@ -639,7 +661,11 @@ def sd(
     if len(feature_df.columns) == 0:
         return df, np.array([0]), None
 
-    return df, np.array(pd.Series(feature_df.std()).values), feature_df.columns.values
+    return (
+        df,
+        np.array(pd.Series(feature_df.std()).values),
+        feature_df.columns.values,
+    )
 
 
 @register_method(Statistical.SD_RATIO)
@@ -649,7 +675,9 @@ def sd_ratio(
 ) -> Tuple[pd.DataFrame, float]:
     """Statistic test for homogeneity of covariances"""
     if not column:
-        raise ValueError("Target column must be specified for classification measures")
+        raise ValueError(
+            "Target column must be specified for classification measures"
+        )
 
     try:
         feature_df = df.select_dtypes(include=[np.number]).drop(
@@ -747,7 +775,11 @@ def var(
     if len(feature_df.columns) == 0:
         return df, np.array([0]), None
 
-    return df, np.array(pd.Series(feature_df.var()).values), feature_df.columns.values
+    return (
+        df,
+        np.array(pd.Series(feature_df.var()).values),
+        feature_df.columns.values,
+    )
 
 
 @register_method(Statistical.W_LAMBDA)
@@ -757,7 +789,9 @@ def w_lambda(
 ) -> Tuple[pd.DataFrame, float]:
     """Wilks lambda"""
     if not column:
-        raise ValueError("Target column must be specified for classification measures")
+        raise ValueError(
+            "Target column must be specified for classification measures"
+        )
 
     try:
         feature_df = df.select_dtypes(include=[np.number]).drop(
@@ -820,7 +854,9 @@ def class_ent(
 ) -> Tuple[pd.DataFrame, Any]:
     """Class entropy"""
     if not column:
-        raise ValueError("Target column must be specified for classification measures")
+        raise ValueError(
+            "Target column must be specified for classification measures"
+        )
 
     class_entropy = entropy(df[column].dropna())
     return df, class_entropy
@@ -833,7 +869,9 @@ def eq_num_attr(
 ) -> Tuple[pd.DataFrame, float]:
     """Equivalent number of attributes"""
     if not column:
-        raise ValueError("Target column must be specified for classification measures")
+        raise ValueError(
+            "Target column must be specified for classification measures"
+        )
 
     feature_df = df.drop(columns=[column])
     categorical_df = feature_df.select_dtypes(include=["object", "category"])
@@ -852,12 +890,16 @@ def eq_num_attr(
             # Mutual information
             attr_entropy = entropy(joint_vals[col])
             joint_entropy = entropy(
-                joint_vals.apply(lambda x: str(x[col]) + "_" + str(x[column]), axis=1)
+                joint_vals.apply(
+                    lambda x: str(x[col]) + "_" + str(x[column]), axis=1
+                )
             )
             mutual_info = attr_entropy + class_entropy - joint_entropy
             total_mutual_info += mutual_info
 
-    equivalent_attrs = total_mutual_info / class_entropy if class_entropy > 0 else 0
+    equivalent_attrs = (
+        total_mutual_info / class_entropy if class_entropy > 0 else 0
+    )
     return df, equivalent_attrs
 
 
@@ -868,7 +910,9 @@ def joint_ent(
 ) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Joint entropy of attributes and classes"""
     if not column:
-        raise ValueError("Target column must be specified for classification measures")
+        raise ValueError(
+            "Target column must be specified for classification measures"
+        )
 
     feature_df = df.drop(columns=[column])
     categorical_df = feature_df.select_dtypes(include=["object", "category"])
@@ -897,7 +941,9 @@ def mut_inf(
 ) -> Tuple[pd.DataFrame, NDArray, Optional[ArrayLike]]:
     """Mutual information of attributes and classes"""
     if not column:
-        raise ValueError("Target column must be specified for classification measures")
+        raise ValueError(
+            "Target column must be specified for classification measures"
+        )
 
     feature_df = df.drop(columns=[column])
     categorical_df = feature_df.select_dtypes(include=["object", "category"])
@@ -931,7 +977,9 @@ def ns_ratio(
 ) -> Tuple[pd.DataFrame, float]:
     """Noisiness of attributes"""
     if not column:
-        raise ValueError("Target column must be specified for classification measures")
+        raise ValueError(
+            "Target column must be specified for classification measures"
+        )
 
     feature_df = df.drop(columns=[column])
     categorical_df = feature_df.select_dtypes(include=["object", "category"])
@@ -964,7 +1012,9 @@ def ns_ratio(
         return df, 0
 
     avg_conditional_entropy = total_conditional_entropy / valid_attrs
-    noise_ratio = avg_conditional_entropy / class_entropy if class_entropy > 0 else 0
+    noise_ratio = (
+        avg_conditional_entropy / class_entropy if class_entropy > 0 else 0
+    )
     return df, max(0, noise_ratio)
 
 
@@ -1112,12 +1162,15 @@ def compute_all_information_theoretic_measures(
     return results
 
 
-def compute_all_measures(df: pd.DataFrame, target_column: Optional[str] = None) -> dict:
+def compute_all_measures(
+    df: pd.DataFrame, target_column: Optional[str] = None
+) -> dict:
     """Compute all meta-features at once"""
     all_results = {}
-
     all_results.update(compute_all_simple_measures(df, target_column))
     all_results.update(compute_all_statistical_measures(df, target_column))
-    all_results.update(compute_all_information_theoretic_measures(df, target_column))
+    all_results.update(
+        compute_all_information_theoretic_measures(df, target_column)
+    )
 
     return all_results

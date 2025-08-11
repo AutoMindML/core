@@ -6,22 +6,27 @@ llm_response_chatgpt = """
 {
   "data_quality_report": {
     "overall_quality": "MODERATE",
-    "summary": "The dataset is small but complete, with consistent schema and no missing values. However, potential semantic zeros, some outliers, and skewness in numeric distributions may impact modeling performance.",
+    "summary": "Dataset has moderate quality with some potential outliers and possible missing value representation as 0 in the target column. Data types appear consistent, but skewness and kurtosis in some numeric columns suggest non-normal distributions.",
     "issues": [
+      {
+        "type": "MISSING_VALUES",
+        "columns": ["發芽率"],
+        "description": "0 values in target column may represent missing or non-germinated seeds rather than actual measurements."
+      },
       {
         "type": "OUTLIERS",
         "columns": ["溫度", "濕度"],
-        "description": "Detected numeric outliers, including unusually low temperature values and humidity deviations."
+        "description": "Potential extreme values in both temperature and humidity distributions."
       }
     ],
     "strengths": [
       {
-        "type": "HIGH_COMPLETENESS",
-        "description": "No missing values detected across all columns."
+        "type": "CONSISTENT_SCHEMA",
+        "description": "All columns have consistent data types across rows."
       },
       {
-        "type": "CONSISTENT_SCHEMA",
-        "description": "Column types are consistent with expected formats."
+        "type": "HIGH_COMPLETENESS",
+        "description": "No explicit null values in dataset."
       }
     ]
   },
@@ -31,21 +36,69 @@ llm_response_chatgpt = """
       "target": "發芽率",
       "recommended_algorithm": {
         "name": "RandomForestRegressor",
-        "reason": "Performs well on small datasets, handles non-linear relationships, and is robust to outliers.",
-        "params": {
-          "n_estimators": 200,
-          "max_depth": null,
-          "random_state": 42
-        }
+        "reason": "Handles non-linear relationships well, robust to outliers and non-normal distributions, suitable for small datasets.",
+        "params": {"n_estimators": 200, "max_depth": 10, "random_state": 42}
       },
       "data_cleaning": {
         "missing_values": [
           {
-            "column": "溫度",
+            "column": "發芽率",
             "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
+          }
+        ],
+        "outliers": [
+          {
+            "column": "溫度",
+            "methods": ["IQR_WINSORIZE_OUTLIERS"]
           },
           {
             "column": "濕度",
+            "methods": ["IQR_WINSORIZE_OUTLIERS"]
+          }
+        ],
+        "duplicates": [],
+        "balancing": []
+      },
+      "feature_engineering": {
+        "creation": [
+          {
+            "column": "時間",
+            "methods": ["CONVERT_TO_DATETIME", "EXTRACT_DATE_PARTS"]
+          }
+        ],
+        "transformation": [
+          {
+            "column": "溫度",
+            "methods": ["STANDARDIZE"]
+          },
+          {
+            "column": "濕度",
+            "methods": ["STANDARDIZE"]
+          }
+        ],
+        "selection": []
+      },
+      "evaluation_metrics": ["RMSE", "MAE", "R2"],
+      "cross_validation": {
+        "method": "K_FOLD",
+        "folds": 5,
+        "stratified": false
+      },
+      "test_size": 0.2,
+      "validation_size": 0.1
+    },
+    {
+      "task_type": "REGRESSION",
+      "target": "發芽率",
+      "recommended_algorithm": {
+        "name": "GradientBoostingRegressor",
+        "reason": "Captures complex feature interactions and non-linearities, performs well on medium-sized datasets without heavy preprocessing.",
+        "params": {"n_estimators": 300, "learning_rate": 0.05, "max_depth": 5, "random_state": 42}
+      },
+      "data_cleaning": {
+        "missing_values": [
+          {
+            "column": "發芽率",
             "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
           }
         ],
@@ -95,22 +148,13 @@ llm_response_chatgpt = """
       "target": "發芽率",
       "recommended_algorithm": {
         "name": "XGBoostRegressor",
-        "reason": "Captures complex interactions between features and target, with strong performance on tabular numeric data.",
-        "params": {
-          "n_estimators": 300,
-          "learning_rate": 0.05,
-          "max_depth": 4,
-          "random_state": 42
-        }
+        "reason": "High performance on tabular data, handles missing values internally, good for small to medium datasets.",
+        "params": {"n_estimators": 300, "learning_rate": 0.05, "max_depth": 5, "random_state": 42}
       },
       "data_cleaning": {
         "missing_values": [
           {
-            "column": "溫度",
-            "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "濕度",
+            "column": "發芽率",
             "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
           }
         ],
@@ -122,66 +166,6 @@ llm_response_chatgpt = """
           {
             "column": "濕度",
             "methods": ["IQR_WINSORIZE_OUTLIERS"]
-          }
-        ],
-        "duplicates": [],
-        "balancing": []
-      },
-      "feature_engineering": {
-        "creation": [
-          {
-            "column": "時間",
-            "methods": ["CONVERT_TO_DATETIME", "EXTRACT_DATE_PARTS"]
-          }
-        ],
-        "transformation": [
-          {
-            "column": "溫度",
-            "methods": ["STANDARDIZE"]
-          },
-          {
-            "column": "濕度",
-            "methods": ["STANDARDIZE"]
-          }
-        ],
-        "selection": []
-      },
-      "evaluation_metrics": ["RMSE", "MAE", "R2"],
-      "cross_validation": {
-        "method": "K_FOLD",
-        "folds": 5,
-        "stratified": false
-      },
-      "test_size": 0.2,
-      "validation_size": 0.1
-    },
-    {
-      "task_type": "REGRESSION",
-      "target": "發芽率",
-      "recommended_algorithm": {
-        "name": "LinearRegression",
-        "reason": "Provides an interpretable baseline model and works well if the relationship between variables is linear.",
-        "params": {}
-      },
-      "data_cleaning": {
-        "missing_values": [
-          {
-            "column": "溫度",
-            "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "濕度",
-            "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
-          }
-        ],
-        "outliers": [
-          {
-            "column": "溫度",
-            "methods": ["IQR_REMOVE_OUTLIERS"]
-          },
-          {
-            "column": "濕度",
-            "methods": ["IQR_REMOVE_OUTLIERS"]
           }
         ],
         "duplicates": [],
@@ -657,7 +641,10 @@ def demo_parse_llm_response():
     parsed_response = MetaGenerator.parse_llm_response(llm_response_chatgpt)
     rich_console.print("\n", parsed_response)
 
-    assert MetaGenerator.parse_llm_response(llm_response_chatgpt_limited) is not None
+    assert (
+        MetaGenerator.parse_llm_response(llm_response_chatgpt_limited)
+        is not None
+    )
     assert MetaGenerator.parse_llm_response(llm_response_claude) is not None
 
 

@@ -62,7 +62,9 @@ class LogicApplier:
         if not llm_response.modeling_approaches:
             raise ValueError("No modeling approaches found in LLM response")
 
-        modeling_approach = llm_response.modeling_approaches[modeling_approach_index]
+        modeling_approach = llm_response.modeling_approaches[
+            modeling_approach_index
+        ]
 
         logger.info(
             f"Applying recommendations for {modeling_approach.task_type.name} task"
@@ -77,7 +79,9 @@ class LogicApplier:
             self.target_column = modeling_approach.target
 
         # Step 1: Apply data cleaning recommendations
-        self._apply_data_cleaning_recommendations(modeling_approach.data_cleaning)
+        self._apply_data_cleaning_recommendations(
+            modeling_approach.data_cleaning
+        )
 
         # Step 2: Apply feature engineering recommendations
         self._apply_feature_engineering_recommendations(
@@ -113,7 +117,9 @@ class LogicApplier:
 
         # Handle missing values
         for missing_rec in data_cleaning.missing_values:
-            self._apply_missing_value_methods(missing_rec.column, missing_rec.methods)
+            self._apply_missing_value_methods(
+                missing_rec.column, missing_rec.methods
+            )
 
         # Handle outliers
         for outlier_rec in data_cleaning.outliers:
@@ -121,9 +127,13 @@ class LogicApplier:
 
         # Handle duplicates
         for duplicate_rec in data_cleaning.duplicates:
-            self._apply_duplicate_methods(duplicate_rec.column, duplicate_rec.methods)
+            self._apply_duplicate_methods(
+                duplicate_rec.column, duplicate_rec.methods
+            )
 
-    def _apply_feature_engineering_recommendations(self, feature_engineering) -> None:
+    def _apply_feature_engineering_recommendations(
+        self, feature_engineering
+    ) -> None:
         """Apply feature engineering recommendations."""
         logger.info("Applying feature engineering recommendations...")
 
@@ -161,7 +171,9 @@ class LogicApplier:
 
                 if method == DC.MissingValues.IMPUTE_CONSTANT:
                     # Use 0 as default constant, could be parameterized
-                    result = apply_method(method, self.processed_df, column, value=0)
+                    result = apply_method(
+                        method, self.processed_df, column, value=0
+                    )
                 else:
                     result = apply_method(method, self.processed_df, column)
 
@@ -198,10 +210,14 @@ class LogicApplier:
                     }
                 )
 
-    def _apply_outlier_methods(self, column: str, methods: List[DC.Outliers]) -> None:
+    def _apply_outlier_methods(
+        self, column: str, methods: List[DC.Outliers]
+    ) -> None:
         """Apply outlier detection and handling methods."""
         if column not in self.processed_df.columns:
-            logger.warning(f"Column '{column}' not found, skipping outlier handling")
+            logger.warning(
+                f"Column '{column}' not found, skipping outlier handling"
+            )
             return
 
         for method in methods:
@@ -259,7 +275,9 @@ class LogicApplier:
                     result = apply_method(method, self.processed_df)
                 elif method == DC.DuplicatesAndColumn.DROP_COLUMN:
                     if column in self.processed_df.columns:
-                        self.processed_df = self.processed_df.drop(columns=[column])
+                        self.processed_df = self.processed_df.drop(
+                            columns=[column]
+                        )
                         self.removed_columns.append(column)
                         result = self.processed_df
                     else:
@@ -305,7 +323,9 @@ class LogicApplier:
     ) -> None:
         """Apply feature creation methods."""
         if column not in self.processed_df.columns:
-            logger.warning(f"Column '{column}' not found, skipping feature creation")
+            logger.warning(
+                f"Column '{column}' not found, skipping feature creation"
+            )
             return
 
         for method in methods:
@@ -351,7 +371,9 @@ class LogicApplier:
     ) -> None:
         """Apply feature transformation methods."""
         if column not in self.processed_df.columns:
-            logger.warning(f"Column '{column}' not found, skipping transformation")
+            logger.warning(
+                f"Column '{column}' not found, skipping transformation"
+            )
             return
 
         for method in methods:
@@ -359,9 +381,13 @@ class LogicApplier:
                 logger.info(f"Applying {method.name} to column '{column}'")
 
                 if method == FE.Transformations.UNIFORM_DISCRETIZE:
-                    result = apply_method(method, self.processed_df, column, n_bins=5)
+                    result = apply_method(
+                        method, self.processed_df, column, n_bins=5
+                    )
                 elif method == FE.Transformations.QUANTILE_DISCRETIZE:
-                    result = apply_method(method, self.processed_df, column, n_bins=5)
+                    result = apply_method(
+                        method, self.processed_df, column, n_bins=5
+                    )
                 else:
                     result = apply_method(method, self.processed_df, column)
 
@@ -402,7 +428,9 @@ class LogicApplier:
     ) -> None:
         """Apply feature selection methods."""
         if column not in self.processed_df.columns:
-            logger.warning(f"Column '{column}' not found, skipping feature selection")
+            logger.warning(
+                f"Column '{column}' not found, skipping feature selection"
+            )
             return
 
         for method in methods:
@@ -413,7 +441,10 @@ class LogicApplier:
                     # Determine number of components based on data size
                     n_components = min(5, len(self.processed_df.columns) - 1)
                     result = apply_method(
-                        method, self.processed_df, column, n_components=n_components
+                        method,
+                        self.processed_df,
+                        column,
+                        n_components=n_components,
                     )
                 else:
                     result = apply_method(method, self.processed_df, column)
@@ -470,7 +501,9 @@ class LogicApplier:
             not self.target_column
             or self.target_column not in self.processed_df.columns
         ):
-            logger.warning("No valid target column found, creating feature-only splits")
+            logger.warning(
+                "No valid target column found, creating feature-only splits"
+            )
             X = self.processed_df
             y = None
         else:
@@ -525,7 +558,10 @@ class LogicApplier:
             else:
                 if y_temp is not None:
                     X_train, X_val, y_train, y_val = train_test_split(
-                        X_temp, y_temp, test_size=val_size_adjusted, random_state=42
+                        X_temp,
+                        y_temp,
+                        test_size=val_size_adjusted,
+                        random_state=42,
                     )
                 else:
                     X_train, X_val = train_test_split(
@@ -588,7 +624,9 @@ class LogicApplier:
                     if isinstance(y_balanced, pd.Series):
                         datasets["y_train"] = y_balanced
                     else:
-                        datasets["y_train"] = pd.Series(y_balanced, name=y_train.name)
+                        datasets["y_train"] = pd.Series(
+                            y_balanced, name=y_train.name
+                        )
 
                     self.processing_history.append(
                         {
@@ -619,7 +657,9 @@ class LogicApplier:
 
     def _is_classification_target(self, y: pd.Series) -> bool:
         """Check if target is suitable for classification (categorical or low cardinality)."""
-        if isinstance(y.dtype, pd.CategoricalDtype) or pd.api.types.is_object_dtype(y):
+        if isinstance(
+            y.dtype, pd.CategoricalDtype
+        ) or pd.api.types.is_object_dtype(y):
             return True
 
         parser = DataParser(y.to_frame("target"))
@@ -627,8 +667,12 @@ class LogicApplier:
 
     def get_processing_summary(self) -> Dict[str, Any]:
         """Get summary of all processing steps applied."""
-        successful_steps = [step for step in self.processing_history if step["success"]]
-        failed_steps = [step for step in self.processing_history if not step["success"]]
+        successful_steps = [
+            step for step in self.processing_history if step["success"]
+        ]
+        failed_steps = [
+            step for step in self.processing_history if not step["success"]
+        ]
 
         return {
             "total_steps": len(self.processing_history),
@@ -640,7 +684,11 @@ class LogicApplier:
             "fitted_transformers": list(self.fitted_transformers.keys()),
             "steps_by_category": {
                 "missing_values": len(
-                    [s for s in successful_steps if s["step"] == "missing_values"]
+                    [
+                        s
+                        for s in successful_steps
+                        if s["step"] == "missing_values"
+                    ]
                 ),
                 "outliers": len(
                     [s for s in successful_steps if s["step"] == "outliers"]
@@ -649,13 +697,25 @@ class LogicApplier:
                     [s for s in successful_steps if s["step"] == "duplicates"]
                 ),
                 "feature_creation": len(
-                    [s for s in successful_steps if s["step"] == "feature_creation"]
+                    [
+                        s
+                        for s in successful_steps
+                        if s["step"] == "feature_creation"
+                    ]
                 ),
                 "transformation": len(
-                    [s for s in successful_steps if s["step"] == "transformation"]
+                    [
+                        s
+                        for s in successful_steps
+                        if s["step"] == "transformation"
+                    ]
                 ),
                 "feature_selection": len(
-                    [s for s in successful_steps if s["step"] == "feature_selection"]
+                    [
+                        s
+                        for s in successful_steps
+                        if s["step"] == "feature_selection"
+                    ]
                 ),
                 "balancing": len(
                     [s for s in successful_steps if s["step"] == "balancing"]
@@ -664,7 +724,9 @@ class LogicApplier:
             "failed_operations": failed_steps,
         }
 
-    def apply_transformers_to_new_data(self, new_df: pd.DataFrame) -> pd.DataFrame:
+    def apply_transformers_to_new_data(
+        self, new_df: pd.DataFrame
+    ) -> pd.DataFrame:
         """Apply fitted transformers to new data for inference."""
         processed_df = new_df.copy()
 
@@ -684,8 +746,12 @@ class LogicApplier:
                 else:
                     continue
 
-                if column in processed_df.columns and hasattr(transformer, "transform"):
-                    processed_df[column] = transformer.transform(processed_df[[column]])
+                if column in processed_df.columns and hasattr(
+                    transformer, "transform"
+                ):
+                    processed_df[column] = transformer.transform(
+                        processed_df[[column]]
+                    )
 
             except Exception as e:
                 logger.warning(

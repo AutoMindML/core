@@ -18,7 +18,11 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 
-from automind.data_utils.shared import EnumByName, method_registry, register_method
+from automind.data_utils.shared import (
+    EnumByName,
+    method_registry,
+    register_method,
+)
 
 
 class DC:
@@ -246,7 +250,9 @@ def impute_mean(df: pd.DataFrame, column: str) -> pd.DataFrame:
 
     try:
         series = pd.Series(
-            imputer.fit_transform(np.array(series.values).reshape(-1, 1)).ravel(),
+            imputer.fit_transform(
+                np.array(series.values).reshape(-1, 1)
+            ).ravel(),
             index=series.index,
         )
     except ValueError:
@@ -292,7 +298,9 @@ def impute_mode(df: pd.DataFrame, column: str) -> pd.DataFrame:
 
 
 @register_method(DC.MissingValues.IMPUTE_CONSTANT)
-def impute_constant(df: pd.DataFrame, column: str, value: int = 0) -> pd.DataFrame:
+def impute_constant(
+    df: pd.DataFrame, column: str, value: int = 0
+) -> pd.DataFrame:
     """Impute missing values with a constant value."""
     df = df.copy()
     df[column] = df[column].fillna(value)
@@ -324,7 +332,9 @@ def treat_zero_as_missing_value(df: pd.DataFrame, column: str) -> pd.DataFrame:
 
 
 # -------------------- Outlier Detection and Handling --------------------
-def calculate_iqr_bounds(series: pd.Series, factor: float = 1.5) -> Tuple[float, float]:
+def calculate_iqr_bounds(
+    series: pd.Series, factor: float = 1.5
+) -> Tuple[float, float]:
     """Calculate IQR-based outlier bounds."""
     q1 = series.quantile(0.25)
     q3 = series.quantile(0.75)
@@ -392,7 +402,9 @@ def remove_infinite(df: pd.DataFrame, column: str | None) -> pd.DataFrame:
 # -------------------- Balancing Methods --------------------
 @register_method(DC.Balancing.SMOTE)
 def smote(
-    X: ArrayLike | pd.DataFrame, y: ArrayLike | pd.DataFrame, random_state: int = 42
+    X: ArrayLike | pd.DataFrame,
+    y: ArrayLike | pd.DataFrame,
+    random_state: int = 42,
 ):
     """Apply SMOTE for balancing imbalanced datasets."""
     sm = SMOTE(random_state=random_state)
@@ -403,7 +415,9 @@ def smote(
 
 @register_method(DC.Balancing.BorderlineSMOTE)
 def borderline_smote(
-    X: ArrayLike | pd.DataFrame, y: ArrayLike | pd.DataFrame, random_state: int = 42
+    X: ArrayLike | pd.DataFrame,
+    y: ArrayLike | pd.DataFrame,
+    random_state: int = 42,
 ):
     """Apply BorderlineSMOTE for balancing imbalanced datasets."""
     sm = BorderlineSMOTE(random_state=random_state)
@@ -413,7 +427,9 @@ def borderline_smote(
 
 # -------------------- Feature Transformation Methods --------------------
 @register_method(FE.Transformations.STANDARDIZE)
-def standardize(df: pd.DataFrame, column: str) -> Tuple[pd.DataFrame, StandardScaler]:
+def standardize(
+    df: pd.DataFrame, column: str
+) -> Tuple[pd.DataFrame, StandardScaler]:
     """Apply standardization (z-score normalization)."""
     df = df.copy()
 
@@ -426,7 +442,9 @@ def standardize(df: pd.DataFrame, column: str) -> Tuple[pd.DataFrame, StandardSc
 
 
 @register_method(FE.Transformations.MIN_MAX_SCALE)
-def min_max_scale(df: pd.DataFrame, column: str) -> Tuple[pd.DataFrame, MinMaxScaler]:
+def min_max_scale(
+    df: pd.DataFrame, column: str
+) -> Tuple[pd.DataFrame, MinMaxScaler]:
     """Apply min-max scaling to [0, 1] range."""
     df = df.copy()
 
@@ -439,7 +457,9 @@ def min_max_scale(df: pd.DataFrame, column: str) -> Tuple[pd.DataFrame, MinMaxSc
 
 
 @register_method(FE.Transformations.ROBUST_SCALE)
-def robust_scale(df: pd.DataFrame, column: str) -> Tuple[pd.DataFrame, RobustScaler]:
+def robust_scale(
+    df: pd.DataFrame, column: str
+) -> Tuple[pd.DataFrame, RobustScaler]:
     """Apply robust scaling using median and IQR."""
     df = df.copy()
 
@@ -521,7 +541,9 @@ def one_hot_encode(df: pd.DataFrame, column: str) -> pd.DataFrame:
 
 
 @register_method(FE.FeatureCreation.LABEL_ENCODE)
-def label_encode(df: pd.DataFrame, column: str) -> Tuple[pd.DataFrame, LabelEncoder]:
+def label_encode(
+    df: pd.DataFrame, column: str
+) -> Tuple[pd.DataFrame, LabelEncoder]:
     """Apply label encoding to categorical variables."""
     df = df.copy()
 
@@ -568,7 +590,9 @@ def detect_datetime_format(
     # Try each format
     for fmt in _DATETIME_FORMATS:
         try:
-            success_count = sum(1 for val in sample if _try_parse_datetime(val, fmt))
+            success_count = sum(
+                1 for val in sample if _try_parse_datetime(val, fmt)
+            )
             if success_count / len(sample) > datetime_ratio:
                 return fmt
         except Exception:
@@ -703,7 +727,9 @@ def apply_method(
     func = method_registry.get(processing_method.name)
 
     if not func:
-        raise NotImplementedError(f"Method not implemented: {processing_method}")
+        raise NotImplementedError(
+            f"Method not implemented: {processing_method}"
+        )
 
     return func(df=df, column=column, **kwargs)
 
@@ -718,7 +744,9 @@ def apply_method_transform(
     func = method_registry.get(processing_method.name)
 
     if not func:
-        raise NotImplementedError(f"Method not implemented: {processing_method}")
+        raise NotImplementedError(
+            f"Method not implemented: {processing_method}"
+        )
 
     return func(X=X, y=y, **kwargs)
 

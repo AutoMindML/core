@@ -63,9 +63,7 @@ Response:
 """
 
 
-def get_few_shot_prompt(
-    metadata: Dict, json_metadata: str, task_type: Optional[TaskType]
-):
+def get_few_shot_prompt():
     """
     Implements few-shot prompting by providing a small set of labeled examples to condition the LLM on the task.
     The function prepares prompts with sample data instances and their corresponding reasoning and answers.
@@ -73,15 +71,6 @@ def get_few_shot_prompt(
     """
 
     return f"""
-Dataset Context:
-- Rows: {metadata["basic_info"]["rows"]}
-- Columns: {metadata["basic_info"]["columns"]}
-- Target Column: '{metadata["target"]["name"]}' (type: '{metadata["target"]["type"]}')
-- Task Type: {f"{task_type.name} task" if task_type is not None else "To be determined"}
-
-Dataset Metadata:
-{json_metadata}
-
 Required JSON Schema:
 {escape_tag_start}
 {{
@@ -172,7 +161,9 @@ Required JSON Schema:
 """
 
 
-def get_batch_prompt():
+def get_batch_prompt(
+    metadata: Dict, json_metadata: str, task_type: Optional[TaskType]
+):
     """
     Implements batch prompting by presenting multiple data instances in a single prompt to the LLM.
     There are two modes: random batching, where data instances are randomly grouped, and cluster batching,
@@ -180,7 +171,16 @@ def get_batch_prompt():
     This technique improves inference efficiency by processing multiple samples simultaneously.
     """
 
-    return ""
+    return f"""
+Dataset Context:
+- Rows: {metadata["basic_info"]["rows"]}
+- Columns: {metadata["basic_info"]["columns"]}
+- Target Column: '{metadata["target"]["name"]}' (type: '{metadata["target"]["type"]}')
+- Task Type: {f"{task_type.name} task" if task_type is not None else "To be determined"}
+
+Dataset Metadata:
+{json_metadata}
+    """
 
 
 def get_llm_prompt_template(
@@ -191,6 +191,6 @@ def get_llm_prompt_template(
 ):
     return (
         get_zero_shot_prompt(modeling_approach_limit)
-        + get_few_shot_prompt(metadata, json_metadata, task_type)
-        + get_batch_prompt()
+        + get_few_shot_prompt()
+        + get_batch_prompt(metadata, json_metadata, task_type)
     )
