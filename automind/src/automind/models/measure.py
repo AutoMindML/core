@@ -1,16 +1,17 @@
-# symbol annotations:
-# use <C-v> in neovim when type unicode symbol
-# ∞ = u221e
-
-from enum import Enum, auto
-
 # based on: https://www.sciencedirect.com/science/article/pii/S0950705121011631?ref=pdf_download&fr=RR-2&rr=966a9acdbdc48415
 # Rivolli, A., Garcia, L. P., Soares, C., Vanschoren, J., & de Carvalho, A. C. (2022).
 # Meta-features for meta-learning. Knowledge-Based Systems, 240, 108101 in section 4.1, page 4.
 
+
+from enum import Enum, auto
+
+# symbol annotations:
+# use <C-v> in neovim when type unicode symbol
+# ∞ = u221e
+
 # Annotations:
-# d_bar: mean of number of attributes
-# n_bar: mean of number of instances
+# d_bar: mean of number of attributes (multi-dataset or multi-measure results)
+# n_bar: mean of number of instances (multi-dataset or multi-measure results)
 # q: number of classes
 
 
@@ -224,7 +225,7 @@ class Statistical(Enum):
     G_MEAN = auto()
 
     """
-    Name:           Geometric mean (幾何平均值)
+    Name:           Geometric mean (幾何平均數)
     Range:          [0, ∞]
     Cardinality:    d
     # Exception:    True
@@ -233,7 +234,7 @@ class Statistical(Enum):
     H_MEAN = auto()
 
     """
-    Name:           Harmonic mean (調和平均值)
+    Name:           Harmonic mean (調和平均數)
     Range:          inherited
     Cardinality:    d
     """

@@ -16,16 +16,19 @@ class DatasetInfo:
     content: Optional[str]
     sources: Optional[str]
     url: Optional[str]
+    extension: DatasetFileType
 
     def __init__(
         self,
         name: str,
+        extension: DatasetFileType,
         context: Optional[str] = None,
         content: Optional[str] = None,
         sources: Optional[str] = None,
         url: Optional[str] = None,
     ) -> None:
         self.name = name
+        self.extension = extension
         self.context = context
         self.content = content
         self.sources = sources
@@ -33,12 +36,16 @@ class DatasetInfo:
 
 
 def load_data(
-    filename: DatasetInfo,
-    filetype: DatasetFileType = DatasetFileType.CSV,
+    data_info: DatasetInfo,
 ):
     base_path = Path(__file__).parent.absolute()
-    full_path = base_path / filetype.value / f"{filename.name}.{filetype.value}"
+    full_path = (
+        base_path
+        / data_info.extension.value
+        / f"{data_info.name}.{data_info.extension.value}"
+    )
 
-    df = pd.read_csv(full_path)
+    if data_info.extension.value == "csv":
+        return pd.read_csv(full_path)
 
-    return df
+    raise TypeError("Only support csv file currently")

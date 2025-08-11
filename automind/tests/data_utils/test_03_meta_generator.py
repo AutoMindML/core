@@ -54,102 +54,16 @@ def test_init():
     assert mg.datetime_columns == []
 
 
-def test_analyze_column_numeric(sample_df):
-    """Test analysis of numeric column."""
-    mg = MetaGenerator(sample_df)
-    mg._classify_columns()
-
-    col_info = mg._analyze_column("numeric1")
-
-    for key in [
-        "dtype",
-        "mean",
-        "median",
-        "min",
-        "max",
-        "std",
-        "skewness",
-        "kurtosis",
-        "quantiles",
-        "outliers_count",
-        "outliers_percentage",
-        "missing_count",
-        "missing_percentage",
-    ]:
-        assert key in col_info
-
-
-def test_analyze_column_categorical(sample_df):
-    """Test analysis of categorical column."""
-    mg = MetaGenerator(sample_df)
-    mg._classify_columns()
-
-    col_info = mg._analyze_column("categorical1")
-
-    for key in [
-        "dtype",
-        "top_values",
-        "entropy",
-        "missing_count",
-        "missing_percentage",
-        "unique_values",
-    ]:
-        assert key in col_info
-
-
-def test_analyze_column_datetime(sample_df):
-    """Test analysis of datetime column."""
-    mg = MetaGenerator(sample_df)
-    mg._classify_columns()
-
-    col_info = mg._analyze_column("datetime1")
-
-    for key in [
-        "dtype",
-        "min_date",
-        "max_date",
-        "range_days",
-        "missing_count",
-        "missing_percentage",
-        "unique_values",
-    ]:
-        assert key in col_info
-
-
-def test_calculate_entropy():
-    """Test entropy calculation on a known distribution."""
-    series = pd.Series(["A", "A", "B", "B", "C"])
-    mg = MetaGenerator(pd.DataFrame())
-    entropy = mg._calculate_entropy(series)
-
-    expected = -(
-        2 / 5 * np.log2(2 / 5) + 2 / 5 * np.log2(2 / 5) + 1 / 5 * np.log2(1 / 5)
-    )
-
-    assert abs(entropy - expected) < 1e-10
-
-
 def test_extract_metadata(sample_df):
     """Test complete metadata extraction."""
     mg = MetaGenerator(sample_df, target_column="numeric1")
     metadata = mg.extract_metadata()
 
-    for key in [
-        "basic_info",
-        "columns",
-        "missing_values",
-        "statistics",
-        "correlations",
-        "target_analysis",
-        "column_types",
-    ]:
+    for key in ["basic_info", "target_analysis", "column_types", "meta-features"]:
         assert key in metadata
 
     assert metadata["basic_info"]["rows"] == len(sample_df)
     assert metadata["basic_info"]["columns"] == len(sample_df.columns)
-
-    for col in sample_df.columns:
-        assert col in metadata["columns"]
 
 
 @patch("matplotlib.pyplot.savefig")
@@ -175,7 +89,6 @@ def test_generate_llm_query(sample_df):
     assert isinstance(query, str) and len(query) > 0
     assert str(len(sample_df)) in query
     assert str(len(sample_df.columns)) in query
-    assert "```json" in query
 
 
 def test_get_json_metadata(sample_df):
@@ -184,7 +97,7 @@ def test_get_json_metadata(sample_df):
     mg.extract_metadata()
     json_data = json.loads(mg.get_json_metadata())
 
-    for key in ["basic_info", "columns", "missing_values", "statistics"]:
+    for key in ["basic_info", "meta-features"]:
         assert key in json_data
 
 

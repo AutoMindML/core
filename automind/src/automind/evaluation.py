@@ -15,7 +15,7 @@ def cross_validation(
     X: DataFrame,
     y: DataFrame,
     estimator,
-    cv: Optional[ALL_CROSS_VALIDATION_METHOD] = StratifiedKFold(),
+    cv: ALL_CROSS_VALIDATION_METHOD = StratifiedKFold(),
     apply_transform: Optional[
         Callable[
             [DataFrame, DataFrame, DataFrame, DataFrame],
@@ -58,5 +58,5 @@ def print_classification_report(
         "\n",
         f"[green]{name}[/green]",
         "\n\n",
-        classification_report(y_true, y_pred, zero_division=0),
+        classification_report(y_true, y_pred, zero_division="0.0"),
     )

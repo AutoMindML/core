@@ -1,9 +1,10 @@
-from automind.data.main import DatasetInfo
+from automind.data.main import DatasetFileType, DatasetInfo
 
 
 class AvailableDatasetsCSV:
     diabetes = DatasetInfo(
         "diabetes",
+        DatasetFileType.CSV,
         """
         This dataset is originally from the National Institute of Diabetes and Digestive and Kidney Diseases.
         The objective is to predict based on diagnostic measurements whether a patient has diabetes.
@@ -36,5 +37,5 @@ class AvailableDatasetsCSV:
         """,
         "https://www.kaggle.com/datasets/mathchi/diabetes-data-set?resource=download",
     )
-    anthrax_train = DatasetInfo("anthrax_training")
-    anthrax_test = DatasetInfo("anthrax_testing")
+    anthrax_train = DatasetInfo("anthrax_training", DatasetFileType.CSV)
+    anthrax_test = DatasetInfo("anthrax_testing", DatasetFileType.CSV)

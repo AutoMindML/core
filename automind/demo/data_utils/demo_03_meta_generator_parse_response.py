@@ -1,66 +1,58 @@
 from automind.console import rich_console
 from automind.data_utils.meta_generator import MetaGenerator
 
-llm_response_openai = """
+llm_response_chatgpt = """
 <json>
 {
   "data_quality_report": {
     "overall_quality": "MODERATE",
-    "summary": "The dataset has a small number of rows, some missing values, a moderate outlier presence, and a strong correlation between features. It lacks duplicates and maintains consistent schema.",
+    "summary": "Dataset has moderate quality with some potential outliers and possible missing value representation as 0 in the target column. Data types appear consistent, but skewness and kurtosis in some numeric columns suggest non-normal distributions.",
     "issues": [
       {
         "type": "MISSING_VALUES",
-        "columns": ["age", "salary", "department"],
-        "description": "Three columns have missing values, including the target column."
+        "columns": ["發芽率"],
+        "description": "0 values in target column may represent missing or non-germinated seeds rather than actual measurements."
       },
       {
         "type": "OUTLIERS",
-        "columns": ["age"],
-        "description": "The 'age' column contains one outlier, comprising 20% of its non-missing values."
+        "columns": ["溫度", "濕度"],
+        "description": "Potential extreme values in both temperature and humidity distributions."
       }
     ],
     "strengths": [
       {
-        "type": "DUPLICATES",
-        "description": "There are no duplicate rows in the dataset."
+        "type": "CONSISTENT_SCHEMA",
+        "description": "All columns have consistent data types across rows."
       },
       {
-        "type": "CONSISTENT_SCHEMA",
-        "description": "The column types are consistent with their data content and inferred correctly."
+        "type": "HIGH_COMPLETENESS",
+        "description": "No explicit null values in dataset."
       }
     ]
   },
   "modeling_approaches": [
     {
       "task_type": "REGRESSION",
-      "target": "salary",
+      "target": "發芽率",
       "recommended_algorithm": {
         "name": "RandomForestRegressor",
-        "reason": "Robust to outliers and handles both categorical and numerical features well, suitable for small datasets with mixed types.",
-        "params": {
-          "n_estimators": 100,
-          "max_depth": 5,
-          "random_state": 42
-        }
+        "reason": "Handles non-linear relationships well, robust to outliers and non-normal distributions, suitable for small datasets.",
+        "params": {"n_estimators": 200, "max_depth": 10, "random_state": 42}
       },
       "data_cleaning": {
         "missing_values": [
           {
-            "column": "age",
-            "methods": ["IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "salary",
-            "methods": ["IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "department",
-            "methods": ["IMPUTE_MODE"]
+            "column": "發芽率",
+            "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
           }
         ],
         "outliers": [
           {
-            "column": "age",
+            "column": "溫度",
+            "methods": ["IQR_WINSORIZE_OUTLIERS"]
+          },
+          {
+            "column": "濕度",
             "methods": ["IQR_WINSORIZE_OUTLIERS"]
           }
         ],
@@ -70,21 +62,17 @@ llm_response_openai = """
       "feature_engineering": {
         "creation": [
           {
-            "column": "department",
-            "methods": ["ONE_HOT_ENCODE"]
-          },
-          {
-            "column": "join_date",
-            "methods": ["EXTRACT_DATE_PARTS"]
+            "column": "時間",
+            "methods": ["CONVERT_TO_DATETIME", "EXTRACT_DATE_PARTS"]
           }
         ],
         "transformation": [
           {
-            "column": "age",
+            "column": "溫度",
             "methods": ["STANDARDIZE"]
           },
           {
-            "column": "salary",
+            "column": "濕度",
             "methods": ["STANDARDIZE"]
           }
         ],
@@ -93,7 +81,7 @@ llm_response_openai = """
       "evaluation_metrics": ["RMSE", "MAE", "R2"],
       "cross_validation": {
         "method": "K_FOLD",
-        "folds": 3,
+        "folds": 5,
         "stratified": false
       },
       "test_size": 0.2,
@@ -101,99 +89,26 @@ llm_response_openai = """
     },
     {
       "task_type": "REGRESSION",
-      "target": "salary",
-      "recommended_algorithm": {
-        "name": "LinearRegression",
-        "reason": "Suitable for small datasets with high feature correlation; offers interpretability.",
-        "params": {}
-      },
-      "data_cleaning": {
-        "missing_values": [
-          {
-            "column": "age",
-            "methods": ["IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "salary",
-            "methods": ["IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "department",
-            "methods": ["IMPUTE_MODE"]
-          }
-        ],
-        "outliers": [
-          {
-            "column": "age",
-            "methods": ["IQR_WINSORIZE_OUTLIERS"]
-          }
-        ],
-        "duplicates": [],
-        "balancing": []
-      },
-      "feature_engineering": {
-        "creation": [
-          {
-            "column": "department",
-            "methods": ["ONE_HOT_ENCODE"]
-          },
-          {
-            "column": "join_date",
-            "methods": ["EXTRACT_DATE_PARTS"]
-          }
-        ],
-        "transformation": [
-          {
-            "column": "age",
-            "methods": ["STANDARDIZE"]
-          },
-          {
-            "column": "salary",
-            "methods": ["STANDARDIZE"]
-          }
-        ],
-        "selection": []
-      },
-      "evaluation_metrics": ["RMSE", "MAE", "R2"],
-      "cross_validation": {
-        "method": "K_FOLD",
-        "folds": 3,
-        "stratified": false
-      },
-      "test_size": 0.2,
-      "validation_size": 0.1
-    },
-    {
-      "task_type": "REGRESSION",
-      "target": "salary",
+      "target": "發芽率",
       "recommended_algorithm": {
         "name": "GradientBoostingRegressor",
-        "reason": "Effective for small datasets with potential non-linear patterns and outliers.",
-        "params": {
-          "n_estimators": 100,
-          "learning_rate": 0.1,
-          "max_depth": 3,
-          "random_state": 42
-        }
+        "reason": "Captures complex feature interactions and non-linearities, performs well on medium-sized datasets without heavy preprocessing.",
+        "params": {"n_estimators": 300, "learning_rate": 0.05, "max_depth": 5, "random_state": 42}
       },
       "data_cleaning": {
         "missing_values": [
           {
-            "column": "age",
-            "methods": ["IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "salary",
-            "methods": ["IMPUTE_MEDIAN"]
-          },
-          {
-            "column": "department",
-            "methods": ["IMPUTE_MODE"]
+            "column": "發芽率",
+            "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
           }
         ],
         "outliers": [
           {
-            "column": "age",
+            "column": "溫度",
+            "methods": ["IQR_WINSORIZE_OUTLIERS"]
+          },
+          {
+            "column": "濕度",
             "methods": ["IQR_WINSORIZE_OUTLIERS"]
           }
         ],
@@ -203,21 +118,17 @@ llm_response_openai = """
       "feature_engineering": {
         "creation": [
           {
-            "column": "department",
-            "methods": ["ONE_HOT_ENCODE"]
-          },
-          {
-            "column": "join_date",
-            "methods": ["EXTRACT_DATE_PARTS"]
+            "column": "時間",
+            "methods": ["CONVERT_TO_DATETIME", "EXTRACT_DATE_PARTS"]
           }
         ],
         "transformation": [
           {
-            "column": "age",
+            "column": "溫度",
             "methods": ["STANDARDIZE"]
           },
           {
-            "column": "salary",
+            "column": "濕度",
             "methods": ["STANDARDIZE"]
           }
         ],
@@ -226,7 +137,63 @@ llm_response_openai = """
       "evaluation_metrics": ["RMSE", "MAE", "R2"],
       "cross_validation": {
         "method": "K_FOLD",
-        "folds": 3,
+        "folds": 5,
+        "stratified": false
+      },
+      "test_size": 0.2,
+      "validation_size": 0.1
+    },
+    {
+      "task_type": "REGRESSION",
+      "target": "發芽率",
+      "recommended_algorithm": {
+        "name": "XGBoostRegressor",
+        "reason": "High performance on tabular data, handles missing values internally, good for small to medium datasets.",
+        "params": {"n_estimators": 300, "learning_rate": 0.05, "max_depth": 5, "random_state": 42}
+      },
+      "data_cleaning": {
+        "missing_values": [
+          {
+            "column": "發芽率",
+            "methods": ["TREAT_ZERO_AS_MISSING_VALUE", "IMPUTE_MEDIAN"]
+          }
+        ],
+        "outliers": [
+          {
+            "column": "溫度",
+            "methods": ["IQR_WINSORIZE_OUTLIERS"]
+          },
+          {
+            "column": "濕度",
+            "methods": ["IQR_WINSORIZE_OUTLIERS"]
+          }
+        ],
+        "duplicates": [],
+        "balancing": []
+      },
+      "feature_engineering": {
+        "creation": [
+          {
+            "column": "時間",
+            "methods": ["CONVERT_TO_DATETIME", "EXTRACT_DATE_PARTS"]
+          }
+        ],
+        "transformation": [
+          {
+            "column": "溫度",
+            "methods": ["STANDARDIZE"]
+          },
+          {
+            "column": "濕度",
+            "methods": ["STANDARDIZE"]
+          }
+        ],
+        "selection": []
+      },
+      "evaluation_metrics": ["RMSE", "MAE", "R2"],
+      "cross_validation": {
+        "method": "K_FOLD",
+        "folds": 5,
         "stratified": false
       },
       "test_size": 0.2,
@@ -237,7 +204,7 @@ llm_response_openai = """
 </json>
 """
 
-llm_response_openai_limited = """
+llm_response_chatgpt_limited = """
 <json>
 {
   "data_quality_report": {
@@ -671,10 +638,13 @@ llm_response_claude = """
 
 
 def demo_parse_llm_response():
-    parsed_response = MetaGenerator.parse_llm_response(llm_response_openai)
+    parsed_response = MetaGenerator.parse_llm_response(llm_response_chatgpt)
     rich_console.print("\n", parsed_response)
 
-    assert MetaGenerator.parse_llm_response(llm_response_openai_limited) is not None
+    assert (
+        MetaGenerator.parse_llm_response(llm_response_chatgpt_limited)
+        is not None
+    )
     assert MetaGenerator.parse_llm_response(llm_response_claude) is not None
 
 
