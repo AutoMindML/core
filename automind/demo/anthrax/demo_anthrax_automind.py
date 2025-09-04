@@ -2,20 +2,22 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 
 from automind.console import rich_console
-from automind.data.csv.file import AvailableDatasetsCSV
-from automind.data.main import load_data
-from automind.data_utils.metagenerator import MetaGenerator
+from automind.data.dataset import AvailableDataset
+from automind.data.load import load_data
+from automind.data_utils.meta_generator import MetaGenerator
 from automind.data_utils.preprocessing import (
     DC,
     FE,
-    LLMOutputSchema,
-    TaskType,
     apply_method,
     apply_method_transform,
     apply_scaler,
     range_binning,
 )
 from automind.evaluation import cross_validation, print_classification_report
+from automind.models.preprocessing import (
+    LLMResponseSchema,
+    TaskType,
+)
 
 llm_response = {
     "data_quality_report": {
@@ -60,7 +62,11 @@ llm_response = {
             "recommended_algorithm": {
                 "name": "RandomForestClassifier",
                 "reason": "Performs well on small datasets, handles feature interactions and outliers robustly, and requires minimal preprocessing.",
-                "params": {"n_estimators": 100, "max_depth": None, "random_state": 42},
+                "params": {
+                    "n_estimators": 100,
+                    "max_depth": None,
+                    "random_state": 42,
+                },
             },
             "data_cleaning": {
                 "missing_values": [],
@@ -81,7 +87,11 @@ llm_response = {
                 "selection": [],
             },
             "evaluation_metrics": ["ACCURACY", "F1", "WEIGHTED_F1"],
-            "cross_validation": {"method": "K_FOLD", "folds": 5, "stratified": True},
+            "cross_validation": {
+                "method": "K_FOLD",
+                "folds": 5,
+                "stratified": True,
+            },
             "test_size": 0.2,
             "validation_size": 0.1,
         },
@@ -117,7 +127,11 @@ llm_response = {
                 "selection": [],
             },
             "evaluation_metrics": ["ACCURACY", "F1", "MACRO_F1"],
-            "cross_validation": {"method": "K_FOLD", "folds": 5, "stratified": True},
+            "cross_validation": {
+                "method": "K_FOLD",
+                "folds": 5,
+                "stratified": True,
+            },
             "test_size": 0.2,
             "validation_size": 0.1,
         },
@@ -153,7 +167,11 @@ llm_response = {
                 "selection": [],
             },
             "evaluation_metrics": ["ACCURACY", "PRECISION", "RECALL", "AUC"],
-            "cross_validation": {"method": "K_FOLD", "folds": 5, "stratified": True},
+            "cross_validation": {
+                "method": "K_FOLD",
+                "folds": 5,
+                "stratified": True,
+            },
             "test_size": 0.2,
             "validation_size": 0.1,
         },
@@ -166,7 +184,7 @@ bins = [0, 33, 66, 100]
 
 def validate_llm_response():
     try:
-        LLMOutputSchema.model_validate(llm_response)
+        LLMResponseSchema.model_validate(llm_response)
     except Exception:
         pass
 
@@ -174,7 +192,7 @@ def validate_llm_response():
 
 
 def generate_llm_query():
-    df = load_data(AvailableDatasetsCSV.anthrax_train)
+    df = load_data(AvailableDataset.anthrax_train)
 
     # 假設使用者想要將發芽率分成三個等級，在產生 prompt 之前先離散化目標
     df = range_binning(df, "發芽率", bins)
@@ -184,7 +202,7 @@ def generate_llm_query():
 
 
 def validation():
-    df = load_data(AvailableDatasetsCSV.anthrax_train)
+    df = load_data(AvailableDataset.anthrax_train)
 
     # 根據 LLM 給的建議，依序 apply method 到 feature or target 上面 (原始資料)
     # DC -> missing -> outlier -> FE -> creation -> transformation -> selection -> balancing
@@ -207,20 +225,22 @@ def validation():
         # y_train = y_train.loc[X_train.index]
 
         X_train, scaler_time = apply_method(
-            FE.Transformations.STANDARDIZE, X_train, "時間"
+            FE.Transformation.STANDARDIZE, X_train, "時間"
         )
         X_train, scaler_temp = apply_method(
-            FE.Transformations.STANDARDIZE, X_train, "溫度"
+            FE.Transformation.STANDARDIZE, X_train, "溫度"
         )
         X_train, scaler_hum = apply_method(
-            FE.Transformations.STANDARDIZE, X_train, "濕度"
+            FE.Transformation.STANDARDIZE, X_train, "濕度"
         )
 
         X_validation = apply_scaler(X_validation, "時間", scaler_time)
         X_validation = apply_scaler(X_validation, "溫度", scaler_temp)
         X_validation = apply_scaler(X_validation, "濕度", scaler_hum)
 
-        X_train, y_train = apply_method_transform(DC.Balancing.SMOTE, X_train, y_train)
+        X_train, y_train = apply_method_transform(
+            DC.Sampling.SMOTE, X_train, y_train
+        )
 
         return X_train, y_train, X_validation, y_true
 
@@ -231,8 +251,8 @@ def validation():
 
 
 def testing():
-    df_train = load_data(AvailableDatasetsCSV.anthrax_train)
-    df_test = load_data(AvailableDatasetsCSV.anthrax_test)
+    df_train = load_data(AvailableDataset.anthrax_train)
+    df_test = load_data(AvailableDataset.anthrax_test)
 
     df_train = range_binning(df_train, "發芽率", bins)
     df_test = range_binning(df_test, "發芽率", bins)
@@ -243,15 +263,21 @@ def testing():
     X_test = df_test.drop(columns=["發芽率"])
     y_test = df_test["發芽率"]
 
-    X_train, scaler_time = apply_method(FE.Transformations.STANDARDIZE, X_train, "時間")
-    X_train, scaler_temp = apply_method(FE.Transformations.STANDARDIZE, X_train, "溫度")
-    X_train, scaler_hum = apply_method(FE.Transformations.STANDARDIZE, X_train, "濕度")
+    X_train, scaler_time = apply_method(
+        FE.Transformation.STANDARDIZE, X_train, "時間"
+    )
+    X_train, scaler_temp = apply_method(
+        FE.Transformation.STANDARDIZE, X_train, "溫度"
+    )
+    X_train, scaler_hum = apply_method(
+        FE.Transformation.STANDARDIZE, X_train, "濕度"
+    )
 
     X_test = apply_scaler(X_test, "時間", scaler_time)
     X_test = apply_scaler(X_test, "溫度", scaler_temp)
     X_test = apply_scaler(X_test, "濕度", scaler_hum)
 
-    X_res, y_res = apply_method_transform(DC.Balancing.SMOTE, X_train, y_train)
+    X_res, y_res = apply_method_transform(DC.Sampling.SMOTE, X_train, y_train)
 
     model = RandomForestClassifier(random_state=42)
     model.fit(X_res, y_res)

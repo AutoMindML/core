@@ -15,6 +15,9 @@ class ColumnType(Enum):
     CATEGORICAL = auto()
 
 
+ColumnTypeCollection = Dict[str, ColumnType]
+
+
 class DataParser:
     """
     A class for automatically identifying and parsing column types in pandas DataFrames.
@@ -40,7 +43,9 @@ class DataParser:
         self.df = df.copy()
         self.df_optimized: Optional[pd.DataFrame] = None
         self.categorical_threshold = categorical_threshold
-        self.datetime_formats = datetime_formats or self._get_default_datetime_formats()
+        self.datetime_formats = (
+            datetime_formats or self._get_default_datetime_formats()
+        )
         self.datetime_col_patterns = self._get_datetime_column_patterns()
 
         # Cache for column type identification
@@ -83,7 +88,9 @@ class DataParser:
             r"ordered",
         ]
 
-    def set_pre_identified_column_types(self, col_types: Dict[str, ColumnType]) -> None:
+    def set_pre_identified_column_types(
+        self, col_types: Dict[str, ColumnType]
+    ) -> None:
         """
         Set pre-identified column types to override automatic detection.
 
@@ -125,9 +132,9 @@ class DataParser:
 
         # Second pass: Check numeric columns for categorical patterns
         for col in self.df.columns:
-            if col_types[col] == ColumnType.NUMERIC and self._is_numeric_categorical(
+            if col_types[
                 col
-            ):
+            ] == ColumnType.NUMERIC and self._is_numeric_categorical(col):
                 col_types[col] = ColumnType.CATEGORICAL
 
         self._col_types = col_types
@@ -159,7 +166,10 @@ class DataParser:
         """
         # Check column name patterns
         col_lower = column.lower()
-        if any(re.search(pattern, col_lower) for pattern in self.datetime_col_patterns):
+        if any(
+            re.search(pattern, col_lower)
+            for pattern in self.datetime_col_patterns
+        ):
             if self._try_convert_to_datetime(column):
                 return True
 
@@ -190,7 +200,9 @@ class DataParser:
 
         # Sample non-null values for testing
         sample = (
-            self.df[column].dropna().sample(min(100, len(self.df[column].dropna())))
+            self.df[column]
+            .dropna()
+            .sample(min(100, len(self.df[column].dropna())))
         )
 
         # Try pandas automatic datetime parsing
@@ -207,7 +219,8 @@ class DataParser:
                 success_count = sum(
                     1
                     for val in sample
-                    if isinstance(val, str) and self._try_parse_datetime(val, fmt)
+                    if isinstance(val, str)
+                    and self._try_parse_datetime(val, fmt)
                 )
                 if success_count / len(sample) > success_threshold:
                     return True
@@ -258,7 +271,9 @@ class DataParser:
             self.identify_column_types()
 
         return [
-            col for col, dtype in (self._col_types or {}).items() if dtype == col_type
+            col
+            for col, dtype in (self._col_types or {}).items()
+            if dtype == col_type
         ]
 
     def convert_time_series_columns(self) -> pd.DataFrame:
@@ -359,7 +374,9 @@ class DataParser:
         """Get statistics specific to categorical columns."""
         top_values = self.df[column].value_counts().nlargest(5)
         return {
-            "top_values": dict(zip(top_values.index.astype(str), top_values.values))
+            "top_values": dict(
+                zip(top_values.index.astype(str), top_values.values)
+            )
         }
 
     def convert_columns_to_optimal_types(self):
@@ -391,7 +408,9 @@ class DataParser:
                 # Handle missing values and convert to category
                 df_optimized[col] = df_optimized[col].astype("category")
             except Exception as e:
-                print(f"Warning: Could not convert column '{col}' to category: {e}")
+                print(
+                    f"Warning: Could not convert column '{col}' to category: {e}"
+                )
 
         # Convert numeric columns to optimal numeric types
         numeric_cols = self.get_columns_by_type(ColumnType.NUMERIC)
@@ -401,7 +420,9 @@ class DataParser:
                     pd.Series(df_optimized[col])
                 )
             except Exception as e:
-                print(f"Warning: Could not optimize numeric column '{col}': {e}")
+                print(
+                    f"Warning: Could not optimize numeric column '{col}': {e}"
+                )
 
         self.df_optimized = df_optimized
 
@@ -448,7 +469,9 @@ class DataParser:
             max_val = series.max()
 
             if pd.isna(min_val) or pd.isna(max_val):
-                return series.astype("Int64")  # Default to Int64 if all values are NaN
+                return series.astype(
+                    "Int64"
+                )  # Default to Int64 if all values are NaN
 
             # Choose smallest nullable integer type that can hold the data
             if min_val >= 0:  # Unsigned integers

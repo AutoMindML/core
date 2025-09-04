@@ -1,0 +1,247 @@
+<json>
+{
+  "data_quality_report": {
+    "overall_quality": "MODERATE",
+    "summary": "Moderate quality: schema is mostly consistent but there are many missing values, potential type inconsistencies (dates stored as categorical, ZIP as numeric), and notable outliers in geographic and expense fields.",
+    "issues": [
+      {
+        "type": "MISSING_VALUES",
+        "columns": ["DEATHDATE", "DRIVERS", "PASSPORT", "SUFFIX", "MAIDEN", "ADDRESS", "COUNTY", "HEALTHCARE_EXPENSES"],
+        "description": "Multiple columns show nulls; some identifiers and addresses are sparsely populated. Expenses may have occasional zeros/nulls."
+      },
+      {
+        "type": "INCONSISTENT_TYPES",
+        "columns": ["DEATHDATE", "ZIP"],
+        "description": "DEATHDATE should be datetime but is categorized; ZIP is numeric but represents a categorical/ordinal code."
+      },
+      {
+        "type": "OUTLIERS",
+        "columns": ["LAT", "LON", "HEALTHCARE_EXPENSES", "ZIP"],
+        "description": "Geospatial values and expenses exhibit wide ranges and potential anomalies; ZIP range includes rare values."
+      },
+      {
+        "type": "DUPLICATES",
+        "columns": ["Id", "SSN", "ADDRESS"],
+        "description": "Unique identifiers should be unique; addresses and IDs may have duplicates requiring verification."
+      },
+      {
+        "type": "CONSISTENT_SCHEMA",
+        "columns": ["BIRTHDATE", "LAT", "LON", "HEALTHCARE_COVERAGE"],
+        "description": "Core fields are present across all rows with expected formats."
+      }
+    ],
+    "strengths": [
+      {
+        "type": "HIGH_COMPLETENESS",
+        "description": "Most demographic fields (MARITAL, RACE, ETHNICITY, GENDER, STATE, CITY) appear widely populated."
+      },
+      {
+        "type": "CONSISTENT_SCHEMA",
+        "description": "Columns and naming are stable across all rows, enabling standardized preprocessing."
+      }
+    ]
+  },
+  "modeling_approaches": [
+    {
+      "task_type": "REGRESSION",
+      "target": "HEALTHCARE_COVERAGE",
+      "recommended_algorithm": {
+        "name": "GradientBoostingRegressor",
+        "reason": "Handles mixed feature types, non-linear relationships, and is robust to moderate outliers without heavy scaling assumptions.",
+        "params": {
+          "n_estimators": 500,
+          "learning_rate": 0.05,
+          "max_depth": 3,
+          "subsample": 0.8,
+          "max_features": "sqrt",
+          "random_state": 42
+        }
+      },
+      "data_cleaning": {
+        "missing_values": [
+          {"column": "DEATHDATE", "methods": ["MODE"]},
+          {"column": "DRIVERS", "methods": ["CONSTANT"]},
+          {"column": "PASSPORT", "methods": ["CONSTANT"]},
+          {"column": "SUFFIX", "methods": ["CONSTANT"]},
+          {"column": "MAIDEN", "methods": ["CONSTANT"]},
+          {"column": "ADDRESS", "methods": ["CONSTANT"]},
+          {"column": "COUNTY", "methods": ["MODE"]},
+          {"column": "HEALTHCARE_EXPENSES", "methods": ["MEDIAN", "ZERO_AS_MISSING_VALUE"]},
+          {"column": "LAT", "methods": ["MEDIAN", "ZERO_AS_MISSING_VALUE"]},
+          {"column": "LON", "methods": ["MEDIAN", "ZERO_AS_MISSING_VALUE"]},
+          {"column": "ZIP", "methods": ["MODE", "ZERO_AS_MISSING_VALUE"]}
+        ],
+        "sampling": []
+      },
+      "feature_engineering": {
+        "encoding": [
+          {"column": "MARITAL", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "RACE", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "ETHNICITY", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "GENDER", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "STATE", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "CITY", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "COUNTY", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "PREFIX", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "SUFFIX", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "ZIP", "methods": ["ONE_HOT_ENCODE"]}
+        ],
+        "transformation": [
+          {"column": "LAT", "methods": ["STANDARDIZE"]},
+          {"column": "LON", "methods": ["STANDARDIZE"]},
+          {"column": "HEALTHCARE_EXPENSES", "methods": ["STANDARDIZE"]}
+        ],
+        "selection": [
+          {"column": "LAT", "methods": ["PCA"]},
+          {"column": "LON", "methods": ["PCA"]},
+          {"column": "HEALTHCARE_EXPENSES", "methods": ["PCA"]}
+        ],
+        "discretization": [
+          {"column": "ZIP", "methods": ["QUANTILE_DISCRETIZE"]}
+        ]
+      },
+      "evaluation_metrics": ["RMSE", "MAE", "R2", "MAPE"],
+      "cross_validation": {
+        "method": "K_FOLD",
+        "folds": 5,
+        "stratified": false
+      },
+      "test_size": 0.2,
+      "validation_size": 0.1
+    },
+    {
+      "task_type": "REGRESSION",
+      "target": "HEALTHCARE_COVERAGE",
+      "recommended_algorithm": {
+        "name": "ElasticNet",
+        "reason": "Linear baseline with L1/L2 regularization to handle multicollinearity after one-hot encoding and prevent overfitting on high-cardinality features.",
+        "params": {
+          "alpha": 0.001,
+          "l1_ratio": 0.5,
+          "max_iter": 10000,
+          "fit_intercept": true,
+          "random_state": 42
+        }
+      },
+      "data_cleaning": {
+        "missing_values": [
+          {"column": "DEATHDATE", "methods": ["MODE"]},
+          {"column": "DRIVERS", "methods": ["CONSTANT"]},
+          {"column": "PASSPORT", "methods": ["CONSTANT"]},
+          {"column": "SUFFIX", "methods": ["CONSTANT"]},
+          {"column": "MAIDEN", "methods": ["CONSTANT"]},
+          {"column": "ADDRESS", "methods": ["CONSTANT"]},
+          {"column": "COUNTY", "methods": ["MODE"]},
+          {"column": "HEALTHCARE_EXPENSES", "methods": ["MEDIAN", "ZERO_AS_MISSING_VALUE"]},
+          {"column": "LAT", "methods": ["MEDIAN", "ZERO_AS_MISSING_VALUE"]},
+          {"column": "LON", "methods": ["MEDIAN", "ZERO_AS_MISSING_VALUE"]},
+          {"column": "ZIP", "methods": ["MODE", "ZERO_AS_MISSING_VALUE"]}
+        ],
+        "sampling": []
+      },
+      "feature_engineering": {
+        "encoding": [
+          {"column": "MARITAL", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "RACE", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "ETHNICITY", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "GENDER", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "STATE", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "CITY", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "COUNTY", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "PREFIX", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "SUFFIX", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "ZIP", "methods": ["ONE_HOT_ENCODE"]}
+        ],
+        "transformation": [
+          {"column": "LAT", "methods": ["STANDARDIZE"]},
+          {"column": "LON", "methods": ["STANDARDIZE"]},
+          {"column": "HEALTHCARE_EXPENSES", "methods": ["STANDARDIZE"]}
+        ],
+        "selection": [
+          {"column": "LAT", "methods": ["SVD"]},
+          {"column": "LON", "methods": ["SVD"]},
+          {"column": "HEALTHCARE_EXPENSES", "methods": ["SVD"]}
+        ],
+        "discretization": [
+          {"column": "ZIP", "methods": ["UNIFORM_DISCRETIZE"]}
+        ]
+      },
+      "evaluation_metrics": ["RMSE", "MAE", "R2", "LOG_LOSS"],
+      "cross_validation": {
+        "method": "K_FOLD",
+        "folds": 10,
+        "stratified": false
+      },
+      "test_size": 0.2,
+      "validation_size": 0.1
+    },
+    {
+      "task_type": "REGRESSION",
+      "target": "HEALTHCARE_COVERAGE",
+      "recommended_algorithm": {
+        "name": "RandomForestRegressor",
+        "reason": "Ensemble method that captures non-linearities and interactions, tolerant to outliers and mixed data types with minimal feature scaling.",
+        "params": {
+          "n_estimators": 600,
+          "max_depth": null,
+          "min_samples_leaf": 2,
+          "max_features": "sqrt",
+          "bootstrap": true,
+          "random_state": 42
+        }
+      },
+      "data_cleaning": {
+        "missing_values": [
+          {"column": "DEATHDATE", "methods": ["MODE"]},
+          {"column": "DRIVERS", "methods": ["CONSTANT"]},
+          {"column": "PASSPORT", "methods": ["CONSTANT"]},
+          {"column": "SUFFIX", "methods": ["CONSTANT"]},
+          {"column": "MAIDEN", "methods": ["CONSTANT"]},
+          {"column": "ADDRESS", "methods": ["CONSTANT"]},
+          {"column": "COUNTY", "methods": ["MODE"]},
+          {"column": "HEALTHCARE_EXPENSES", "methods": ["MEDIAN", "ZERO_AS_MISSING_VALUE"]},
+          {"column": "LAT", "methods": ["MEDIAN", "ZERO_AS_MISSING_VALUE"]},
+          {"column": "LON", "methods": ["MEDIAN", "ZERO_AS_MISSING_VALUE"]},
+          {"column": "ZIP", "methods": ["MODE", "ZERO_AS_MISSING_VALUE"]}
+        ],
+        "sampling": []
+      },
+      "feature_engineering": {
+        "encoding": [
+          {"column": "MARITAL", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "RACE", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "ETHNICITY", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "GENDER", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "STATE", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "CITY", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "COUNTY", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "PREFIX", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "SUFFIX", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "ZIP", "methods": ["ONE_HOT_ENCODE"]}
+        ],
+        "transformation": [
+          {"column": "LAT", "methods": ["MIN_MAX_SCALE"]},
+          {"column": "LON", "methods": ["MIN_MAX_SCALE"]},
+          {"column": "HEALTHCARE_EXPENSES", "methods": ["MIN_MAX_SCALE"]}
+        ],
+        "selection": [
+          {"column": "LAT", "methods": ["PCA"]},
+          {"column": "LON", "methods": ["PCA"]},
+          {"column": "HEALTHCARE_EXPENSES", "methods": ["PCA"]}
+        ],
+        "discretization": [
+          {"column": "ZIP", "methods": ["QUANTILE_DISCRETIZE"]}
+        ]
+      },
+      "evaluation_metrics": ["RMSE", "MAE", "R2"],
+      "cross_validation": {
+        "method": "K_FOLD",
+        "folds": 5,
+        "stratified": false
+      },
+      "test_size": 0.2,
+      "validation_size": 0.1
+    }
+  ]
+}
+</json>

@@ -1,7 +1,7 @@
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
-from automind.data.csv.file import AvailableDatasetsCSV
+from automind.data.csv.file import AvailableDataset
 from automind.data.main import load_data
 from automind.evaluation import cross_validation, print_classification_report
 
@@ -19,7 +19,7 @@ target_names = ["低", "中", "高"]
 
 
 def validation():
-    df_train = load_data(AvailableDatasetsCSV.anthrax_train)
+    df_train = load_data(AvailableDataset.anthrax_train)
 
     df_train["發芽等級"] = df_train["發芽率"].apply(classify_rate)
 
@@ -40,8 +40,8 @@ def validation():
 
 
 def testing():
-    df_train = load_data(AvailableDatasetsCSV.anthrax_train)
-    df_test = load_data(AvailableDatasetsCSV.anthrax_test)
+    df_train = load_data(AvailableDataset.anthrax_train)
+    df_test = load_data(AvailableDataset.anthrax_test)
 
     df_train["發芽等級"] = df_train["發芽率"].apply(classify_rate)
     df_test["發芽等級"] = df_test["發芽率"].apply(classify_rate)

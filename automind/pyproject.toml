@@ -1,50 +1,53 @@
 [project]
 name = "automind"
 version = "0.1.0"
-description = "an automl framework using torch and optuna"
+description = "an automl framework with llm-based data processing module"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
 
-  # === Model === #
+  # -------------------- model --------------------
   # "torch==2.6.0",
   # "optuna>=4.2.1",
-  "chainlit>=2.5.5",
-  "mcp[cli]>=1.6.0",
-  "pydantic",
-  "ollama",
-  "imbalanced-learn",
-
-
-  # === Feature === #
+  # "chainlit>=2.5.5",
+  # "mcp[cli]>=1.6.0",
   "scikit-learn",
-  "umap-learn",
-  "lorem",
+  "ollama",
 
-  # === Math === #
+
+  # -------------------- data processing --------------------
+  "pydantic",
+  "lorem",
+  "imbalanced-learn",
+  "umap-learn",
   "pandas",
   "numpy",
+  # "pyspark",
+
+
+  # issue solution: https://github.com/huggingface/datasets/issues/7693#issuecomment-3103380232
+  "datasets==3.6.0",
+
+  # -------------------- api --------------------
+  "fastapi",
+  "aiohttp",
+
+
+  # -------------------- type stubs --------------------
   "pandas-stubs",
 
-  # === Chart === #
+  # -------------------- visualization --------------------
   "matplotlib",
   "seaborn",
 
-  # === Unit Test === #
+  # -------------------- testing --------------------
   "pytest",
   "psutil",
 
-  # === Package Util === #
+  # -------------------- util --------------------
   "setuptools",
   "wheel",
-
-  # === Env === #
   "python-dotenv",
-
-  # === API === #
-  "aiohttp",
-
-  # === Console === #
   "wcwidth",
   "rich",
 ]

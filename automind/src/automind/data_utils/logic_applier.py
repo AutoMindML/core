@@ -7,19 +7,25 @@ from sklearn.model_selection import train_test_split
 
 from automind.data_utils.parser import DataParser
 from automind.data_utils.preprocessing import (
-    DC,
-    FE,
-    BalancingRecommendation,
-    LLMOutputSchema,
     apply_method,
     apply_method_transform,
 )
+from automind.models.preprocessing import (
+    DC,
+    FE,
+    FeatureEngineeringRecommendations,
+    LLMResponseSchema,
+    SamplingRecommendation,
+)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    # format="%(asctime)s,%(msecs)03d [%(levelname)s] %(name)s: %(message)s",
+    format="[%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 logger = logging.getLogger(__name__)
 
-# Suppress sklearn warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 LogicApplierDataset = Dict[str, Union[pd.DataFrame, pd.Series]]
@@ -47,7 +53,7 @@ class LogicApplier:
         self.removed_columns = []
 
     def apply_llm_recommendations(
-        self, llm_response: LLMOutputSchema, modeling_approach_index: int = 0
+        self, llm_response: LLMResponseSchema, modeling_approach_index: int = 0
     ) -> Dict[str, Any]:
         """
         Apply all recommendations from LLM response.
@@ -96,9 +102,9 @@ class LogicApplier:
         )
 
         # Step 4: Apply balancing if needed (only on training data)
-        if modeling_approach.data_cleaning.balancing:
+        if modeling_approach.data_cleaning.sampling:
             datasets = self._apply_balancing(
-                datasets, modeling_approach.data_cleaning.balancing
+                datasets, modeling_approach.data_cleaning.sampling
             )
 
         return {
@@ -115,32 +121,21 @@ class LogicApplier:
         """Apply data cleaning recommendations."""
         logger.info("Applying data cleaning recommendations...")
 
-        # Handle missing values
         for missing_rec in data_cleaning.missing_values:
             self._apply_missing_value_methods(
                 missing_rec.column, missing_rec.methods
             )
 
-        # Handle outliers
-        for outlier_rec in data_cleaning.outliers:
-            self._apply_outlier_methods(outlier_rec.column, outlier_rec.methods)
-
-        # Handle duplicates
-        for duplicate_rec in data_cleaning.duplicates:
-            self._apply_duplicate_methods(
-                duplicate_rec.column, duplicate_rec.methods
-            )
-
     def _apply_feature_engineering_recommendations(
-        self, feature_engineering
+        self, feature_engineering: FeatureEngineeringRecommendations
     ) -> None:
         """Apply feature engineering recommendations."""
         logger.info("Applying feature engineering recommendations...")
 
         # Feature creation (do this first as it may create new columns)
-        for creation_rec in feature_engineering.creation:
+        for encoding_rec in feature_engineering.encoding:
             self._apply_feature_creation_methods(
-                creation_rec.column, creation_rec.methods
+                encoding_rec.column, encoding_rec.methods
             )
 
         # Feature transformation
@@ -156,7 +151,7 @@ class LogicApplier:
             )
 
     def _apply_missing_value_methods(
-        self, column: str, methods: List[DC.MissingValues]
+        self, column: str, methods: List[DC.MissingValuesImputation]
     ) -> None:
         """Apply missing value imputation methods."""
         if column not in self.processed_df.columns:
@@ -169,7 +164,7 @@ class LogicApplier:
             try:
                 logger.info(f"Applying {method.name} to column '{column}'")
 
-                if method == DC.MissingValues.IMPUTE_CONSTANT:
+                if method == DC.MissingValuesImputation.CONSTANT:
                     # Use 0 as default constant, could be parameterized
                     result = apply_method(
                         method, self.processed_df, column, value=0
@@ -210,116 +205,14 @@ class LogicApplier:
                     }
                 )
 
-    def _apply_outlier_methods(
-        self, column: str, methods: List[DC.Outliers]
-    ) -> None:
-        """Apply outlier detection and handling methods."""
-        if column not in self.processed_df.columns:
-            logger.warning(
-                f"Column '{column}' not found, skipping outlier handling"
-            )
-            return
+    def _apply_outlier_methods(self, column: str, methods: List) -> None:
+        pass
 
-        for method in methods:
-            try:
-                logger.info(f"Applying {method.name} to column '{column}'")
-
-                if method == DC.Outliers.REMOVE_INFINITE:
-                    result = apply_method(method, self.processed_df, column)
-                else:
-                    result = apply_method(method, self.processed_df, column)
-
-                if isinstance(result, tuple):
-                    self.processed_df, transformer = result
-                    if transformer:
-                        self.fitted_transformers[f"{column}_{method.name}"] = (
-                            transformer
-                        )
-                else:
-                    self.processed_df = result
-
-                self.processing_history.append(
-                    {
-                        "step": "outliers",
-                        "method": method.name,
-                        "column": column,
-                        "success": True,
-                    }
-                )
-
-            except Exception as e:
-                logger.error(
-                    f"Failed to apply {method.name} to column '{column}': {str(e)}"
-                )
-                self.processing_history.append(
-                    {
-                        "step": "outliers",
-                        "method": method.name,
-                        "column": column,
-                        "success": False,
-                        "error": str(e),
-                    }
-                )
-
-    def _apply_duplicate_methods(
-        self, column: str, methods: List[DC.DuplicatesAndColumn]
-    ) -> None:
-        """Apply duplicate handling methods."""
-        for method in methods:
-            try:
-                logger.info(f"Applying {method.name}")
-
-                if method == DC.DuplicatesAndColumn.DROP_DUPLICATE_ROWS:
-                    result = apply_method(method, self.processed_df)
-                elif method == DC.DuplicatesAndColumn.RENAME_DUPLICATE_COLUMNS:
-                    result = apply_method(method, self.processed_df)
-                elif method == DC.DuplicatesAndColumn.DROP_COLUMN:
-                    if column in self.processed_df.columns:
-                        self.processed_df = self.processed_df.drop(
-                            columns=[column]
-                        )
-                        self.removed_columns.append(column)
-                        result = self.processed_df
-                    else:
-                        continue
-                elif method == DC.DuplicatesAndColumn.RENAME_COLUMN:
-                    # This would need additional parameters for new name
-                    continue
-                else:
-                    continue
-
-                if isinstance(result, tuple):
-                    self.processed_df, transformer = result
-                    if transformer:
-                        self.fitted_transformers[f"{method.name}"] = transformer
-                else:
-                    self.processed_df = result
-
-                self.processing_history.append(
-                    {
-                        "step": "duplicates",
-                        "method": method.name,
-                        "column": column
-                        if method != DC.DuplicatesAndColumn.DROP_DUPLICATE_ROWS
-                        else "all",
-                        "success": True,
-                    }
-                )
-
-            except Exception as e:
-                logger.error(f"Failed to apply {method.name}: {str(e)}")
-                self.processing_history.append(
-                    {
-                        "step": "duplicates",
-                        "method": method.name,
-                        "column": column,
-                        "success": False,
-                        "error": str(e),
-                    }
-                )
+    def _apply_duplicate_methods(self, column: str, methods: List) -> None:
+        pass
 
     def _apply_feature_creation_methods(
-        self, column: str, methods: List[FE.FeatureCreation]
+        self, column: str, methods: List[FE.IndexingOrEncoding]
     ) -> None:
         """Apply feature creation methods."""
         if column not in self.processed_df.columns:
@@ -367,7 +260,7 @@ class LogicApplier:
                 )
 
     def _apply_transformation_methods(
-        self, column: str, methods: List[FE.Transformations]
+        self, column: str, methods: List[FE.Transformation]
     ) -> None:
         """Apply feature transformation methods."""
         if column not in self.processed_df.columns:
@@ -380,11 +273,11 @@ class LogicApplier:
             try:
                 logger.info(f"Applying {method.name} to column '{column}'")
 
-                if method == FE.Transformations.UNIFORM_DISCRETIZE:
+                if method == FE.Discretization.UNIFORM_DISCRETIZE:
                     result = apply_method(
                         method, self.processed_df, column, n_bins=5
                     )
-                elif method == FE.Transformations.QUANTILE_DISCRETIZE:
+                elif method == FE.Discretization.QUANTILE_DISCRETIZE:
                     result = apply_method(
                         method, self.processed_df, column, n_bins=5
                     )
@@ -424,7 +317,7 @@ class LogicApplier:
                 )
 
     def _apply_feature_selection_methods(
-        self, column: str, methods: List[FE.FeatureSelection]
+        self, column: str, methods: List[FE.Extraction]
     ) -> None:
         """Apply feature selection methods."""
         if column not in self.processed_df.columns:
@@ -437,7 +330,7 @@ class LogicApplier:
             try:
                 logger.info(f"Applying {method.name} to column '{column}'")
 
-                if method == FE.FeatureSelection.APPLY_PCA:
+                if method == FE.Extraction.PCA:
                     # Determine number of components based on data size
                     n_components = min(5, len(self.processed_df.columns) - 1)
                     result = apply_method(
@@ -594,7 +487,7 @@ class LogicApplier:
     def _apply_balancing(
         self,
         datasets: LogicApplierDataset,
-        recommendations: List[BalancingRecommendation],
+        recommendations: List[SamplingRecommendation],
     ) -> LogicApplierDataset:
         """Apply balancing techniques to training data only."""
         if (datasets["y_train"].size == 0) or (datasets["X_train"].size == 0):
@@ -613,20 +506,12 @@ class LogicApplier:
                         method, X_train, y_train, random_state=42
                     )
 
-                    # Convert back to DataFrames with proper column names
-                    if isinstance(X_balanced, pd.DataFrame):
-                        datasets["X_train"] = X_balanced
-                    else:
-                        datasets["X_train"] = pd.DataFrame(
-                            X_balanced, columns=X_train.columns
-                        )
+                    datasets["X_train"] = pd.DataFrame(
+                        X_balanced, columns=X_train.columns
+                    )
 
-                    if isinstance(y_balanced, pd.Series):
-                        datasets["y_train"] = y_balanced
-                    else:
-                        datasets["y_train"] = pd.Series(
-                            y_balanced, name=y_train.name
-                        )
+                    # frame to series
+                    datasets["y_train"] = y_balanced.iloc[:, 0]
 
                     self.processing_history.append(
                         {

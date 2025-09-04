@@ -1,7 +1,6 @@
 from enum import Enum
-from typing import Optional, Tuple, Type, cast
+from typing import Type, cast
 
-import pandas as pd
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import core_schema
 
@@ -64,18 +63,3 @@ def register_method(method: Enum):
         return func
 
     return decorator
-
-
-def apply_method(
-    method: Enum,
-    df: pd.DataFrame,
-    column: Optional[str] = None,
-    **kwargs,
-) -> Tuple[pd.DataFrame, ...]:
-    """Apply a registered method to a DataFrame."""
-    func = method_registry.get(method.name)
-
-    if not func:
-        raise NotImplementedError(f"Method not implemented: {method.name}")
-
-    return func(df=df, column=column, **kwargs)

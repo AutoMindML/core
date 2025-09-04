@@ -4,7 +4,7 @@
 
 from typing import Dict, Optional
 
-from automind.data_utils.preprocessing import (
+from automind.models.preprocessing import (
     DC,
     FE,
     CrossValidationMethod,
@@ -21,7 +21,7 @@ escape_tag_end = "</json>"
 # You are a database engineer.
 # [Zero-shot prompt]
 # [Few-shot prompt]
-# [Batch prompt] -> this has not been used yet
+# [Batch prompt]
 
 
 def get_zero_shot_prompt(modeling_approach_limit: int):
@@ -54,6 +54,7 @@ Output Rules:
 - If no processing is needed for a column, use an empty array `[]`.
 - Use only the allowed enumerations where specified.
 - Keep key names exactly as defined; do not modify or rename keys.
+- Only methods given in the current list can be used
 
 Response:
 - Respond strictly with the JSON in the schema above.
@@ -104,45 +105,39 @@ Required JSON Schema:
             "missing_values": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {DC.MissingValues._member_names_}>]
+                "methods": [<choose from: {DC.MissingValuesImputation._member_names_}>]
               }}
             ],
-            "outliers": [
+            "sampling": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {DC.Outliers._member_names_}>]
-              }}
-            ],
-            "duplicates": [
-              {{
-                "column": <column_name>,
-                "methods": [<choose from: {DC.DuplicatesAndColumn._member_names_}>]
-              }}
-            ],
-            "balancing": [
-              {{
-                "column": <column_name>,
-                "methods": [<choose from: {DC.Balancing._member_names_}>]
+                "methods": [<choose from: {DC.Sampling._member_names_}>]
               }}
             ]
         }},
         "feature_engineering": {{
-            "creation": [
+            "encoding": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {FE.FeatureCreation._member_names_}>]
+                "methods": [<choose from: {FE.IndexingOrEncoding._member_names_}>]
               }}
             ],
             "transformation": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {FE.Transformations._member_names_}>]
+                "methods": [<choose from: {FE.Transformation._member_names_}>]
               }}
             ],
             "selection": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {FE.FeatureSelection._member_names_}>]
+                "methods": [<choose from: {FE.Extraction._member_names_}>]
+              }}
+            ],
+            "discretization": [
+              {{
+                "column": <column_name>,
+                "methods": [<choose from: {FE.Discretization._member_names_}>]
               }}
             ]
         }},

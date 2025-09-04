@@ -9,14 +9,14 @@ import seaborn as sns
 
 from automind.data_utils.measure import compute_all_measures
 from automind.data_utils.parser import ColumnType, DataParser
-from automind.data_utils.preprocessing import (
-    LLMOutputSchema,
-    TaskType,
-)
 from automind.data_utils.template import (
     escape_tag_end,
     escape_tag_start,
     get_llm_prompt_template,
+)
+from automind.models.preprocessing import (
+    LLMResponseSchema,
+    TaskType,
 )
 
 
@@ -276,7 +276,7 @@ class MetaGenerator:
     @classmethod
     def parse_llm_response(
         cls, response_text: str
-    ) -> Optional[LLMOutputSchema]:
+    ) -> Optional[LLMResponseSchema]:
         """
         Parse and validate LLM response to extract structured data analysis recommendations.
 
@@ -308,9 +308,10 @@ class MetaGenerator:
                     continue
 
             try:
-                validated_json = LLMOutputSchema.model_validate(parsed_json)
+                validated_json = LLMResponseSchema.model_validate(parsed_json)
                 return validated_json
-            except ValueError:
+            except ValueError as e:
+                print(e)
                 continue
 
         return None
