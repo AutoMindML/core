@@ -1,4 +1,6 @@
+import json
 import logging
+import re
 import warnings
 from typing import Any, Dict, List, Optional, Union
 
@@ -10,6 +12,7 @@ from automind.data_utils.preprocessing import (
     apply_method,
     apply_method_transform,
 )
+from automind.data_utils.template import escape_tag_end, escape_tag_start
 from automind.models.preprocessing import (
     DC,
     FE,
@@ -37,7 +40,12 @@ class LogicApplier:
     Handles data cleaning, feature engineering, and dataset preparation for modeling.
     """
 
-    def __init__(self, df: pd.DataFrame, target_column: Optional[str] = None):
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        target_column: Optional[str] = None,
+        llm_response: str = "",
+    ):
         """
         Initialize the LogicApplier with original DataFrame.
 
@@ -51,24 +59,35 @@ class LogicApplier:
         self.fitted_transformers = {}
         self.processing_history = []
         self.removed_columns = []
+        self.llm_response = llm_response
+        self.logic_actions: List[LLMResponseSchema] = []
 
     def apply_llm_recommendations(
-        self, llm_response: LLMResponseSchema, modeling_approach_index: int = 0
+        self, logic_action_index: int = 0, modeling_approach_index: int = 0
     ) -> Dict[str, Any]:
         """
         Apply all recommendations from LLM response.
 
         Args:
-            llm_response: Parsed LLM response with recommendations
+            logic_action_index: Index of logic actions to use (default: 0)
             modeling_approach_index: Index of modeling approach to use (default: 0)
 
         Returns:
             Dictionary containing processed datasets and metadata
         """
-        if not llm_response.modeling_approaches:
+
+        if len(self.logic_actions) == 0:
+            self.parse_llm_response(self.llm_response)
+
+        if len(self.logic_actions) == 0:
+            raise ValueError("LLM response parsing error")
+
+        logic_action = self.logic_actions[logic_action_index]
+
+        if not logic_action.modeling_approaches:
             raise ValueError("No modeling approaches found in LLM response")
 
-        modeling_approach = llm_response.modeling_approaches[
+        modeling_approach = logic_action.modeling_approaches[
             modeling_approach_index
         ]
 
@@ -77,31 +96,27 @@ class LogicApplier:
         )
         logger.info(f"Target column: {modeling_approach.target}")
 
-        # Update target column if specified in modeling approach
+        # update target column if specified in modeling approach
         if (
             modeling_approach.target
             and modeling_approach.target in self.processed_df.columns
         ):
             self.target_column = modeling_approach.target
 
-        # Step 1: Apply data cleaning recommendations
         self._apply_data_cleaning_recommendations(
             modeling_approach.data_cleaning
         )
 
-        # Step 2: Apply feature engineering recommendations
         self._apply_feature_engineering_recommendations(
             modeling_approach.feature_engineering
         )
 
-        # Step 3: Prepare train/test splits
         datasets = self._prepare_datasets(
             modeling_approach.test_size,
             modeling_approach.validation_size,
             modeling_approach.cross_validation.stratified,
         )
 
-        # Step 4: Apply balancing if needed (only on training data)
         if modeling_approach.data_cleaning.sampling:
             datasets = self._apply_balancing(
                 datasets, modeling_approach.data_cleaning.sampling
@@ -644,3 +659,75 @@ class LogicApplier:
                 )
 
         return processed_df
+
+    # fixing json schema from llm json response
+    # https://github.com/mangiucugna/json_repair
+    def parse_llm_response(
+        self, llm_response: Optional[str] = None
+    ) -> Optional[LLMResponseSchema]:
+        """
+        Parse and validate LLM response to extract structured data analysis recommendations.
+
+        Args:
+            response_text: Raw LLM response text
+
+        Returns:
+            Validated LLMOutputSchema object or None if parsing fails
+        """
+        if not llm_response:
+            llm_response = self.llm_response
+
+        pattern = re.compile(
+            rf"{escape_tag_start}\n(.*?)\n{escape_tag_end}", re.DOTALL
+        )
+        matches = pattern.findall(llm_response)
+
+        if len(matches) == 0:
+            matches.append(llm_response)
+
+        for match in matches:
+            parsed_json = None
+
+            try:
+                parsed_json = json.loads(match)
+            except json.JSONDecodeError:
+                cleaned_json = self._clean_json_text(match)
+
+                try:
+                    parsed_json = json.loads(cleaned_json)
+                except json.JSONDecodeError:
+                    continue
+
+            try:
+                validated_json = LLMResponseSchema.model_validate(parsed_json)
+                self.logic_actions.append(validated_json)
+                return validated_json
+            except ValueError as e:
+                print(e)
+                continue
+
+        return None
+
+    @staticmethod
+    def _clean_json_text(json_text: str) -> str:
+        """
+        Clean up malformed JSON text by removing common formatting issues.
+
+        Args:
+            json_text: Potentially malformed JSON string
+
+        Returns:
+            Cleaned JSON string
+        """
+        # Extract JSON content between first { and last }
+        start_idx = json_text.find("{")
+        end_idx = json_text.rfind("}")
+
+        if start_idx != -1 and end_idx != -1:
+            json_text = json_text[start_idx : end_idx + 1]
+
+        # Remove trailing commas
+        json_text = re.sub(r",\s*}", "}", json_text)
+        json_text = re.sub(r",\s*]", "]", json_text)
+
+        return json_text

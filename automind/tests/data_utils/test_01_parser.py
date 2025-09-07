@@ -19,7 +19,6 @@ class TestParser:
     def col_types(self) -> ColumnTypeCollection:
         return {}
 
-    @pytest.fixture
     def test_identify_column_types(
         self,
         parser: DataParser,
@@ -29,18 +28,18 @@ class TestParser:
         assert len(col_types.keys()) != 0
 
     def test_get_columns_by_type(
-        self, parser: DataParser, test_identify_column_types
+        self, parser: DataParser
     ):
         parser.get_columns_by_type(ColumnType.DATETIME)
         parser.get_columns_by_type(ColumnType.NUMERIC)
         parser.get_columns_by_type(ColumnType.CATEGORICAL)
 
     def test_convert_datetime_columns(
-        self, parser: DataParser, test_identify_column_types
+        self, parser: DataParser
     ):
         parser.convert_time_series_columns()
 
-    def test_get_stastics(self, parser: DataParser, test_identify_column_types):
+    def test_get_stastics(self, parser: DataParser):
         parser.get_column_stats()
         parser.get_column_cardinality()
 

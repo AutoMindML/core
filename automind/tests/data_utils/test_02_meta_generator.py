@@ -11,14 +11,13 @@ class TestMetaGenerator:
     def meta_generator(self, dataset: DataFrame, target_column: str):
         return MetaGenerator(dataset, target_column=target_column)
 
-    @pytest.fixture
     def test_generate_metadata(self, meta_generator: MetaGenerator):
         metedata = meta_generator.extract_metadata()
 
         assert len(metedata.keys()) != 0
 
     def test_generate_llm_query(
-        self, meta_generator: MetaGenerator, test_generate_metadata
+        self, meta_generator: MetaGenerator
     ):
         llm_query = meta_generator.generate_llm_query()
 
