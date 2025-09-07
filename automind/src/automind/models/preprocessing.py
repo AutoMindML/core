@@ -71,7 +71,6 @@ class FE:
         STANDARDIZE = auto()
         MIN_MAX_SCALE = auto()
 
-    class Discretization(Enum):
         UNIFORM_DISCRETIZE = auto()
         QUANTILE_DISCRETIZE = auto()
 
@@ -86,8 +85,8 @@ class FE:
         # POLYNOMIAL_EXPANSION = auto()
         # VECTOR_ASSAMBLE = auto()
 
-        SVD = auto()
-        """Single Value Decomposition"""
+        # SVD = auto()
+        # """Single Value Decomposition"""
 
         PCA = auto()
         """Principal component analysis"""
@@ -207,11 +206,6 @@ class FeatureSelectionRecommendation(BaseModel):
     methods: List[Annotated[FE.Extraction, EnumByName()]]
 
 
-class DiscretizationRecommendation(BaseModel):
-    column: str
-    methods: List[Annotated[FE.Discretization, EnumByName()]]
-
-
 class DataCleaningRecommendations(BaseModel):
     missing_values: List[MissingValueRecommendation]
     sampling: List[SamplingRecommendation]
@@ -221,7 +215,6 @@ class FeatureEngineeringRecommendations(BaseModel):
     encoding: List[IndexingOrEncodingRecommendation]
     transformation: List[TransformationRecommendation]
     selection: List[FeatureSelectionRecommendation]
-    discretization: List[DiscretizationRecommendation]
 
 
 # -------------------- modeling --------------------
@@ -262,5 +255,4 @@ ALL_PROCESSING_METHOD = Union[
     FE.IndexingOrEncoding,
     FE.Extraction,
     # FE.Selection,
-    FE.Discretization,
 ]

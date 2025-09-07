@@ -188,7 +188,7 @@ def min_max_scale(
     return df, scaler
 
 
-@register_method(FE.Discretization.UNIFORM_DISCRETIZE)
+@register_method(FE.Transformation.UNIFORM_DISCRETIZE)
 def uniform_discretize(
     df: pd.DataFrame, column: str, n_bins: int = 3
 ) -> Tuple[pd.DataFrame, KBinsDiscretizer]:
@@ -199,7 +199,7 @@ def uniform_discretize(
     return df, kbd
 
 
-@register_method(FE.Discretization.QUANTILE_DISCRETIZE)
+@register_method(FE.Transformation.QUANTILE_DISCRETIZE)
 def quantile_discretize(
     df: pd.DataFrame, column: str, n_bins: int = 3
 ) -> Tuple[pd.DataFrame, KBinsDiscretizer]:

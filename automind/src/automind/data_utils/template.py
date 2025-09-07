@@ -133,12 +133,6 @@ Required JSON Schema:
                 "column": <column_name>,
                 "methods": [<choose from: {FE.Extraction._member_names_}>]
               }}
-            ],
-            "discretization": [
-              {{
-                "column": <column_name>,
-                "methods": [<choose from: {FE.Discretization._member_names_}>]
-              }}
             ]
         }},
         "evaluation_metrics": [<choose from: {EvaluationMetric._member_names_}>],
