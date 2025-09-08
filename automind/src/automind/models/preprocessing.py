@@ -11,7 +11,8 @@ from automind.data_utils.shared import (
 # https://spark.apache.org/docs/latest/api/python/reference/pyspark.ml.html
 
 
-class Common(Enum):
+class COMMON(Enum):
+    DROP_UNNECESSARY_COLUMN = auto()
     DROP_DUPLICATE_ROWS = auto()
 
 
@@ -27,7 +28,6 @@ class DC:
 
         # using valid observation to fill
         MODE = auto()
-        CONSTANT = auto()
         FORWARD_FILL = auto()
         BACKWARD_FILL = auto()
 
@@ -149,6 +149,7 @@ class EvaluationMetric(Enum):
     MAE = auto()
     R2 = auto()
     MAPE = auto()
+
     # Binary classification metrics
     ACCURACY = auto()
     PRECISION = auto()
@@ -156,6 +157,7 @@ class EvaluationMetric(Enum):
     F1 = auto()
     AUC = auto()
     LOG_LOSS = auto()
+
     # Multiclass classification metrics
     MACRO_F1 = auto()
     WEIGHTED_F1 = auto()
@@ -245,6 +247,24 @@ class ModelingApproach(BaseModel):
 class LLMResponseSchema(BaseModel):
     data_quality_report: DataQualityReport
     modeling_approaches: List[ModelingApproach]
+
+
+DATETIME_FORMATS = [
+    "%Y-%m-%d",
+    "%d/%m/%Y",
+    "%m/%d/%Y",
+    "%Y/%m/%d",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%dT%H:%M:%S",
+    "%d-%m-%Y",
+    "%m-%d-%Y",
+    "%Y%m%d",
+    "%d%m%Y",
+    "%m%d%Y",
+    "%H:%M:%S",
+    "%H:%M",
+    "%Y-%m-%d %H:%M:%S.%f",
+]
 
 
 ALL_PROCESSING_METHOD = Union[

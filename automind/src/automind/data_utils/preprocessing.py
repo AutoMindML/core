@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Any, Optional, Tuple
 
 import numpy as np
@@ -14,11 +13,19 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 
+from automind.data_utils.parser import DataParser
 from automind.data_utils.shared import (
     method_registry,
     register_method,
 )
-from automind.models.preprocessing import ALL_PROCESSING_METHOD, DC, FE, Common
+from automind.models.preprocessing import (
+    ALL_PROCESSING_METHOD,
+    COMMON,
+    DC,
+    FE,
+)
+
+# -------------------- data cleaning --------------------
 
 
 @register_method(DC.MissingValuesImputation.DROP)
@@ -33,15 +40,12 @@ def missing_values_imputation_mean(
     df: pd.DataFrame, column: str
 ) -> pd.DataFrame:
     df = df.copy()
-    series = df[column]
+    series = df[column].copy()
 
-    if not pd.api.types.is_numeric_dtype(series):
+    if not DataParser(df)._is_numeric_column(column):
         raise TypeError("Column must be numeric for mean imputation")
 
     imputer = SimpleImputer(strategy="mean")
-
-    if pd.Series(series.isna()).all():
-        return df
 
     try:
         series = pd.Series(
@@ -64,7 +68,7 @@ def missing_values_imputation_median(
     df = df.copy()
     series = df[column].copy()
 
-    if not pd.api.types.is_numeric_dtype(series):
+    if not DataParser(df)._is_numeric_column(column):
         raise TypeError("Column must be numeric for median imputation")
 
     imputer = SimpleImputer(strategy="median")
@@ -91,17 +95,6 @@ def missing_values_imputation_mode(
     )
 
     df[column] = series
-
-    return df
-
-
-@register_method(DC.MissingValuesImputation.CONSTANT)
-def missing_values_imputation_constant(
-    df: pd.DataFrame, column: str, value: int = 0
-) -> pd.DataFrame:
-    """Impute missing values with a constant value."""
-    df = df.copy()
-    df[column] = df[column].fillna(value)
     return df
 
 
@@ -142,7 +135,7 @@ def smote(
     """Apply SMOTE for balancing imbalanced datasets."""
     sm = SMOTE(random_state=random_state)
 
-    X_res, y_res = sm.fit_resample(X, y)  # pyright: ignore[reportAssignmentType]
+    X_res, y_res = sm.fit_resample(X, y)
     return X_res, y_res
 
 
@@ -156,6 +149,9 @@ def borderline_smote(
     sm = BorderlineSMOTE(random_state=random_state)
     X_res, y_res = sm.fit_resample(X, y)  # pyright: ignore[reportAssignmentType]
     return X_res, y_res
+
+
+# -------------------- feature engineering --------------------
 
 
 @register_method(FE.Transformation.STANDARDIZE)
@@ -235,93 +231,6 @@ def one_hot_encode(df: pd.DataFrame, column: str) -> pd.DataFrame:
     return df
 
 
-# @register_method(FE.IndexingOrEncoding.STRING_INDEX)
-# def feature_string_index(
-#     df: pd.DataFrame, column: str
-# ) -> Tuple[pd.DataFrame, StringIndexerModel]:
-#     df = df.copy()
-#     series = df[column]
-#
-#     spark_df = spark.createDataFrame(series)
-#
-#     string_indexer = StringIndexer(
-#         inputCol=column, outputCol=column, stringOrderType="freqencyDesc"
-#     )
-#
-#     try:
-#         model = string_indexer.fit(spark_df)
-#         new_df = model.transform(spark_df)
-#
-#         df[column] = new_df.toPandas()[:, 0]
-#     except Exception as e:
-#         raise ValueError(f"string index error: {e}")
-#
-#     return df, model
-
-
-_DATETIME_FORMATS = [
-    "%Y-%m-%d",
-    "%d/%m/%Y",
-    "%m/%d/%Y",
-    "%Y/%m/%d",
-    "%Y-%m-%d %H:%M:%S",
-    "%Y-%m-%dT%H:%M:%S",
-    "%d-%m-%Y",
-    "%m-%d-%Y",
-    "%Y%m%d",
-    "%d%m%Y",
-    "%m%d%Y",
-    "%H:%M:%S",
-    "%H:%M",
-    "%Y-%m-%d %H:%M:%S.%f",
-]
-
-
-def detect_datetime_format(
-    df: pd.DataFrame, column: str, datetime_ratio: float = 0.8
-) -> Optional[str]:
-    """Detect datetime format in a column."""
-    series = df[column].dropna()
-
-    if series.empty or len(series) < 2:
-        return None
-
-    # Sample for performance
-    sample = series.sample(min(100, len(series)))
-
-    # Try each format
-    for fmt in _DATETIME_FORMATS:
-        try:
-            success_count = sum(
-                1 for val in sample if _try_parse_datetime(val, fmt)
-            )
-            if success_count / len(sample) > datetime_ratio:
-                return fmt
-        except Exception:
-            continue
-
-    # Try pandas mixed format
-    try:
-        parsed = pd.to_datetime(sample, errors="coerce", format="mixed")
-        if parsed.notna().sum() / len(sample) > datetime_ratio:
-            return "mixed"
-    except Exception:
-        pass
-
-    return None
-
-
-def _try_parse_datetime(value: Any, fmt: str) -> bool:
-    """Helper to try parsing a single datetime value."""
-    try:
-        if isinstance(value, str):
-            datetime.strptime(value, fmt)
-            return True
-    except (ValueError, TypeError):
-        pass
-    return False
-
-
 @register_method(FE.Extraction.PCA)
 def apply_pca(
     df: pd.DataFrame, column: str, n_components: int = 5
@@ -347,12 +256,18 @@ def apply_pca(
     return df, pca
 
 
-@register_method(Common.DROP_DUPLICATE_ROWS)
+# -------------------- common methods --------------------
+
+
+@register_method(COMMON.DROP_DUPLICATE_ROWS)
 def drop_duplicate_rows(
     df: pd.DataFrame,
 ):
     df = df.copy()
     return df.drop_duplicates()
+
+
+# -------------------- util --------------------
 
 
 def apply_method(
@@ -392,6 +307,7 @@ def apply_method_transform(
 def apply_scaler(df: pd.DataFrame, column: str, scaler) -> pd.DataFrame:
     """Apply a fitted scaler to transform data."""
     df = df.copy()
+
     df[column] = scaler.transform(df[[column]])
 
     return df

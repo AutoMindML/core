@@ -55,6 +55,7 @@ Output Rules:
 - Use only the allowed enumerations where specified.
 - Keep key names exactly as defined; do not modify or rename keys.
 - Only methods given in the current list can be used
+- Do not use additional methods that art not in the current list
 
 Response:
 - Respond strictly with the JSON in the schema above.
