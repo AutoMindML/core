@@ -6,9 +6,24 @@ from automind.data.dataset import AvailableDataset
 from automind.data.load import load_data
 from automind.data_utils.parser import ColumnType
 
+# fixture usage: https://docs.pytest.org/en/stable/reference/fixtures.html#fixtures-reference
+
 
 @pytest.fixture
 def dataset():
+    assert (
+        load_data(
+            AvailableDataset.synthea_covid19_10k.datasets["conditions"]
+        ).size
+        != 0
+    )
+    assert (
+        load_data(
+            AvailableDataset.synthea_covid19_10k.datasets["encounters"]
+        ).size
+        != 0
+    )
+
     return load_data(AvailableDataset.synthea_covid19_10k.datasets["patients"])
 
 

@@ -23,7 +23,7 @@ class DatasetGroup(Generic[T]):
             ds.url = ds.url or self.url
 
 
-synthea_covid19_10k = Literal["patients", "conditions"]
+synthea_covid19_10k = Literal["patients", "conditions", "encounters"]
 
 
 class AvailableDataset:
