@@ -172,8 +172,8 @@ def binarize(
         logger.error("Binarization requires numeric data")
         return df, None
 
-    transformer = Binarizer().fit(df[column].to_frame())
-    df[column] = transformer.transform(df[column].to_frame())
+    transformer = Binarizer().fit(df[[column]])
+    df[column] = transformer.transform(df[[column]])
 
     return df, transformer
 
@@ -189,8 +189,8 @@ def standardize(
         logger.error("Standardization requires numeric data")
         return df, None
 
-    scaler = StandardScaler().fit(df[column].to_frame())
-    df[column] = scaler.transform(df[column].to_frame())
+    scaler = StandardScaler().fit(df[[column]])
+    df[column] = scaler.transform(df[[column]])
     return df, scaler
 
 
@@ -205,8 +205,8 @@ def min_max_scale(
         logger.error("Min-max scaling requires numeric data")
         return df, None
 
-    scaler = MinMaxScaler().fit(df[column].to_frame())
-    df[column] = scaler.transform(df[column].to_frame())
+    scaler = MinMaxScaler().fit(df[[column]])
+    df[column] = scaler.transform(df[[column]])
     return df, scaler
 
 
@@ -219,8 +219,10 @@ def uniform_discretize(
 ) -> Tuple[pd.DataFrame, KBinsDiscretizer]:
     """Discretize continuous features into uniform bins."""
     df = df.copy()
-    kbd = KBinsDiscretizer(n_bins=n_bins, encode="ordinal", strategy="uniform")
-    df[column] = kbd.fit_transform(df[[column]])
+    kbd = KBinsDiscretizer(
+        n_bins=n_bins, encode="onehot", strategy="uniform"
+    ).fit(df[[column]])
+    df[column] = kbd.transform(df[[column]])
     return df, kbd
 
 
@@ -230,8 +232,10 @@ def quantile_discretize(
 ) -> Tuple[pd.DataFrame, KBinsDiscretizer]:
     """Discretize continuous features into quantile-based bins."""
     df = df.copy()
-    kbd = KBinsDiscretizer(n_bins=n_bins, encode="ordinal", strategy="quantile")
-    df[column] = kbd.fit_transform(df[[column]])
+    kbd = KBinsDiscretizer(
+        n_bins=n_bins, encode="onehot", strategy="quantile"
+    ).fit(df[[column]])
+    df[column] = kbd.transform(df[[column]])
     return df, kbd
 
 
@@ -239,9 +243,8 @@ def quantile_discretize(
 def normalize(df: pd.DataFrame, column: str) -> Tuple[pd.DataFrame, Normalizer]:
     """Apply L2 normalization to scale individual samples."""
     df = df.copy()
-
-    normalizer = Normalizer()
-    df[column] = normalizer.fit_transform(df[[column]])
+    normalizer = Normalizer(norm="l2").fit(df[[column]])
+    df[column] = normalizer.transform(df[[column]])
     return df, normalizer
 
 
@@ -255,14 +258,14 @@ def one_hot_encode(df: pd.DataFrame, column: str) -> pd.DataFrame:
         df = pd.concat([df, one_hot], axis=1)
         df = df.drop(columns=[column])
     except Exception as e:
-        raise ValueError(f"One-hot encoding failed: {e}")
+        logger.error(f"One-hot encoding failed: {e}")
 
     return df
 
 
 @register_method(FE.Extraction.PCA)
 def apply_pca(
-    df: pd.DataFrame, column: str, n_components: int = 5
+    df: pd.DataFrame, column: str, max_n_components: int = 5
 ) -> Tuple[pd.DataFrame, PCA]:
     """Apply PCA for dimensionality reduction."""
     df = df.copy()
@@ -270,14 +273,13 @@ def apply_pca(
     if not DataParser(df)._is_numeric_column(column):
         raise TypeError("PCA requires numeric data")
 
-    # Standardize before PCA
-    scaler = StandardScaler()
-    scaled_data = scaler.fit_transform(df[[column]])
+    scaler = StandardScaler().fit(df[[column]])
+    scaled_data = np.array(scaler.transform(df[[column]]))
 
-    pca = PCA(n_components=n_components)
-    pca_result = pca.fit_transform(scaled_data)
+    n_components = min([*list(scaled_data.shape), max_n_components])
+    pca = PCA(n_components=n_components).fit(scaled_data)
+    pca_result = pca.transform(scaled_data)
 
-    # Create PCA feature columns
     for i in range(n_components):
         df[f"{column}_pca_component_{i + 1}"] = pca_result[:, i]
 

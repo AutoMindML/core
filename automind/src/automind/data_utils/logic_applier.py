@@ -136,21 +136,18 @@ class LogicApplier:
         """Apply feature engineering recommendations."""
         logger.info("Applying feature engineering recommendations...")
 
-        # Feature creation (do this first as it may create new columns)
         for encoding_rec in feature_engineering.encoding:
-            self._apply_feature_creation_methods(
+            self._apply_indexing_or_encoding_methods(
                 encoding_rec.column, encoding_rec.methods
             )
 
-        # Feature transformation
         for transform_rec in feature_engineering.transformation:
             self._apply_transformation_methods(
                 transform_rec.column, transform_rec.methods
             )
 
-        # Feature selection (do this last as it may remove columns)
         for selection_rec in feature_engineering.selection:
-            self._apply_feature_selection_methods(
+            self._apply_feature_extraction_methods(
                 selection_rec.column, selection_rec.methods
             )
 
@@ -169,7 +166,6 @@ class LogicApplier:
                 logger.info(f"Applying {method.name} to column '{column}'")
                 result = apply_method(method, self.processed_df, column)
 
-                # Handle single return value (DataFrame) vs tuple
                 if isinstance(result, tuple):
                     self.processed_df, transformer = result
                     if transformer:
@@ -202,13 +198,7 @@ class LogicApplier:
                     }
                 )
 
-    def _apply_outlier_methods(self, column: str, methods: List) -> None:
-        pass
-
-    def _apply_duplicate_methods(self, column: str, methods: List) -> None:
-        pass
-
-    def _apply_feature_creation_methods(
+    def _apply_indexing_or_encoding_methods(
         self, column: str, methods: List[FE.IndexingOrEncoding]
     ) -> None:
         """Apply feature creation methods."""
@@ -313,7 +303,7 @@ class LogicApplier:
                     }
                 )
 
-    def _apply_feature_selection_methods(
+    def _apply_feature_extraction_methods(
         self, column: str, methods: List[FE.Extraction]
     ) -> None:
         """Apply feature selection methods."""
@@ -329,12 +319,11 @@ class LogicApplier:
 
                 if method == FE.Extraction.PCA:
                     # Determine number of components based on data size
-                    n_components = min(5, len(self.processed_df.columns) - 1)
                     result = apply_method(
                         method,
                         self.processed_df,
                         column,
-                        n_components=n_components,
+                        max_n_components=5,
                     )
                 else:
                     result = apply_method(method, self.processed_df, column)

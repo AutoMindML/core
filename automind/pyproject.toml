@@ -63,6 +63,8 @@ where = ["src"]
 # more setting refer to: https://microsoft.github.io/pyright/#/configuration?id=sample-pyprojecttoml-file
 [tool.pyright]
 reportMissingTypeStubs = false
+useLibraryCodeForTypes = false
+extraPaths = ["typings"]
 # reportUnusedVariable = false
 # typeCheckingMode = "basic"
 
