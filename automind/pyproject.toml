@@ -61,7 +61,8 @@ requires = ["setuptools"]
 where = ["src"]
 
 # more setting refer to: https://microsoft.github.io/pyright/#/configuration?id=sample-pyprojecttoml-file
-# [tool.pyright]
+[tool.pyright]
+reportMissingTypeStubs = false
 # reportUnusedVariable = false
 # typeCheckingMode = "basic"
 

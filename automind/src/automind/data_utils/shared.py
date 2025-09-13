@@ -1,10 +1,15 @@
 from enum import Enum
-from typing import Type, cast
+from typing import (
+    Callable,
+    Dict,
+    Type,
+    cast,
+)
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import core_schema
 
-method_registry = {}
+method_registry: Dict[str, Callable] = {}
 
 
 # this solution is from pydantic issue: https://github.com/pydantic/pydantic/discussions/2980#discussioncomment-12977507

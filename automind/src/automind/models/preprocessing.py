@@ -62,23 +62,26 @@ class FE:
         """
 
         # TODO
-        # BINARIZE = auto()
-        # BUCKETIZE = auto()
-        # DISCREATE_COSINE = auto()
+        BINARIZE = auto()
         # ELEMENT_WISE_PRODUCT = auto()
 
         NORMALIZE = auto()
         STANDARDIZE = auto()
         MIN_MAX_SCALE = auto()
 
+        # discretization
+        # BUCKETIZE = auto()
         UNIFORM_DISCRETIZE = auto()
         QUANTILE_DISCRETIZE = auto()
+
+        # time domain
+        # DISCREATE_COSINE = auto()
 
     class Extraction(Enum):
         """
         Feature extraction:
         combine the original set of features to obtain a new set
-        of less-redundant variables [63]. For example, by using projections to low-dimensional spaces
+        of less-redundant variables. For example, by using projections to low-dimensional spaces
         """
 
         # TODO

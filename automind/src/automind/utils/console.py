@@ -15,6 +15,10 @@ def print_format_output(name, content, color="bold red"):
     rich_console.file.flush()
 
 
+def apply_color(content: str, color: str = "bold red"):
+    return f"[{color}]{content}[/{color}]"
+
+
 async def read_output(stream: StreamReader, name, color=None):
     while not stream.at_eof():
         line = await stream.readline()

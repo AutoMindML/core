@@ -1,7 +1,5 @@
 import json
-import logging
 import re
-import warnings
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
@@ -10,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from automind.data_utils.parser import DataParser
 from automind.data_utils.preprocessing import (
     apply_method,
-    apply_method_transform,
+    apply_transform,
 )
 from automind.data_utils.template import escape_tag_end, escape_tag_start
 from automind.models.preprocessing import (
@@ -20,16 +18,7 @@ from automind.models.preprocessing import (
     LLMResponseSchema,
     SamplingRecommendation,
 )
-
-logging.basicConfig(
-    level=logging.INFO,
-    # format="%(asctime)s,%(msecs)03d [%(levelname)s] %(name)s: %(message)s",
-    format="[%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logger = logging.getLogger(__name__)
-
-warnings.filterwarnings("ignore", category=UserWarning)
+from automind.utils.logger import logger
 
 LogicApplierDataset = Dict[str, Union[pd.DataFrame, pd.Series]]
 
@@ -178,14 +167,7 @@ class LogicApplier:
         for method in methods:
             try:
                 logger.info(f"Applying {method.name} to column '{column}'")
-
-                if method == DC.MissingValuesImputation.CONSTANT:
-                    # Use 0 as default constant, could be parameterized
-                    result = apply_method(
-                        method, self.processed_df, column, value=0
-                    )
-                else:
-                    result = apply_method(method, self.processed_df, column)
+                result = apply_method(method, self.processed_df, column)
 
                 # Handle single return value (DataFrame) vs tuple
                 if isinstance(result, tuple):
@@ -288,11 +270,11 @@ class LogicApplier:
             try:
                 logger.info(f"Applying {method.name} to column '{column}'")
 
-                if method == FE.Discretization.UNIFORM_DISCRETIZE:
+                if method == FE.Transformation.UNIFORM_DISCRETIZE:
                     result = apply_method(
                         method, self.processed_df, column, n_bins=5
                     )
-                elif method == FE.Discretization.QUANTILE_DISCRETIZE:
+                elif method == FE.Transformation.QUANTILE_DISCRETIZE:
                     result = apply_method(
                         method, self.processed_df, column, n_bins=5
                     )
@@ -517,7 +499,7 @@ class LogicApplier:
                 try:
                     logger.info(f"Applying {method.name} for balancing")
 
-                    X_balanced, y_balanced = apply_method_transform(
+                    X_balanced, y_balanced = apply_transform(
                         method, X_train, y_train, random_state=42
                     )
 

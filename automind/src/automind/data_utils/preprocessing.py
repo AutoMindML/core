@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Any, Optional, Tuple
 
 import numpy as np
@@ -7,6 +8,7 @@ from numpy.typing import ArrayLike
 from sklearn.decomposition import PCA
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import (
+    Binarizer,
     KBinsDiscretizer,
     MinMaxScaler,
     Normalizer,
@@ -19,11 +21,11 @@ from automind.data_utils.shared import (
     register_method,
 )
 from automind.models.preprocessing import (
-    ALL_PROCESSING_METHOD,
     COMMON,
     DC,
     FE,
 )
+from automind.utils.logger import logger
 
 # -------------------- data cleaning --------------------
 
@@ -40,24 +42,23 @@ def missing_values_imputation_mean(
     df: pd.DataFrame, column: str
 ) -> pd.DataFrame:
     df = df.copy()
-    series = df[column].copy()
 
     if not DataParser(df)._is_numeric_column(column):
-        raise TypeError("Column must be numeric for mean imputation")
+        logger.error("Column must be numeric for mean imputation")
+        return df
 
     imputer = SimpleImputer(strategy="mean")
 
     try:
-        series = pd.Series(
+        df[column] = pd.Series(
             imputer.fit_transform(
-                np.array(series.values).reshape(-1, 1)
+                np.array(df[column].values).reshape(-1, 1)
             ).ravel(),
-            index=series.index,
+            index=df[column].index,
         )
     except ValueError:
-        return df
+        logger.error("SimpleImputer error when apply mean strategy on series")
 
-    df[column] = series
     return df
 
 
@@ -66,17 +67,23 @@ def missing_values_imputation_median(
     df: pd.DataFrame, column: str
 ) -> pd.DataFrame:
     df = df.copy()
-    series = df[column].copy()
 
     if not DataParser(df)._is_numeric_column(column):
-        raise TypeError("Column must be numeric for median imputation")
+        logger.error("Column must be numeric for median imputation")
+        return df
 
     imputer = SimpleImputer(strategy="median")
-    series = pd.Series(
-        imputer.fit_transform(np.array(series.values).reshape(-1, 1)).ravel(),
-        index=series.index,
-    )
-    df[column] = series
+
+    try:
+        df[column] = pd.Series(
+            imputer.fit_transform(
+                np.array(df[column].values).reshape(-1, 1)
+            ).ravel(),
+            index=df[column].index,
+        )
+    except ValueError:
+        logger.error("SimpleImputer error when apply median strategy on series")
+
     return df
 
 
@@ -86,15 +93,19 @@ def missing_values_imputation_mode(
 ) -> pd.DataFrame:
     """Impute missing values with mode (most frequent value)."""
     df = df.copy()
-    series = df[column].copy()
 
     imputer = SimpleImputer(strategy="most_frequent", missing_values=pd.NA)  # pyright: ignore[reportArgumentType]
-    series = pd.Series(
-        imputer.fit_transform(np.array(series.values).reshape(-1, 1)).ravel(),
-        index=series.index,
-    )
 
-    df[column] = series
+    try:
+        df[column] = pd.Series(
+            imputer.fit_transform(
+                np.array(df[column].values).reshape(-1, 1)
+            ).ravel(),
+            index=df[column].index,
+        )
+    except ValueError:
+        logger.error("SimpleImputer error when apply mode strategy on series")
+
     return df
 
 
@@ -133,9 +144,8 @@ def smote(
     random_state: int = 42,
 ):
     """Apply SMOTE for balancing imbalanced datasets."""
-    sm = SMOTE(random_state=random_state)
-
-    X_res, y_res = sm.fit_resample(X, y)
+    sm: SMOTE = SMOTE(random_state=random_state)
+    X_res, y_res = sm.fit_resample(X, y)  # pyright: ignore[reportAssignmentType]
     return X_res, y_res
 
 
@@ -152,36 +162,55 @@ def borderline_smote(
 
 
 # -------------------- feature engineering --------------------
+@register_method(FE.Transformation.BINARIZE)
+def binarize(
+    df: pd.DataFrame, column: str
+) -> Tuple[pd.DataFrame, Binarizer | None]:
+    df = df.copy()
+
+    if not DataParser(df)._is_numeric_column(column):
+        logger.error("Binarization requires numeric data")
+        return df, None
+
+    transformer = Binarizer().fit(df[column].to_frame())
+    df[column] = transformer.transform(df[column].to_frame())
+
+    return df, transformer
 
 
 @register_method(FE.Transformation.STANDARDIZE)
 def standardize(
     df: pd.DataFrame, column: str
-) -> Tuple[pd.DataFrame, StandardScaler]:
+) -> Tuple[pd.DataFrame, StandardScaler | None]:
     """Apply standardization (z-score normalization)."""
     df = df.copy()
 
-    if not pd.api.types.is_numeric_dtype(df[column]):
-        raise TypeError("Standardization requires numeric data")
+    if not DataParser(df)._is_numeric_column(column):
+        logger.error("Standardization requires numeric data")
+        return df, None
 
-    scaler = StandardScaler()
-    df[column] = scaler.fit_transform(df[[column]])
+    scaler = StandardScaler().fit(df[column].to_frame())
+    df[column] = scaler.transform(df[column].to_frame())
     return df, scaler
 
 
 @register_method(FE.Transformation.MIN_MAX_SCALE)
 def min_max_scale(
     df: pd.DataFrame, column: str
-) -> Tuple[pd.DataFrame, MinMaxScaler]:
+) -> Tuple[pd.DataFrame, MinMaxScaler | None]:
     """Apply min-max scaling to [0, 1] range."""
     df = df.copy()
 
-    if not pd.api.types.is_numeric_dtype(df[column]):
-        raise TypeError("Min-max scaling requires numeric data")
+    if not DataParser(df)._is_numeric_column(column):
+        logger.error("Min-max scaling requires numeric data")
+        return df, None
 
-    scaler = MinMaxScaler()
-    df[column] = scaler.fit_transform(df[[column]])
+    scaler = MinMaxScaler().fit(df[column].to_frame())
+    df[column] = scaler.transform(df[column].to_frame())
     return df, scaler
+
+
+# BP
 
 
 @register_method(FE.Transformation.UNIFORM_DISCRETIZE)
@@ -238,7 +267,7 @@ def apply_pca(
     """Apply PCA for dimensionality reduction."""
     df = df.copy()
 
-    if not pd.api.types.is_numeric_dtype(df[column]):
+    if not DataParser(df)._is_numeric_column(column):
         raise TypeError("PCA requires numeric data")
 
     # Standardize before PCA
@@ -271,43 +300,30 @@ def drop_duplicate_rows(
 
 
 def apply_method(
-    processing_method: ALL_PROCESSING_METHOD,
+    method: Enum,
     df: pd.DataFrame,
     column: Optional[str] = None,
     **kwargs,
 ) -> Tuple[pd.DataFrame, Any]:
     """Apply a registered processing method to a DataFrame."""
-    func = method_registry.get(processing_method.name)
+    func = method_registry.get(method.name)
 
     if not func:
-        raise NotImplementedError(
-            f"Method not implemented: {processing_method}"
-        )
+        raise NotImplementedError(f"Method not implemented: {method}")
 
     return func(df=df, column=column, **kwargs)
 
 
-def apply_method_transform(
-    processing_method: ALL_PROCESSING_METHOD,
+def apply_transform(
+    method: Enum,
     X: pd.DataFrame | ArrayLike,
     y: pd.DataFrame | ArrayLike | None = None,
     **kwargs,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Apply a registered method for X, y transformation (e.g., SMOTE)."""
-    func = method_registry.get(processing_method.name)
+    func = method_registry.get(method.name)
 
     if not func:
-        raise NotImplementedError(
-            f"Method not implemented: {processing_method}"
-        )
+        raise NotImplementedError(f"Method not implemented: {method}")
 
     return func(X=X, y=y, **kwargs)
-
-
-def apply_scaler(df: pd.DataFrame, column: str, scaler) -> pd.DataFrame:
-    """Apply a fitted scaler to transform data."""
-    df = df.copy()
-
-    df[column] = scaler.transform(df[[column]])
-
-    return df
