@@ -35,6 +35,7 @@ dependencies = [
 
   # -------------------- type stubs --------------------
   "pandas-stubs",
+  "microsoft-python-type-stubs@git+https://github.com/microsoft/python-type-stubs.git",
 
   # -------------------- visualization --------------------
   "matplotlib",

@@ -69,8 +69,7 @@ class FE:
         STANDARDIZE = auto()
         MIN_MAX_SCALE = auto()
 
-        # discretization
-        # BUCKETIZE = auto()
+        # discretization (bucketize)
         UNIFORM_DISCRETIZE = auto()
         QUANTILE_DISCRETIZE = auto()
 
@@ -112,7 +111,13 @@ class FE:
         """
 
         # TODO
-        # STRING_INDEX = auto()
+
+        STRING_INDEX = auto()
+        """
+        Converts a column of string into a column of numerical indices.
+        The indices are ordered by label frequencies
+        """
+
         # VECTOR_INDEX = auto()
         ONE_HOT_ENCODE = auto()
 
@@ -120,8 +125,6 @@ class FE:
 # -------------------- Data Quality Models --------------------
 class DataQualityType(Enum):
     MISSING_VALUES = auto()
-    OUTLIERS = auto()
-    DUPLICATES = auto()
     IMBALANCE = auto()
     INCONSISTENT_TYPES = auto()
     HIGH_COMPLETENESS = auto()

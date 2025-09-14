@@ -18,14 +18,6 @@
         "description": "Many categorical/identifier fields contain large numbers of missing values; these reduce usable feature set and may require dropping or imputation."
       },
       {
-        "type": "OUTLIERS",
-        "columns": [
-          "HEALTHCARE_EXPENSES",
-          "ZIP"
-        ],
-        "description": "HEALTHCARE_EXPENSES shows extreme values (very large max and large variance) indicating outliers; ZIP shows wide range possibly due to mixed encoding or incorrect entries."
-      },
-      {
         "type": "INCONSISTENT_TYPES",
         "columns": [
           "ZIP",

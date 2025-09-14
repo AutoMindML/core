@@ -12,6 +12,7 @@ from sklearn.preprocessing import (
     KBinsDiscretizer,
     MinMaxScaler,
     Normalizer,
+    OrdinalEncoder,
     StandardScaler,
 )
 
@@ -210,9 +211,6 @@ def min_max_scale(
     return df, scaler
 
 
-# BP
-
-
 @register_method(FE.Transformation.UNIFORM_DISCRETIZE)
 def uniform_discretize(
     df: pd.DataFrame, column: str, n_bins: int = 3
@@ -257,10 +255,23 @@ def one_hot_encode(df: pd.DataFrame, column: str) -> pd.DataFrame:
         one_hot = pd.get_dummies(df[column], prefix=column, drop_first=False)
         df = pd.concat([df, one_hot], axis=1)
         df = df.drop(columns=[column])
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"One-hot encoding failed: {e}")
 
     return df
+
+
+@register_method(FE.IndexingOrEncoding.STRING_INDEX)
+def string_index(df: pd.DataFrame, column: str):
+    df = df.copy()
+    encoder = OrdinalEncoder().fit(df[[column]])
+
+    try:
+        df[column] = encoder.transform(df[[column]])
+    except ValueError as e:
+        logger.error(f"String-index (ordinal encoding) encoding error: {e}")
+
+    return df, encoder
 
 
 @register_method(FE.Extraction.PCA)
