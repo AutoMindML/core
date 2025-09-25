@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from numpy.typing import ArrayLike
+from scipy.fftpack import dct
 from sklearn.decomposition import PCA
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import (
@@ -12,7 +13,6 @@ from sklearn.preprocessing import (
     KBinsDiscretizer,
     MinMaxScaler,
     Normalizer,
-    OrdinalEncoder,
     StandardScaler,
 )
 
@@ -131,10 +131,20 @@ def missing_values_imputation_backward_fill(
 
 
 @register_method(DC.MissingValuesImputation.ZERO_AS_MISSING_VALUE)
-def treat_zero_as_missing_value(df: pd.DataFrame, column: str) -> pd.DataFrame:
-    """Convert zero values to NaN for proper missing value handling."""
+def zero_as_missing_value(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    """Convert zero values to nan for proper missing value handling."""
     df = df.copy()
-    df[column] = df[column].replace(0, np.nan)
+    s = df[column]
+    s[s == 0] = np.nan
+    return df
+
+
+@register_method(DC.MissingValuesImputation.NEGATIVE_AS_MISSING_VALUE)
+def negative_as_missing_value(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    """Convert negative values to nan for proper missing value handling."""
+    df = df.copy()
+    s = df[column]
+    s[s < 0] = np.nan
     return df
 
 
@@ -237,6 +247,16 @@ def quantile_discretize(
     return df, kbd
 
 
+@register_method(FE.Transformation.DISCRETE_COSINE)
+def discrete_cosine(df: pd.DataFrame, column: str):
+    """
+    DCT: https://docs.scipy.org/doc/scipy/reference/generated/scipy.fftpack.dct.html
+    """
+    df = df.copy()
+    df[column] = dct(df[column].to_numpy())
+    return df
+
+
 @register_method(FE.Transformation.NORMALIZE)
 def normalize(df: pd.DataFrame, column: str) -> Tuple[pd.DataFrame, Normalizer]:
     """Apply L2 normalization to scale individual samples."""
@@ -264,14 +284,11 @@ def one_hot_encode(df: pd.DataFrame, column: str) -> pd.DataFrame:
 @register_method(FE.IndexingOrEncoding.STRING_INDEX)
 def string_index(df: pd.DataFrame, column: str):
     df = df.copy()
-    encoder = OrdinalEncoder().fit(df[[column]])
+    freq = df[column].value_counts().sort_values(ascending=False)
+    mapping = {k: i for i, k in enumerate(freq.index)}
+    df[column] = df[column].map(mapping)
 
-    try:
-        df[column] = encoder.transform(df[[column]])
-    except ValueError as e:
-        logger.error(f"String-index (ordinal encoding) encoding error: {e}")
-
-    return df, encoder
+    return df
 
 
 @register_method(FE.Extraction.PCA)

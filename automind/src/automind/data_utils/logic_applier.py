@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Literal, Optional, TypedDict, Union
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -20,7 +20,27 @@ from automind.models.preprocessing import (
 )
 from automind.utils.logger import logger
 
-LogicApplierDataset = Dict[str, Union[pd.DataFrame, pd.Series]]
+LogicApplierDatasetType = Dict[str, Union[pd.DataFrame, pd.Series]]
+
+
+class ProcessingHistorySuccessType(TypedDict):
+    step: str
+    method: str
+    column: str
+    success: Literal[True]
+
+
+class ProcessingHistoryErrorType(TypedDict):
+    step: str
+    method: str
+    column: str
+    success: Literal[False]
+    error_message: str
+
+
+ProcessingHistoryType = Union[
+    ProcessingHistorySuccessType, ProcessingHistoryErrorType
+]
 
 
 class LogicApplier:
@@ -31,7 +51,7 @@ class LogicApplier:
 
     def __init__(
         self,
-        df: pd.DataFrame,
+        dataset: pd.DataFrame,
         target_column: Optional[str] = None,
         llm_response: str = "",
     ):
@@ -39,30 +59,27 @@ class LogicApplier:
         Initialize the LogicApplier with original DataFrame.
 
         Args:
-            df: Original DataFrame to process
+            dataset: Original DataFrame to process
             target_column: Target column for supervised learning
         """
-        self.original_df = df.copy()
-        self.processed_df = df.copy()
+        self.original_df = dataset.copy()
+        self.processed_df = dataset.copy()
         self.target_column = target_column
         self.fitted_transformers = {}
-        self.processing_history = []
+        self.processing_history: List[ProcessingHistoryType] = []
         self.removed_columns = []
         self.llm_response = llm_response
         self.logic_actions: List[LLMResponseSchema] = []
 
     def apply_llm_recommendations(
         self, logic_action_index: int = 0, modeling_approach_index: int = 0
-    ) -> Dict[str, Any]:
+    ):
         """
         Apply all recommendations from LLM response.
 
         Args:
             logic_action_index: Index of logic actions to use (default: 0)
             modeling_approach_index: Index of modeling approach to use (default: 0)
-
-        Returns:
-            Dictionary containing processed datasets and metadata
         """
 
         if len(self.logic_actions) == 0:
@@ -111,16 +128,6 @@ class LogicApplier:
                 datasets, modeling_approach.data_cleaning.sampling
             )
 
-        return {
-            "datasets": datasets,
-            "modeling_approach": modeling_approach,
-            "processing_history": self.processing_history,
-            "fitted_transformers": self.fitted_transformers,
-            "removed_columns": self.removed_columns,
-            "original_shape": self.original_df.shape,
-            "processed_shape": self.processed_df.shape,
-        }
-
     def _apply_data_cleaning_recommendations(self, data_cleaning) -> None:
         """Apply data cleaning recommendations."""
         logger.info("Applying data cleaning recommendations...")
@@ -146,9 +153,9 @@ class LogicApplier:
                 transform_rec.column, transform_rec.methods
             )
 
-        for selection_rec in feature_engineering.selection:
+        for extraction_rec in feature_engineering.extraction:
             self._apply_feature_extraction_methods(
-                selection_rec.column, selection_rec.methods
+                extraction_rec.column, extraction_rec.methods
             )
 
     def _apply_missing_value_methods(
@@ -194,7 +201,7 @@ class LogicApplier:
                         "method": method.name,
                         "column": column,
                         "success": False,
-                        "error": str(e),
+                        "error_message": str(e),
                     }
                 )
 
@@ -242,7 +249,7 @@ class LogicApplier:
                         "method": method.name,
                         "column": column,
                         "success": False,
-                        "error": str(e),
+                        "error_message": str(e),
                     }
                 )
 
@@ -299,7 +306,7 @@ class LogicApplier:
                         "method": method.name,
                         "column": column,
                         "success": False,
-                        "error": str(e),
+                        "error_message": str(e),
                     }
                 )
 
@@ -356,17 +363,17 @@ class LogicApplier:
                         "method": method.name,
                         "column": column,
                         "success": False,
-                        "error": str(e),
+                        "error_message": str(e),
                     }
                 )
 
     def _prepare_datasets(
         self, test_size: float, validation_size: float, stratified: bool = True
-    ) -> LogicApplierDataset:
+    ) -> LogicApplierDatasetType:
         """Prepare train/validation/test splits."""
         logger.info("Preparing train/validation/test splits...")
 
-        datasets: LogicApplierDataset = {
+        datasets: LogicApplierDatasetType = {
             "X_train": pd.DataFrame(),
             "y_train": pd.Series(),
             "X_test": pd.DataFrame(),
@@ -472,9 +479,9 @@ class LogicApplier:
 
     def _apply_balancing(
         self,
-        datasets: LogicApplierDataset,
+        datasets: LogicApplierDatasetType,
         recommendations: List[SamplingRecommendation],
-    ) -> LogicApplierDataset:
+    ) -> LogicApplierDatasetType:
         """Apply balancing techniques to training data only."""
         if (datasets["y_train"].size == 0) or (datasets["X_train"].size == 0):
             return datasets
@@ -520,7 +527,7 @@ class LogicApplier:
                             "method": method.name,
                             "success": False,
                             "column": recommendation.column,
-                            "error": str(e),
+                            "error_message": str(e),
                         }
                     )
 
@@ -536,65 +543,6 @@ class LogicApplier:
         parser = DataParser(y.to_frame("target"))
         return parser._is_numeric_categorical("target")
 
-    def get_processing_summary(self) -> Dict[str, Any]:
-        """Get summary of all processing steps applied."""
-        successful_steps = [
-            step for step in self.processing_history if step["success"]
-        ]
-        failed_steps = [
-            step for step in self.processing_history if not step["success"]
-        ]
-
-        return {
-            "total_steps": len(self.processing_history),
-            "successful_steps": len(successful_steps),
-            "failed_steps": len(failed_steps),
-            "original_shape": self.original_df.shape,
-            "processed_shape": self.processed_df.shape,
-            "removed_columns": self.removed_columns,
-            "fitted_transformers": list(self.fitted_transformers.keys()),
-            "steps_by_category": {
-                "missing_values": len(
-                    [
-                        s
-                        for s in successful_steps
-                        if s["step"] == "missing_values"
-                    ]
-                ),
-                "outliers": len(
-                    [s for s in successful_steps if s["step"] == "outliers"]
-                ),
-                "duplicates": len(
-                    [s for s in successful_steps if s["step"] == "duplicates"]
-                ),
-                "feature_creation": len(
-                    [
-                        s
-                        for s in successful_steps
-                        if s["step"] == "feature_creation"
-                    ]
-                ),
-                "transformation": len(
-                    [
-                        s
-                        for s in successful_steps
-                        if s["step"] == "transformation"
-                    ]
-                ),
-                "feature_selection": len(
-                    [
-                        s
-                        for s in successful_steps
-                        if s["step"] == "feature_selection"
-                    ]
-                ),
-                "balancing": len(
-                    [s for s in successful_steps if s["step"] == "balancing"]
-                ),
-            },
-            "failed_operations": failed_steps,
-        }
-
     def apply_transformers_to_new_data(
         self, new_df: pd.DataFrame
     ) -> pd.DataFrame:
@@ -605,12 +553,12 @@ class LogicApplier:
 
         for transformer_name, transformer in self.fitted_transformers.items():
             try:
-                # Extract column name and method from transformer name
+                # extract column name and method from transformer name
                 if "_" in transformer_name:
                     parts = transformer_name.split("_")
-                    column = "_".join(
-                        parts[:-1]
-                    )  # Rejoin in case column has underscores
+
+                    # rejoin in case column has underscores
+                    column = "_".join(parts[:-1])
 
                     # method
                     _ = parts[-1]
@@ -690,14 +638,14 @@ class LogicApplier:
         Returns:
             Cleaned JSON string
         """
-        # Extract JSON content between first { and last }
+        # extract JSON content between first { and last }
         start_idx = json_text.find("{")
         end_idx = json_text.rfind("}")
 
         if start_idx != -1 and end_idx != -1:
             json_text = json_text[start_idx : end_idx + 1]
 
-        # Remove trailing commas
+        # remove trailing commas
         json_text = re.sub(r",\s*}", "}", json_text)
         json_text = re.sub(r",\s*]", "]", json_text)
 

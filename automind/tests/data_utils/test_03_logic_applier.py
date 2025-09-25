@@ -1,7 +1,9 @@
 import pytest
+from conftest import TARGET_COLUMN, get_dataset, get_llm_response
 from pandas import DataFrame
 
 from automind.data_utils.logic_applier import LogicApplier
+from automind.utils.console import rc
 
 
 class TestLogicApplier:
@@ -23,23 +25,24 @@ class TestLogicApplier:
 
 
 if __name__ == "__main__":
-    from pathlib import Path
+    llm_response = get_llm_response()
+    dataset = get_dataset()
+    target_column = TARGET_COLUMN
 
-    from automind.data.dataset import AvailableDataset
-    from automind.data.load import load_data
+    dataset = dataset[
+        [
+            "HEALTHCARE_COVERAGE",
+            "SSN",
+            "PREFIX",
+            "FIRST",
+            "GENDER",
+            "HEALTHCARE_EXPENSES",
+            "ZIP",
+        ]
+    ]
 
-    llm_response = ""
-    target_column = "HEALTHCARE_COVERAGE"
-
-    with open(
-        Path(__file__).parent.absolute() / "llm_response.txt",
-        "r",
-        encoding="utf-8",
-    ) as f:
-        llm_response = f.read()
-
-    dataset = load_data(
-        AvailableDataset.synthea_covid19_10k.datasets["patients"]
-    )
     applier = LogicApplier(dataset, target_column, llm_response)
     applier.apply_llm_recommendations()
+
+    rc.print(applier.original_df)
+    rc.print(applier.processed_df)

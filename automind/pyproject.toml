@@ -11,18 +11,20 @@ dependencies = [
   # "optuna>=4.2.1",
   # "chainlit>=2.5.5",
   # "mcp[cli]>=1.6.0",
-  "scikit-learn",
   "ollama",
 
 
   # -------------------- data processing --------------------
   "pydantic",
   "lorem",
+  "scikit-learn",
   "imbalanced-learn",
   "umap-learn",
   "pandas",
   "numpy",
-  # "pyspark",
+  "scipy",
+  "featuretools[dask]",
+  "featuretools[premium]",
 
 
   # issue solution: https://github.com/huggingface/datasets/issues/7693#issuecomment-3103380232
@@ -35,6 +37,7 @@ dependencies = [
 
   # -------------------- type stubs --------------------
   "pandas-stubs",
+  "scipy-stubs",
   "microsoft-python-type-stubs@git+https://github.com/microsoft/python-type-stubs.git",
 
   # -------------------- visualization --------------------
@@ -51,6 +54,7 @@ dependencies = [
   "python-dotenv",
   "wcwidth",
   "rich",
+  "graphviz",
 ]
 
 # also self install automind

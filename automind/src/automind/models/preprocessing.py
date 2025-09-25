@@ -7,12 +7,11 @@ from automind.data_utils.shared import (
     EnumByName,
 )
 
-# preprocessing methods based on
-# https://spark.apache.org/docs/latest/api/python/reference/pyspark.ml.html
+# preprocessing methods based on paper
+# https://link.springer.com/content/pdf/10.1186/s41044-016-0014-0.pdf
 
 
 class COMMON(Enum):
-    DROP_UNNECESSARY_COLUMN = auto()
     DROP_DUPLICATE_ROWS = auto()
 
 
@@ -27,16 +26,24 @@ class DC:
         MEDIAN = auto()
 
         # using valid observation to fill
+        # most freq
         MODE = auto()
         FORWARD_FILL = auto()
         BACKWARD_FILL = auto()
 
-        # as missing value
         ZERO_AS_MISSING_VALUE = auto()
+        """
+        Some columns may not have a value of 0, since it does not make sense (e.g., human weight).
+        """
+
+        NEGATIVE_AS_MISSING_VALUE = auto()
+        """
+        Some columns may not have a value of negative, since it does not make sense (e.g., human weight).
+        """
 
     # TODO
-    class NoiseTreatment(Enum):
-        pass
+    # class NoiseTreatment(Enum):
+    #     pass
 
     class Sampling(Enum):
         """
@@ -61,7 +68,6 @@ class FE:
         whereas normalization just performs an adjustment of distributions
         """
 
-        # TODO
         BINARIZE = auto()
         # ELEMENT_WISE_PRODUCT = auto()
 
@@ -73,8 +79,12 @@ class FE:
         UNIFORM_DISCRETIZE = auto()
         QUANTILE_DISCRETIZE = auto()
 
-        # time domain
-        # DISCREATE_COSINE = auto()
+        # DCT: for time feature
+        DISCRETE_COSINE = auto()
+        """
+        Transforms a real-valued sequence in the time domain
+        into another real-valued sequence (with the same size) in the frequency domain.
+        """
 
     class Extraction(Enum):
         """
@@ -94,23 +104,20 @@ class FE:
         """Principal component analysis"""
 
     # TODO
-    class Selection(Enum):
-        """
-        Feature selection:
-        tries to select relevant subsets of relevant
-        features without incurring much loss of information
-        """
-
-        VECTOR_SLICE = auto()
-        R_FORMULA = auto()
-        CHI_SQUARED_SELECT = auto()
+    # class Selection(Enum):
+    #     """
+    #     Feature selection:
+    #     tries to select relevant subsets of relevant
+    #     features without incurring much loss of information
+    #     """
+    #     VECTOR_SLICE = auto()
+    #     R_FORMULA = auto()
+    #     CHI_SQUARED_SELECT = auto()
 
     class IndexingOrEncoding(Enum):
         """
         Convert features from one type to another using indexing or encoding
         """
-
-        # TODO
 
         STRING_INDEX = auto()
         """
@@ -119,7 +126,17 @@ class FE:
         """
 
         # VECTOR_INDEX = auto()
+        """
+        Automatically decides which features are categorical and transform
+        them to category indices.
+        """
+
         ONE_HOT_ENCODE = auto()
+        """
+        Maps a column of strings to a column of unique binary vectors.
+        This encoding allows better representation of categorical features since it removes
+        the numerical order imposed by the previous method.
+        """
 
 
 # -------------------- Data Quality Models --------------------
@@ -209,7 +226,7 @@ class TransformationRecommendation(BaseModel):
     methods: List[Annotated[FE.Transformation, EnumByName()]]
 
 
-class FeatureSelectionRecommendation(BaseModel):
+class FeatureExtractionRecommendation(BaseModel):
     column: str
     methods: List[Annotated[FE.Extraction, EnumByName()]]
 
@@ -222,7 +239,7 @@ class DataCleaningRecommendations(BaseModel):
 class FeatureEngineeringRecommendations(BaseModel):
     encoding: List[IndexingOrEncodingRecommendation]
     transformation: List[TransformationRecommendation]
-    selection: List[FeatureSelectionRecommendation]
+    extraction: List[FeatureExtractionRecommendation]
 
 
 # -------------------- modeling --------------------

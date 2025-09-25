@@ -54,8 +54,7 @@ Output Rules:
 - If no processing is needed for a column, use an empty array `[]`.
 - Use only the allowed enumerations where specified.
 - Keep key names exactly as defined; do not modify or rename keys.
-- Only methods given in the current list can be used
-- Do not use additional methods that art not in the current list
+- Please suggest feature transformation methods from list, but exclude log transform or other power transforms.
 
 Response:
 - Respond strictly with the JSON in the schema above.
@@ -106,13 +105,13 @@ Required JSON Schema:
             "missing_values": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {DC.MissingValuesImputation._member_names_}>]
+                "methods": [<only choose from: {DC.MissingValuesImputation._member_names_}>]
               }}
             ],
             "sampling": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {DC.Sampling._member_names_}>]
+                "methods": [<only choose from: {DC.Sampling._member_names_}>]
               }}
             ]
         }},
@@ -120,25 +119,25 @@ Required JSON Schema:
             "encoding": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {FE.IndexingOrEncoding._member_names_}>]
+                "methods": [<only choose from: {FE.IndexingOrEncoding._member_names_}>]
               }}
             ],
             "transformation": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {FE.Transformation._member_names_}>]
+                "methods": [<only choose from: {FE.Transformation._member_names_}>]
               }}
             ],
-            "selection": [
+            "extraction": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {FE.Extraction._member_names_}>]
+                "methods": [<only choose from: {FE.Extraction._member_names_}>]
               }}
             ]
         }},
-        "evaluation_metrics": [<choose from: {EvaluationMetric._member_names_}>],
+        "evaluation_metrics": [<only choose from: {EvaluationMetric._member_names_}>],
         "cross_validation": {{
-            "method": <choose from: {CrossValidationMethod._member_names_}>,
+            "method": <only choose from: {CrossValidationMethod._member_names_}>,
             "folds": <folds number>,
             "stratified": <true or false>
         }},

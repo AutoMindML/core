@@ -1,8 +1,42 @@
+import enum
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, Generic, Literal, TypeVar, get_args
 
-from automind.data.load import DatasetFileType, DatasetInfo
+import pandas as pd
 
 T = TypeVar("T")
+
+
+class DatasetFileType(enum.Enum):
+    CSV = "csv"
+
+
+@dataclass
+class DatasetInfo:
+    name: str
+    extension: DatasetFileType
+    context: str = ""
+    content: str = ""
+    sources: str = ""
+    url: str = ""
+    group: str = ""
+
+
+def load_data(
+    data_info: DatasetInfo,
+):
+    base_path = Path(__file__).parent.absolute()
+    full_path = (
+        base_path
+        / data_info.extension.value
+        / f"{data_info.group}"
+        / f"{data_info.name}.{data_info.extension.value}"
+    )
+
+    match data_info.extension:
+        case DatasetFileType.CSV:
+            return pd.read_csv(full_path)
 
 
 class DatasetGroup(Generic[T]):
@@ -17,22 +51,22 @@ class DatasetGroup(Generic[T]):
         self.url = url
         self.datasets = datasets
 
-        for ds in self.datasets.values():
-            ds.group = ds.group or self.group
-            ds.context = ds.context or self.context
-            ds.url = ds.url or self.url
+        for dataset in self.datasets.values():
+            dataset.group = dataset.group or self.group
+            dataset.context = dataset.context or self.context
+            dataset.url = dataset.url or self.url
 
 
-synthea_covid19_10k = Literal["patients", "conditions", "encounters"]
+SYNTHEA_COVID19_10K = Literal["patients", "conditions", "encounters"]
 
 
 class AvailableDataset:
     anthrax_train = DatasetInfo("anthrax_training", DatasetFileType.CSV)
     anthrax_test = DatasetInfo("anthrax_testing", DatasetFileType.CSV)
-    synthea_covid19_10k = DatasetGroup[synthea_covid19_10k](
+    synthea_covid19_10k = DatasetGroup[SYNTHEA_COVID19_10K](
         datasets={
             name: DatasetInfo(name, DatasetFileType.CSV)
-            for name in list(get_args(synthea_covid19_10k))
+            for name in list(get_args(SYNTHEA_COVID19_10K))
         },
         group="synthea_covid19_10k",
         url="https://synthea.mitre.org/downloads",

@@ -1,40 +1,28 @@
 <json>
 {
   "data_quality_report": {
-    "overall_quality": "POOR",
-    "summary": "High missingness across many columns, numeric fields with likely placeholder zeros (e.g., LON), and skewed/outlier healthcare expenses. Schema is consistent but types need adjustment (ZIP treated as numeric).",
+    "overall_quality": "MODERATE",
+    "summary": "The dataset has a moderate level of missing values and some columns with potential semantic inconsistencies (e.g., 0 values for geographic coordinates).",
     "issues": [
       {
         "type": "MISSING_VALUES",
-        "columns": [
-          "DEATHDATE",
-          "SSN",
-          "DRIVERS",
-          "PASSPORT",
-          "MAIDEN",
-          "ADDRESS",
-          "CITY"
-        ],
-        "description": "Many categorical/identifier fields contain large numbers of missing values; these reduce usable feature set and may require dropping or imputation."
+        "columns": ["DEATHDATE", "SSN", "DRIVERS", "PASSPORT", "SUFFIX", "MAIDEN", "MARITAL", "RACE"],
+        "description": "Several columns have missing entries that need imputation or handling."
       },
       {
         "type": "INCONSISTENT_TYPES",
-        "columns": [
-          "ZIP",
-          "HEALTHCARE_COVERAGE",
-          "Id"
-        ],
-        "description": "ZIP is numeric but semantically categorical; HEALTHCARE_COVERAGE is numeric but may represent categorical coverage status; Id is stored as categorical-like identifier."
+        "columns": ["HEALTHCARE_COVERAGE"],
+        "description": "Target column is numeric but represents categorical-like healthcare coverage levels in practice."
       }
     ],
     "strengths": [
       {
-        "type": "CONSISTENT_SCHEMA",
-        "description": "Column set is stable and well-defined (25 columns) which simplifies pipeline construction."
+        "type": "HIGH_COMPLETENESS",
+        "description": "Most identity and location columns such as Id, FIRST, LAST, ADDRESS, CITY, STATE have high completeness."
       },
       {
-        "type": "HIGH_COMPLETENESS",
-        "description": "Core identity/name fields such as FIRST, LAST and BIRTHDATE appear to have relatively high completeness and can anchor joins/validations."
+        "type": "CONSISTENT_SCHEMA",
+        "description": "Column types are largely consistent with expected data formats."
       }
     ]
   },
@@ -44,132 +32,41 @@
       "target": "HEALTHCARE_COVERAGE",
       "recommended_algorithm": {
         "name": "RandomForestRegressor",
-        "reason": "Robust to outliers, handles mixed feature types and missing-value-imputed data well; provides feature importance for interpretation.",
-        "params": {
-          "n_estimators": 200,
-          "max_depth": 10,
-          "random_state": 42
-        }
+        "reason": "Handles numeric targets well, robust to outliers and missing data, can manage mixed-type features.",
+        "params": {"n_estimators": 200, "max_depth": null, "random_state": 42}
       },
       "data_cleaning": {
         "missing_values": [
-          {
-            "column": "DEATHDATE",
-            "methods": [
-              "DROP"
-            ]
-          },
-          {
-            "column": "SSN",
-            "methods": [
-              "DROP"
-            ]
-          },
-          {
-            "column": "LAT",
-            "methods": [
-              "ZERO_AS_MISSING_VALUE"
-            ]
-          },
-          {
-            "column": "LON",
-            "methods": [
-              "ZERO_AS_MISSING_VALUE"
-            ]
-          },
-          {
-            "column": "HEALTHCARE_EXPENSES",
-            "methods": [
-              "MEDIAN"
-            ]
-          },
-          {
-            "column": "ZIP",
-            "methods": [
-              "MODE"
-            ]
-          },
-          {
-            "column": "MARITAL",
-            "methods": [
-              "MODE"
-            ]
-          }
+          {"column": "DEATHDATE", "methods": ["BACKWARD_FILL"]},
+          {"column": "SSN", "methods": ["MODE"]},
+          {"column": "DRIVERS", "methods": ["MODE"]},
+          {"column": "PASSPORT", "methods": ["MODE"]},
+          {"column": "SUFFIX", "methods": ["MODE"]},
+          {"column": "MAIDEN", "methods": ["MODE"]},
+          {"column": "MARITAL", "methods": ["MODE"]},
+          {"column": "RACE", "methods": ["MODE"]}
         ],
         "sampling": []
       },
       "feature_engineering": {
         "encoding": [
-          {
-            "column": "MARITAL",
-            "methods": [
-              "ONE_HOT_ENCODE"
-            ]
-          },
-          {
-            "column": "RACE",
-            "methods": [
-              "ONE_HOT_ENCODE"
-            ]
-          },
-          {
-            "column": "GENDER",
-            "methods": [
-              "ONE_HOT_ENCODE"
-            ]
-          },
-          {
-            "column": "STATE",
-            "methods": [
-              "ONE_HOT_ENCODE"
-            ]
-          }
+          {"column": "PREFIX", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "FIRST", "methods": ["STRING_INDEX"]},
+          {"column": "LAST", "methods": ["STRING_INDEX"]},
+          {"column": "GENDER", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "STATE", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "CITY", "methods": ["STRING_INDEX"]}
         ],
         "transformation": [
-          {
-            "column": "HEALTHCARE_EXPENSES",
-            "methods": [
-              "STANDARDIZE"
-            ]
-          },
-          {
-            "column": "LAT",
-            "methods": [
-              "STANDARDIZE"
-            ]
-          },
-          {
-            "column": "LON",
-            "methods": [
-              "STANDARDIZE"
-            ]
-          },
-          {
-            "column": "ZIP",
-            "methods": [
-              "MIN_MAX_SCALE"
-            ]
-          }
+          {"column": "LAT", "methods": ["STANDARDIZE"]},
+          {"column": "LON", "methods": ["STANDARDIZE"]},
+          {"column": "ZIP", "methods": ["MIN_MAX_SCALE"]},
+          {"column": "HEALTHCARE_EXPENSES", "methods": ["STANDARDIZE"]}
         ],
-        "selection": [
-          {
-            "column": "HEALTHCARE_EXPENSES",
-            "methods": [
-              "PCA"
-            ]
-          }
-        ]
+        "extraction": []
       },
-      "evaluation_metrics": [
-        "RMSE",
-        "MAE",
-        "R2"
-      ],
-      "cross_validation": {
-        "method": "K_FOLD",
-        "folds": 5,
-        "stratified": false
-      },
+      "evaluation_metrics": ["RMSE", "MAE", "R2"],
+      "cross_validation": {"method": "K_FOLD", "folds": 5, "stratified": false},
       "test_size": 0.2,
       "validation_size": 0.1
     },
@@ -178,103 +75,41 @@
       "target": "HEALTHCARE_COVERAGE",
       "recommended_algorithm": {
         "name": "GradientBoostingRegressor",
-        "reason": "Handles skewed targets and outliers with robust loss functions and can model complex non-linear relationships.",
-        "params": {
-          "n_estimators": 300,
-          "learning_rate": 0.05,
-          "max_depth": 6,
-          "random_state": 42
-        }
+        "reason": "Effective for numeric predictions with potential non-linear relationships and mixed feature types.",
+        "params": {"n_estimators": 300, "learning_rate": 0.05, "max_depth": 4, "random_state": 42}
       },
       "data_cleaning": {
         "missing_values": [
-          {
-            "column": "DEATHDATE",
-            "methods": [
-              "DROP"
-            ]
-          },
-          {
-            "column": "SSN",
-            "methods": [
-              "DROP"
-            ]
-          },
-          {
-            "column": "HEALTHCARE_EXPENSES",
-            "methods": [
-              "MEDIAN"
-            ]
-          },
-          {
-            "column": "LAT",
-            "methods": [
-              "ZERO_AS_MISSING_VALUE"
-            ]
-          },
-          {
-            "column": "LON",
-            "methods": [
-              "ZERO_AS_MISSING_VALUE"
-            ]
-          }
+          {"column": "DEATHDATE", "methods": ["BACKWARD_FILL"]},
+          {"column": "SSN", "methods": ["MODE"]},
+          {"column": "DRIVERS", "methods": ["MODE"]},
+          {"column": "PASSPORT", "methods": ["MODE"]},
+          {"column": "SUFFIX", "methods": ["MODE"]},
+          {"column": "MAIDEN", "methods": ["MODE"]},
+          {"column": "MARITAL", "methods": ["MODE"]},
+          {"column": "RACE", "methods": ["MODE"]}
         ],
         "sampling": []
       },
       "feature_engineering": {
         "encoding": [
-          {
-            "column": "RACE",
-            "methods": [
-              "ONE_HOT_ENCODE"
-            ]
-          },
-          {
-            "column": "ETHNICITY",
-            "methods": [
-              "ONE_HOT_ENCODE"
-            ]
-          }
+          {"column": "PREFIX", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "FIRST", "methods": ["STRING_INDEX"]},
+          {"column": "LAST", "methods": ["STRING_INDEX"]},
+          {"column": "GENDER", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "STATE", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "CITY", "methods": ["STRING_INDEX"]}
         ],
         "transformation": [
-          {
-            "column": "HEALTHCARE_EXPENSES",
-            "methods": [
-              "QUANTILE_DISCRETIZE"
-            ]
-          },
-          {
-            "column": "LAT",
-            "methods": [
-              "STANDARDIZE"
-            ]
-          },
-          {
-            "column": "LON",
-            "methods": [
-              "STANDARDIZE"
-            ]
-          }
+          {"column": "LAT", "methods": ["STANDARDIZE"]},
+          {"column": "LON", "methods": ["STANDARDIZE"]},
+          {"column": "ZIP", "methods": ["MIN_MAX_SCALE"]},
+          {"column": "HEALTHCARE_EXPENSES", "methods": ["STANDARDIZE"]}
         ],
-        "selection": [
-          {
-            "column": "ZIP",
-            "methods": [
-              "PCA"
-            ]
-          }
-        ]
+        "extraction": []
       },
-      "evaluation_metrics": [
-        "RMSE",
-        "MAE",
-        "R2"
-      ],
-      "cross_validation": {
-        "method": "K_FOLD",
-        "folds": 5,
-        "stratified": false
-      },
+      "evaluation_metrics": ["RMSE", "MAE", "R2"],
+      "cross_validation": {"method": "K_FOLD", "folds": 5, "stratified": false},
       "test_size": 0.2,
       "validation_size": 0.1
     },
@@ -283,95 +118,41 @@
       "target": "HEALTHCARE_COVERAGE",
       "recommended_algorithm": {
         "name": "LinearRegression",
-        "reason": "Baseline model to establish linear relationships; fast to train and useful for interpretability and debugging before moving to complex models.",
-        "params": {
-          "fit_intercept": true,
-          "normalize": false
-        }
+        "reason": "Baseline regression model to evaluate linear relationships with numeric features.",
+        "params": {"fit_intercept": true, "normalize": false}
       },
       "data_cleaning": {
         "missing_values": [
-          {
-            "column": "DEATHDATE",
-            "methods": [
-              "DROP"
-            ]
-          },
-          {
-            "column": "SSN",
-            "methods": [
-              "DROP"
-            ]
-          },
-          {
-            "column": "HEALTHCARE_EXPENSES",
-            "methods": [
-              "MEDIAN"
-            ]
-          },
-          {
-            "column": "ZIP",
-            "methods": [
-              "MODE"
-            ]
-          }
+          {"column": "DEATHDATE", "methods": ["BACKWARD_FILL"]},
+          {"column": "SSN", "methods": ["MODE"]},
+          {"column": "DRIVERS", "methods": ["MODE"]},
+          {"column": "PASSPORT", "methods": ["MODE"]},
+          {"column": "SUFFIX", "methods": ["MODE"]},
+          {"column": "MAIDEN", "methods": ["MODE"]},
+          {"column": "MARITAL", "methods": ["MODE"]},
+          {"column": "RACE", "methods": ["MODE"]}
         ],
         "sampling": []
       },
       "feature_engineering": {
         "encoding": [
-          {
-            "column": "GENDER",
-            "methods": [
-              "ONE_HOT_ENCODE"
-            ]
-          },
-          {
-            "column": "MARITAL",
-            "methods": [
-              "ONE_HOT_ENCODE"
-            ]
-          }
+          {"column": "PREFIX", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "FIRST", "methods": ["STRING_INDEX"]},
+          {"column": "LAST", "methods": ["STRING_INDEX"]},
+          {"column": "GENDER", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "STATE", "methods": ["ONE_HOT_ENCODE"]},
+          {"column": "CITY", "methods": ["STRING_INDEX"]}
         ],
         "transformation": [
-          {
-            "column": "HEALTHCARE_EXPENSES",
-            "methods": [
-              "MIN_MAX_SCALE"
-            ]
-          },
-          {
-            "column": "LAT",
-            "methods": [
-              "STANDARDIZE"
-            ]
-          },
-          {
-            "column": "LON",
-            "methods": [
-              "STANDARDIZE"
-            ]
-          }
+          {"column": "LAT", "methods": ["STANDARDIZE"]},
+          {"column": "LON", "methods": ["STANDARDIZE"]},
+          {"column": "ZIP", "methods": ["MIN_MAX_SCALE"]},
+          {"column": "HEALTHCARE_EXPENSES", "methods": ["STANDARDIZE"]}
         ],
-        "selection": [
-          {
-            "column": "LAT",
-            "methods": [
-              "PCA"
-            ]
-          }
-        ]
+        "extraction": []
       },
-      "evaluation_metrics": [
-        "RMSE",
-        "MAE",
-        "R2"
-      ],
-      "cross_validation": {
-        "method": "K_FOLD",
-        "folds": 5,
-        "stratified": false
-      },
+      "evaluation_metrics": ["RMSE", "MAE", "R2"],
+      "cross_validation": {"method": "K_FOLD", "folds": 5, "stratified": false},
       "test_size": 0.2,
       "validation_size": 0.1
     }
