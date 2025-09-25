@@ -4,7 +4,7 @@
 
 from typing import Dict, Optional
 
-from automind.data_utils.preprocessing import (
+from automind.models.preprocessing import (
     DC,
     FE,
     CrossValidationMethod,
@@ -21,7 +21,7 @@ escape_tag_end = "</json>"
 # You are a database engineer.
 # [Zero-shot prompt]
 # [Few-shot prompt]
-# [Batch prompt] -> this has not been used yet
+# [Batch prompt]
 
 
 def get_zero_shot_prompt(modeling_approach_limit: int):
@@ -54,6 +54,7 @@ Output Rules:
 - If no processing is needed for a column, use an empty array `[]`.
 - Use only the allowed enumerations where specified.
 - Keep key names exactly as defined; do not modify or rename keys.
+- Please suggest feature transformation methods from list, but exclude log transform or other power transforms.
 
 Response:
 - Respond strictly with the JSON in the schema above.
@@ -104,51 +105,39 @@ Required JSON Schema:
             "missing_values": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {DC.MissingValues._member_names_}>]
+                "methods": [<only choose from: {DC.MissingValuesImputation._member_names_}>]
               }}
             ],
-            "outliers": [
+            "sampling": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {DC.Outliers._member_names_}>]
-              }}
-            ],
-            "duplicates": [
-              {{
-                "column": <column_name>,
-                "methods": [<choose from: {DC.DuplicatesAndColumn._member_names_}>]
-              }}
-            ],
-            "balancing": [
-              {{
-                "column": <column_name>,
-                "methods": [<choose from: {DC.Balancing._member_names_}>]
+                "methods": [<only choose from: {DC.Sampling._member_names_}>]
               }}
             ]
         }},
         "feature_engineering": {{
-            "creation": [
+            "encoding": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {FE.FeatureCreation._member_names_}>]
+                "methods": [<only choose from: {FE.IndexingOrEncoding._member_names_}>]
               }}
             ],
             "transformation": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {FE.Transformations._member_names_}>]
+                "methods": [<only choose from: {FE.Transformation._member_names_}>]
               }}
             ],
-            "selection": [
+            "extraction": [
               {{
                 "column": <column_name>,
-                "methods": [<choose from: {FE.FeatureSelection._member_names_}>]
+                "methods": [<only choose from: {FE.Extraction._member_names_}>]
               }}
             ]
         }},
-        "evaluation_metrics": [<choose from: {EvaluationMetric._member_names_}>],
+        "evaluation_metrics": [<only choose from: {EvaluationMetric._member_names_}>],
         "cross_validation": {{
-            "method": <choose from: {CrossValidationMethod._member_names_}>,
+            "method": <only choose from: {CrossValidationMethod._member_names_}>,
             "folds": <folds number>,
             "stratified": <true or false>
         }},

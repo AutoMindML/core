@@ -42,10 +42,3 @@ run tests
 # example
 uv run -m pytest ./tests/data_utils
 ```
-
-run demo
-
-```bash
-# example
-uv run ./demo/*.py
-```

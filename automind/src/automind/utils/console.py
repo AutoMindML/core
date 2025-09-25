@@ -3,7 +3,7 @@ from asyncio import StreamReader
 
 from rich.console import Console
 
-rich_console = Console()
+rc = Console()
 
 ANSI_ESCAPE = re.compile(r"(?:\x1B[@-Z\\-_]|\x1B\[[0-?]*[ -/]*[@-~])")
 SPINNER_SYMBOLS = re.compile(r"[\u2800-\u28FF]")
@@ -11,8 +11,12 @@ SPINNER_SYMBOLS = re.compile(r"[\u2800-\u28FF]")
 
 def print_format_output(name, content, color="bold red"):
     content = ANSI_ESCAPE.sub("", content)
-    rich_console.print(f"[{color}][{name}][/{color}] -> {content}")
-    rich_console.file.flush()
+    rc.print(f"[{color}][{name}][/{color}] -> {content}")
+    rc.file.flush()
+
+
+def apply_color(content: str, color: str = "bold red"):
+    return f"[{color}]{content}[/{color}]"
 
 
 async def read_output(stream: StreamReader, name, color=None):

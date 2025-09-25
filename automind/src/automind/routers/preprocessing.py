@@ -1,7 +1,6 @@
 from typing import List
 
 from fastapi import APIRouter
-from pandas import DataFrame
 from pydantic import BaseModel
 
 preprocessing_router = APIRouter()
@@ -13,7 +12,6 @@ class DataPreprocessingModel(BaseModel):
 
 @preprocessing_router.post("/cleaning")
 def cleaning(req: DataPreprocessingModel):
-    df = DataFrame(req.data)
     pass
 
 

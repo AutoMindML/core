@@ -1,4 +1,5 @@
 import warnings
+from enum import Enum
 from typing import Any, Optional, Tuple
 
 import numpy as np
@@ -10,13 +11,13 @@ from scipy.linalg import eigvals
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.preprocessing import LabelEncoder
 
-from automind.data_utils.shared import apply_method, register_method
+from automind.data_utils.shared import method_registry, register_method
 from automind.models.measure import InformationTheoretic, Simple, Statistical
 
 warnings.filterwarnings("ignore")
 
 
-# ==================== SIMPLE MEASURES ====================
+# -------------------- SIMPLE MEASURES --------------------
 
 
 @register_method(Simple.ATTR_TO_INST)
@@ -129,6 +130,10 @@ def freq_class(
         raise ValueError(
             "Target column must be specified for classification measures"
         )
+
+    if df[column].dtype not in ["object", "category"]:
+        return df, [], []
+
     frequencies = df[column].value_counts(normalize=True).sort_index()
     return df, frequencies.values, frequencies.index.tolist()
 
@@ -198,7 +203,7 @@ def nr_class(
 @register_method(Simple.NR_INST)
 def nr_inst(
     df: pd.DataFrame,
-    _: Optional[str] = None,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Number of instances"""
     n_instances = len(df)
@@ -208,7 +213,7 @@ def nr_inst(
 @register_method(Simple.NR_INST_MISSING)
 def nr_inst_missing(
     df: pd.DataFrame,
-    _: Optional[str] = None,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Number of instances with missing values"""
     n_missing_inst = pd.Series(df.isnull().any(axis=1)).sum()
@@ -218,7 +223,7 @@ def nr_inst_missing(
 @register_method(Simple.NR_MISSING)
 def nr_missing(
     df: pd.DataFrame,
-    _: Optional[str] = None,
+    column: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Any]:
     """Total number of missing values"""
     n_missing = df.isnull().sum().sum()
@@ -236,7 +241,7 @@ def nr_num(
     return df, n_numeric
 
 
-# ==================== STATISTICAL MEASURES ====================
+# -------------------- STATISTICAL MEASURES --------------------
 
 
 @register_method(Statistical.CAN_COR)
@@ -815,7 +820,7 @@ def w_lambda(
         return df, 1.0
 
 
-# ==================== INFORMATION THEORETIC MEASURES ====================
+# -------------------- INFORMATION THEORETIC MEASURES --------------------
 
 
 def entropy(x):
@@ -1018,7 +1023,7 @@ def ns_ratio(
     return df, max(0, noise_ratio)
 
 
-# ==================== UTILITY FUNCTIONS ====================
+# -------------------- UTILITY FUNCTIONS --------------------
 
 
 def get_numeric_features(
@@ -1085,7 +1090,7 @@ def normalize_features(df: pd.DataFrame):
     return normalized_df
 
 
-# ==================== BATCH COMPUTATION HELPERS ====================
+# -------------------- BATCH COMPUTATION HELPERS --------------------
 
 
 def compute_all_simple_measures(
@@ -1174,3 +1179,18 @@ def compute_all_measures(
     )
 
     return all_results
+
+
+def apply_method(
+    method: Enum,
+    df: pd.DataFrame,
+    column: Optional[str] = None,
+    **kwargs,
+) -> Tuple[pd.DataFrame, Any]:
+    """Apply a registered processing method to a DataFrame."""
+    func = method_registry.get(method.name)
+
+    if not func:
+        raise NotImplementedError(f"Method not implemented: {method}")
+
+    return func(df=df, column=column, **kwargs)

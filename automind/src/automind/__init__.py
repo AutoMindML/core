@@ -1,5 +1,5 @@
-from automind.console import rich_console
+from automind.utils.console import rc
 
 __all__ = [
-    "rich_console"
+    "rc"
 ]

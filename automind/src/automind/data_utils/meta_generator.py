@@ -1,5 +1,4 @@
 import json
-import re
 from typing import Any, Dict, List, Optional
 
 import matplotlib.pyplot as plt
@@ -9,14 +8,11 @@ import seaborn as sns
 
 from automind.data_utils.measure import compute_all_measures
 from automind.data_utils.parser import ColumnType, DataParser
-from automind.data_utils.preprocessing import (
-    LLMOutputSchema,
-    TaskType,
-)
 from automind.data_utils.template import (
-    escape_tag_end,
-    escape_tag_start,
     get_llm_prompt_template,
+)
+from automind.models.preprocessing import (
+    TaskType,
 )
 
 
@@ -270,74 +266,6 @@ class MetaGenerator:
                 }
 
         return llm_metadata
-
-    # fixing json schema from llm json response
-    # https://github.com/mangiucugna/json_repair
-    @classmethod
-    def parse_llm_response(
-        cls, response_text: str
-    ) -> Optional[LLMOutputSchema]:
-        """
-        Parse and validate LLM response to extract structured data analysis recommendations.
-
-        Args:
-            response_text: Raw LLM response text
-
-        Returns:
-            Validated LLMOutputSchema object or None if parsing fails
-        """
-        pattern = re.compile(
-            rf"{escape_tag_start}\n(.*?)\n{escape_tag_end}", re.DOTALL
-        )
-        matches = pattern.findall(response_text)
-
-        if len(matches) == 0:
-            matches.append(response_text)
-
-        for match in matches:
-            parsed_json = None
-
-            try:
-                parsed_json = json.loads(match)
-            except json.JSONDecodeError:
-                cleaned_json = cls._clean_json_text(match)
-
-                try:
-                    parsed_json = json.loads(cleaned_json)
-                except json.JSONDecodeError:
-                    continue
-
-            try:
-                validated_json = LLMOutputSchema.model_validate(parsed_json)
-                return validated_json
-            except ValueError:
-                continue
-
-        return None
-
-    @staticmethod
-    def _clean_json_text(json_text: str) -> str:
-        """
-        Clean up malformed JSON text by removing common formatting issues.
-
-        Args:
-            json_text: Potentially malformed JSON string
-
-        Returns:
-            Cleaned JSON string
-        """
-        # Extract JSON content between first { and last }
-        start_idx = json_text.find("{")
-        end_idx = json_text.rfind("}")
-
-        if start_idx != -1 and end_idx != -1:
-            json_text = json_text[start_idx : end_idx + 1]
-
-        # Remove trailing commas
-        json_text = re.sub(r",\s*}", "}", json_text)
-        json_text = re.sub(r",\s*]", "]", json_text)
-
-        return json_text
 
     def _json_serializer(self, obj):
         """Custom JSON serializer for handling pandas/numpy types."""
