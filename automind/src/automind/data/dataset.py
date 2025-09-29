@@ -1,9 +1,11 @@
 import enum
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Generic, Literal, TypeVar, get_args
+from typing import Dict, Generic, List, Literal, TypeVar, get_args
 
 import pandas as pd
+
+from automind.utils.logger import logger
 
 T = TypeVar("T")
 
@@ -23,10 +25,12 @@ class DatasetInfo:
     group: str = ""
 
 
+base_path = Path(__file__).parent.absolute()
+
+
 def load_data(
     data_info: DatasetInfo,
 ):
-    base_path = Path(__file__).parent.absolute()
     full_path = (
         base_path
         / data_info.extension.value
@@ -37,6 +41,17 @@ def load_data(
     match data_info.extension:
         case DatasetFileType.CSV:
             return pd.read_csv(full_path)
+
+
+def dataframe_to_csv(data_info: DatasetInfo, data: pd.DataFrame, name: str):
+    full_path = (
+        base_path
+        / data_info.extension.value
+        / f"{data_info.group}"
+        / f"{name}.{data_info.extension.value}"
+    )
+
+    return data.to_csv(full_path, index=False)
 
 
 class DatasetGroup(Generic[T]):
@@ -74,3 +89,32 @@ class AvailableDataset:
         Ten thousand synthetic patients records with COVID-19 in the CSV format.
         """,
     )
+
+
+def slice_datasets(
+    datasets: List[DatasetInfo],
+    pk_col: str,
+    fk_cols: List[str],
+    root_dataset_index: int = 0,
+    slice_ratio: float = 0.3,
+    new_dataset_prefix: str = "slice",
+):
+    root_dataset = datasets.pop(root_dataset_index)
+    logger.info(f"Preparing root dataset: {root_dataset.name}")
+    root_df = load_data(root_dataset)
+    root_df = root_df.drop_duplicates(subset=[pk_col], keep="first")
+    sliced_df = root_df.sample(frac=slice_ratio, random_state=42)
+    dataframe_to_csv(
+        root_dataset, sliced_df, new_dataset_prefix + "_" + root_dataset.name
+    )
+
+    for i, dataset in enumerate(datasets):
+        df = load_data(dataset)
+        logger.info(f"Preparing sub-dataset: {dataset.name}")
+        fk_col = fk_cols[i]
+        filtered_df = df[df[fk_col].isin(sliced_df[pk_col])]
+        dataframe_to_csv(
+            dataset, filtered_df, new_dataset_prefix + "_" + dataset.name
+        )
+
+    logger.info("All done!")
