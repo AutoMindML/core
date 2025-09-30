@@ -98,10 +98,14 @@ def slice_datasets(
     root_dataset_index: int = 0,
     slice_ratio: float = 0.3,
     new_dataset_prefix: str = "slice",
+    drop_cols: Dict[str, List] = {},
 ):
     root_dataset = datasets.pop(root_dataset_index)
     logger.info(f"Preparing root dataset: {root_dataset.name}")
+
     root_df = load_data(root_dataset)
+    root_df = root_df.drop(drop_cols.get(root_dataset.name), axis=1)
+
     root_df = root_df.drop_duplicates(subset=[pk_col], keep="first")
     sliced_df = root_df.sample(frac=slice_ratio, random_state=42)
     dataframe_to_csv(
@@ -110,6 +114,7 @@ def slice_datasets(
 
     for i, dataset in enumerate(datasets):
         df = load_data(dataset)
+        df = df.drop(drop_cols.get(dataset.name), axis=1)
         logger.info(f"Preparing sub-dataset: {dataset.name}")
         fk_col = fk_cols[i]
         filtered_df = df[df[fk_col].isin(sliced_df[pk_col])]
