@@ -10,7 +10,16 @@ if __name__ == "__main__":
         pk_col="Id",
         fk_cols=["PATIENT", "PATIENT"],
         drop_cols={
-            AvailableDataset.synthea_covid19_10k.datasets["patients"].name: [],
+            AvailableDataset.synthea_covid19_10k.datasets["patients"].name: [
+                "SSN",
+                "DRIVERS",
+                "PASSPORT",
+                "FIRST",
+                "LAST",
+                "SUFFIX",
+                "LAT",
+                "LON",
+            ],
             AvailableDataset.synthea_covid19_10k.datasets["conditions"].name: [
                 # correspond DESCREPTION (condition)
                 "CODE"

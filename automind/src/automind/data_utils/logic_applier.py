@@ -18,7 +18,7 @@ from automind.models.preprocessing import (
     LLMResponseSchema,
     SamplingRecommendation,
 )
-from automind.utils.logger import logger
+from automind.utils.logging import logger
 
 LogicApplierDatasetType = Dict[str, Union[pd.DataFrame, pd.Series]]
 

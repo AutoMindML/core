@@ -5,7 +5,7 @@ from typing import Dict, Generic, List, Literal, TypeVar, get_args
 
 import pandas as pd
 
-from automind.utils.logger import logger
+from automind.utils.logging import logger
 
 T = TypeVar("T")
 
@@ -72,7 +72,14 @@ class DatasetGroup(Generic[T]):
             dataset.url = dataset.url or self.url
 
 
-SYNTHEA_COVID19_10K = Literal["patients", "conditions", "encounters"]
+SYNTHEA_COVID19_10K = Literal[
+    "patients",
+    "conditions",
+    "encounters",
+    "slice_patients",
+    "slice_conditions",
+    "slice_encounters",
+]
 
 
 class AvailableDataset:

@@ -2,8 +2,10 @@ import re
 from asyncio import StreamReader
 
 from rich.console import Console
+from rich.logging import RichHandler
 
 rc = Console()
+rc_handler = RichHandler(console=rc, rich_tracebacks=True)
 
 ANSI_ESCAPE = re.compile(r"(?:\x1B[@-Z\\-_]|\x1B\[[0-?]*[ -/]*[@-~])")
 SPINNER_SYMBOLS = re.compile(r"[\u2800-\u28FF]")
