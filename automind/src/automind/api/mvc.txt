@@ -1,0 +1,11 @@
+app/
+├── main.py
+├── models/               # ORM Model
+│   └── user_model.py
+├── schemas/              # Pydantic Data Validation（Request & Response）
+│   └── user_schema.py
+├── services/             # Business Logic Layer 
+│   └── user_service.py
+├── controllers/          # Router and Controller
+│   └── user_controller.py
+└── database.py           # Database Connection
