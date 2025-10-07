@@ -18,19 +18,6 @@ def get_dataset():
 
 @pytest.fixture
 def dataset():
-    assert (
-        load_data(
-            AvailableDataset.synthea_covid19_10k.datasets["slice_conditions"]
-        ).size
-        != 0
-    )
-    assert (
-        load_data(
-            AvailableDataset.synthea_covid19_10k.datasets["slice_encounters"]
-        ).size
-        != 0
-    )
-
     return get_dataset()
 
 

@@ -3,17 +3,20 @@ from typing import List, Optional, TypedDict
 from featuretools.entityset.entityset import EntitySet
 from featuretools.entityset.relationship import Relationship
 from featuretools.synthesis.dfs import dfs
-
-# from featuretools.primitives.base.aggregation_primitive_base import AggregationPrimitive
-# from featuretools.primitives.base.transform_primitive_base import TransformPrimitive
 from pandas import DataFrame
 
+from automind.models.primitive import (
+    AggregationPrimitive,
+    DefaultAggregationPrimitive,
+    DefaultTransformPrimitive,
+    TransformPrimitive,
+)
 from automind.utils.logging import logger
 
 
 class PrimitiveDict(TypedDict):
-    agg: List[str]
-    transform: List[str]
+    agg: List[AggregationPrimitive]
+    transform: List[TransformPrimitive]
 
 
 class DataFusionModule:
@@ -32,10 +35,14 @@ class DataFusionModule:
 
         self.target_entity_name: Optional[str] = target_entity_name
         self.feature_matrix: Optional[DataFrame] = None
+
         self._relationships: List[Relationship] = []
         self._feature_defs: Optional[List] = None
 
-        self._primitives: PrimitiveDict = {"agg": [], "transform": []}
+        self._primitives: PrimitiveDict = {
+            "agg": DefaultAggregationPrimitive,
+            "transform": DefaultTransformPrimitive,
+        }
 
     def set_target(self, target_entity_name: str):
         self.target_entity_name = target_entity_name
@@ -67,6 +74,8 @@ class DataFusionModule:
                 self.feature_matrix, self._feature_defs = dfs(
                     entityset=self.entity_set,
                     target_dataframe_name=self.target_entity_name,
+                    agg_primitives=self._primitives["agg"],
+                    trans_primitives=self._primitives["transform"],
                 )
                 logger.info("apply dfs successfully!")
             except Exception:
@@ -77,3 +86,20 @@ class DataFusionModule:
             return
 
         logger.error("target entity must specific")
+
+    def get_deep_feature_dataframe(self):
+        return self.feature_matrix
+
+    def set_primitives(
+        self,
+        agg: List[AggregationPrimitive],
+        transform: List[TransformPrimitive],
+    ):
+        self._primitives.update({"transform": transform, "agg": agg})
+
+    @staticmethod
+    def get_default_primitives() -> PrimitiveDict:
+        return {
+            "transform": DefaultTransformPrimitive,
+            "agg": DefaultAggregationPrimitive,
+        }
