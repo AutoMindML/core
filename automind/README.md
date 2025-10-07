@@ -1,12 +1,15 @@
 # AutoMind Core Module
 
-## Feature
-
-- data preprocessing pipeline
-
 ## Note
 
-### How to add new DC or FE method?
+### Pyright: extra typings
+
+```py
+pyright --createstub featuretools
+pyright --createstub imblearn
+```
+
+### Add New DC/FE Method
 
 1. add new definition to model → preprocessing.py → class
    DataCleaningRecommendations/FeatureEngineeringRecommendations
