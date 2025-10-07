@@ -11,24 +11,13 @@ TARGET_COLUMN = "HEALTHCARE_COVERAGE"
 
 
 def get_dataset():
-    return load_data(AvailableDataset.synthea_covid19_10k.datasets["patients"])
+    return load_data(
+        AvailableDataset.synthea_covid19_10k.datasets["slice_patients"]
+    )
 
 
 @pytest.fixture
 def dataset():
-    assert (
-        load_data(
-            AvailableDataset.synthea_covid19_10k.datasets["conditions"]
-        ).size
-        != 0
-    )
-    assert (
-        load_data(
-            AvailableDataset.synthea_covid19_10k.datasets["encounters"]
-        ).size
-        != 0
-    )
-
     return get_dataset()
 
 

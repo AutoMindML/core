@@ -26,7 +26,7 @@ from automind.models.preprocessing import (
     DC,
     FE,
 )
-from automind.utils.logger import logger
+from automind.utils.logging import logger
 
 # -------------------- data cleaning --------------------
 
