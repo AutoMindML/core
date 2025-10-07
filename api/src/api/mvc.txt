@@ -1,11 +1,51 @@
-app/
-├── main.py
-├── models/               # ORM Model
-│   └── user_model.py
-├── schemas/              # Pydantic Data Validation（Request & Response）
-│   └── user_schema.py
-├── services/             # Business Logic Layer 
-│   └── user_service.py
-├── controllers/          # Router and Controller
-│   └── user_controller.py
-└── database.py           # Database Connection
+project/
+│
+├── app/
+│   ├── models/              # Model 層：資料與業務邏輯
+│   │   ├── user_model.py
+│   │   ├── product_model.py
+│   │   └── __init__.py
+│   │
+│   ├── views/               # View 層：輸出資料（API 回傳、HTML、模板）
+│   │   ├── user_view.py
+│   │   ├── product_view.py
+│   │   └── __init__.py
+│   │
+│   ├── controllers/         # Controller 層：控制流程、接收請求
+│   │   ├── user_controller.py
+│   │   ├── product_controller.py
+│   │   └── __init__.py
+│   │
+│   ├── services/            # (選用) 商業邏輯層，讓 Controller 保持乾淨
+│   │   ├── user_service.py
+│   │   └── product_service.py
+│   │
+│   ├── repositories/        # (選用) 資料存取層，封裝 DB 操作
+│   │   ├── user_repository.py
+│   │   └── product_repository.py
+│   │
+│   ├── schemas/             # (選用) 資料結構驗證（如 Pydantic）
+│   │   ├── user_schema.py
+│   │   └── product_schema.py
+│   │
+│   ├── routes/              # 路由註冊（將 Controller 綁定 URL）
+│   │   ├── user_route.py
+│   │   ├── product_route.py
+│   │   └── __init__.py
+│   │
+│   └── __init__.py
+│
+├── config/                  # 設定檔（DB、環境變數、Logging）
+│   ├── database.py
+│   ├── settings.py
+│   └── __init__.py
+│
+├── tests/                   # 單元測試與整合測試
+│   ├── test_user.py
+│   ├── test_product.py
+│   └── __init__.py
+│
+├── main.py                  # 程式進入點（啟動應用）
+├── requirements.txt         # 套件需求
+└── README.md
+
