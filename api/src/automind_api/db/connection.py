@@ -8,10 +8,10 @@ from sqlalchemy.engine import Engine
 
 
 def get_mindsdb_ml_engine_upload_url():
-    f = open(f"{Path(__file__).parent.parent.parent.absolute()}/config.json")
+    f = open(f"{Path().absolute()}/src/automind_api/configs/server.json")
     json_file = json.load(f)
     f.close()
-    config = json_file["servert"]["mindsdb"]
+    config = json_file["mindsdb"]
     host = config["host"]
     port = config["port"]
 
@@ -19,11 +19,11 @@ def get_mindsdb_ml_engine_upload_url():
 
 
 def create_mssql_engine() -> Engine:
-    f = open(f"{Path(__file__).parent.parent.parent.absolute()}/config.json")
+    f = open(f"{Path().absolute()}/src/automind_api/configs/server.json")
     json_file = json.load(f)
     f.close()
 
-    config = json_file["server"]["systemdb"]
+    config = json_file["systemdb"]
     driver = config["driver"]
     user = config["user"]
     password = config["password"]
@@ -39,10 +39,10 @@ def create_mssql_engine() -> Engine:
 
 
 def connect_mindsdb_server() -> Server:
-    f = open(f"{Path(__file__).parent.parent.parent.absolute()}/config.json")
+    f = open(f"{Path().absolute()}/src/automind_api/configs/server.json")
     json_file = json.load(f)
     f.close()
-    config = json_file["server"]["mindsdb"]
+    config = json_file["mindsdb"]
     host = config["host"]
     port = config["port"]
     mindsdb_server = mindsdb_sdk.connect(f"http://{host}:{port}")

@@ -5,7 +5,7 @@ from fastapi import Header
 from sqlalchemy import sql
 from sqlalchemy.exc import DBAPIError
 
-from ...db.connection import create_mssql_engine
+from automind_api.db.connection import create_mssql_engine
 
 
 async def verify_member_id(mid: Annotated[int, Header()]):

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import ORJSONResponse
 from pydantic import BaseModel, ConfigDict
 
-from ...db.connection import connect_mindsdb_server, create_mssql_engine
+from automind_api.db.connection import connect_mindsdb_server, create_mssql_engine
 
 router = APIRouter()
 

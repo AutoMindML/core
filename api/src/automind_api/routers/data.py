@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.exc import DBAPIError
 
-from ...db.connection import connect_mindsdb_server, create_mssql_engine
+from automind_api.db.connection import connect_mindsdb_server, create_mssql_engine
 from .utils import verify_member_id
 
 router = APIRouter()

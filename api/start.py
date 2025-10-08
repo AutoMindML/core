@@ -1,6 +1,6 @@
 import asyncio
 
-from automind.console import read_output, rich_console
+from automind.utils.console import rc, read_output
 from dotenv import dotenv_values, load_dotenv
 
 load_dotenv()
@@ -12,7 +12,7 @@ api_args = [
     "run",
     "-m",
     "uvicorn",
-    "src.api.main:app",
+    "src.automind_api.main:app",
     # "--reload",
     "--host",
     "127.0.0.1",
@@ -21,10 +21,16 @@ api_args = [
 ]
 
 mindsdb_python = "../../mindsdb/.venv/Scripts/python.exe"
-mindsdb_args = ["-m", "mindsdb", "--config", "mindsdb-config.json", "--no_studio"]
+mindsdb_args = [
+    "-m",
+    "mindsdb",
+    "--config",
+    "./src/automind_api/configs/mindsdb.json",
+    "--no_studio",
+]
 
-api_name = "API"
-mindsdb_name = "MINDSDB"
+api_name = "AutoMind Core"
+mindsdb_name = "MindsDB"
 
 
 async def run_api():
@@ -35,7 +41,9 @@ async def run_api():
         stderr=asyncio.subprocess.STDOUT,
     )
 
-    io = asyncio.create_task(read_output(process.stdout, api_name), name=api_name)
+    io = asyncio.create_task(
+        read_output(process.stdout, api_name, "bold red"), name=api_name
+    )
 
     try:
         await process.wait()
@@ -53,7 +61,8 @@ async def run_mindsdb():
     )
 
     io = asyncio.create_task(
-        read_output(process.stdout, mindsdb_name, "bold cyan"), name=mindsdb_name
+        read_output(process.stdout, mindsdb_name, "bold cyan"),
+        name=mindsdb_name,
     )
 
     try:
@@ -72,16 +81,16 @@ async def main():
     except asyncio.CancelledError:
         pass
     finally:
-        rich_console.print("Terminating subprocesses...")
+        rc.print("Terminating subprocesses...")
 
         api_process.close()
         mindsdb_process.close()
 
-        rich_console.print("All subprocesses terminated.")
+        rc.print("All subprocesses terminated.")
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        rich_console.print("Received KeyboardInterrupt.")
+        rc.print("Received KeyboardInterrupt.")

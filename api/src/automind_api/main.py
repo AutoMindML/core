@@ -4,7 +4,7 @@ import requests
 import sqlalchemy as sql
 from fastapi import FastAPI
 
-from ..db.connection import connect_mindsdb_server, create_mssql_engine
+from .db.connection import connect_mindsdb_server, create_mssql_engine
 from .routers.app import router as app_router
 from .routers.data import router as data_router
 from .routers.model import router as model_router

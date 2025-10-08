@@ -76,7 +76,11 @@ class TestAPI(unittest.TestCase):
     def test_02_add_project(self):
         res = requests.post(
             self.api_url + "/api/project",
-            json={"mid": self.member_id, "name": "test: project", "des": "project"},
+            json={
+                "mid": self.member_id,
+                "name": "test: project",
+                "des": "project",
+            },
         )
 
         self.assertEqual(res.status_code, 200)

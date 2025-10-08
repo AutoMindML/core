@@ -1,39 +1,67 @@
 [project]
 name = "automind-api"
 version = "0.1.0"
-description = "open-source automl service"
+description = "automl service"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  # === Math === #
+  # -------------------- math --------------------
   "pandas",
   "numpy",
 
 
-  # === Database === #
+  # -------------------- database --------------------
   "sqlalchemy",
   "mindsdb_sdk",
   "sly",
 
-  # === Console === #
+  # -------------------- console --------------------
   "wcwidth",
   "rich",
   "tqdm",
 
-  # === Driver === #
+  # -------------------- driver --------------------
   "pyodbc",
   "pymysql",
 
 
-  # === API === #
+  # -------------------- api --------------------
   "fastapi[standard]",
   "fastapi_utils",
   "python-multipart",
   "orjson",
 
-  # === AutoML Pipeline === #
+  # -------------------- automind core --------------------
   "automind",
+
+  # -------------------- type stubs --------------------
+  "pandas-stubs",
+  "scipy-stubs",
+  "microsoft-python-type-stubs@git+https://github.com/microsoft/python-type-stubs.git",
 ]
+
+
+[build-system]
+requires = ["setuptools"]
+
+# define package entry
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# more setting refer to: https://microsoft.github.io/pyright/#/configuration?id=sample-pyprojecttoml-file
+[tool.pyright]
+reportMissingTypeStubs = false
+useLibraryCodeForTypes = false
+extraPaths = ["typings"]
+# reportUnusedVariable = false
+# typeCheckingMode = "basic"
+
+[tool.ruff.lint]
+ignore = ["F403", "E402"]
+
+[tool.ruff]
+line-length = 80
+exclude = ["**/__init__.py"]
 
 [tool.uv.sources]
 automind = { path = "../automind/", editable = true }
