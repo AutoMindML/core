@@ -36,7 +36,7 @@ dependencies = [
 
   # -------------------- type stubs --------------------
   "pandas-stubs",
-  "scipy-stubs",
+  # "scipy-stubs",
   "microsoft-python-type-stubs@git+https://github.com/microsoft/python-type-stubs.git",
 ]
 

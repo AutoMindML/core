@@ -13,7 +13,7 @@ SPINNER_SYMBOLS = re.compile(r"[\u2800-\u28FF]")
 
 def print_format_output(name, content, color="bold red"):
     content = ANSI_ESCAPE.sub("", content)
-    rc.print(f"[{color}][{name}][/{color}] -> {content}")
+    rc.print(f"[{color}]\\[{name}][/{color}] -> {content}")
     rc.file.flush()
 
 
@@ -21,7 +21,10 @@ def apply_color(content: str, color: str = "bold red"):
     return f"[{color}]{content}[/{color}]"
 
 
-async def read_output(stream: StreamReader, name, color=None):
+async def read_output(stream: StreamReader | None, name, color=None):
+    if stream is None:
+        return
+
     while not stream.at_eof():
         line = await stream.readline()
 
@@ -35,7 +38,7 @@ async def read_output(stream: StreamReader, name, color=None):
         except UnicodeDecodeError:
             decoded_line = line.decode("big5").strip()
 
-        if color:
+        if color is not None:
             print_format_output(name, decoded_line, color)
         else:
             print_format_output(name, decoded_line)
