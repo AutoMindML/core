@@ -1,4 +1,4 @@
-tests/**/llm_query.txt
-tests/**/*.png
+**/tests/**/llm_query.txt
+**/tests/**/*.png
 **/*.csv
 **/typings
