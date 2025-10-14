@@ -29,18 +29,6 @@ if __name__ == "__main__":
     dataset = get_dataset()
     target_column = TARGET_COLUMN
 
-    dataset = dataset[
-        [
-            "HEALTHCARE_COVERAGE",
-            "SSN",
-            "PREFIX",
-            "FIRST",
-            "GENDER",
-            "HEALTHCARE_EXPENSES",
-            "ZIP",
-        ]
-    ]
-
     applier = LogicApplier(dataset, target_column, llm_response)
     applier.apply_llm_recommendations()
 
