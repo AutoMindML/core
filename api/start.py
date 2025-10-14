@@ -1,14 +1,9 @@
 import asyncio
 
 from automind.utils.console import rc, read_output
-from dotenv import dotenv_values, load_dotenv
-
-load_dotenv()
-
-env = dotenv_values()
-
 
 api_args = [
+    "uv",
     "run",
     "-m",
     "uvicorn",
@@ -22,6 +17,7 @@ api_args = [
 
 mindsdb_python = "../../mindsdb/.venv/Scripts/python.exe"
 mindsdb_args = [
+    mindsdb_python,
     "-m",
     "mindsdb",
     "--config",
@@ -35,7 +31,6 @@ mindsdb_name = "MindsDB"
 
 async def run_api():
     process = await asyncio.create_subprocess_exec(
-        "uv",
         *api_args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
@@ -54,7 +49,6 @@ async def run_api():
 
 async def run_mindsdb():
     process = await asyncio.create_subprocess_exec(
-        mindsdb_python,
         *mindsdb_args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
