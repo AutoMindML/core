@@ -166,19 +166,21 @@ SELECT
 	toData.OID2 AS data_source_id,
 	(
 		SELECT
-			md5
+			EName
 		FROM
-			vd_Data_Source
+			[Object]
 		WHERE
-			oid = toData.OID2
+			OID = toData.OID2
 	) AS data_source_md5,
 	(
-		SELECT
-			source_type
-		FROM
-			vd_Data_Source
-		WHERE
-			oid = toData.OID2
+		select dbo.fn_get_data_source_type ((
+			SELECT
+				[Type]
+			FROM
+				[Object]
+			WHERE
+				OID = toData.OID2
+		))
 	) AS data_source_type,
 	toEngine.OID2 AS engine_id,
 	(

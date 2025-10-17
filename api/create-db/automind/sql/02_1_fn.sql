@@ -56,3 +56,19 @@ RETURN @cid END;
 
 
 GO
+
+create or alter function dbo.fn_get_data_source_type(@type as int) 
+returns nvarchar(100)
+as
+begin
+	declare @data_type nvarchar(100);
+	select @data_type = EName
+	from Entity 
+	where EName like 'data:%' and EID = @type
+
+	select @data_type = (select value from string_split(@data_type, ':', 1) where ordinal = 2)
+
+	return @data_type
+end
+
+GO

@@ -21,9 +21,9 @@ class HeaderSessionMiddleware(BaseHTTPMiddleware):
         self.header_name = header_name
 
     async def dispatch(self, request: Request, call_next):
-        if request.url._url in fastapi_urls:
-            request.state.user_id = 0
-            request.state.session_id = 0
+        if (request.url._url in fastapi_urls) or (config["env"] == "test"):
+            request.state.user_id = 1
+            request.state.session_id = 1
             response = await call_next(request)
             return response
 

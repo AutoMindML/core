@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-import mindsdb_sdk
+from mindsdb_sdk.connect import connect
 from mindsdb_sdk.server import Server
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
@@ -45,6 +45,6 @@ def connect_mindsdb_server() -> Server:
     config = json_file["mindsdb"]
     host = config["host"]
     port = config["port"]
-    mindsdb_server = mindsdb_sdk.connect(f"http://{host}:{port}")
+    mindsdb_server = connect(f"http://{host}:{port}")
 
     return mindsdb_server

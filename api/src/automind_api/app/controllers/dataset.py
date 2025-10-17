@@ -31,15 +31,13 @@ dataset_router = APIRouter()
 
 @dataset_router.post("/file")
 async def add_data_source_file(
-    name: Annotated[str, Form()],
-    des: Annotated[str, Form()],
-    file: Annotated[UploadFile, File()],
     req: Request,
+    name: Annotated[str, Form()],
+    file: Annotated[UploadFile, File()],
+    des: Annotated[str, Form()] = "",
 ):
     user_id = req.state.user_id
-
     mssql_engine = create_mssql_engine()
-
     new_id = None
     file_content = await file.read()
 
@@ -139,9 +137,9 @@ class DeleteDataSouce(BaseModel):
     oid: int
 
 
-@dataset_router.delete("/")
+@dataset_router.delete("/{dataset_id}")
 def delete_data_source(
-    body: DeleteDataSouce,
+    dataset_id: int,
     req: Request,
     res: Response,
 ):
@@ -157,8 +155,7 @@ def delete_data_source(
                 """
             )
 
-            params = body.model_dump()
-            params["mid"] = user_id
+            params = {"mid": user_id, "oid": dataset_id}
 
             connection.execute(query, params)
 

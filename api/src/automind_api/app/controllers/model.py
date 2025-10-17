@@ -189,25 +189,28 @@ def add_model(
         engine_md5 = model_object[1]
         data_source_type = model_object[2]
 
-        if data_source_type == "file":
-            select_data_query = f"""
-                select * from {data_source_md5}
-            """
-            project.create_model(
-                model_name,
-                body.predict,
-                engine_md5,
-                select_data_query,
-                "files",
-            )
-        else:
-            project.create_model(
-                model_name,
-                body.predict,
-                engine_md5,
-                body.select_data_query,
-                data_source_md5,
-            )
+        try:
+            if data_source_type == "file":
+                select_data_query = f"""
+                    select * from {data_source_md5}
+                """
+                project.create_model(
+                    model_name,
+                    body.predict,
+                    engine_md5,
+                    select_data_query,
+                    "files",
+                )
+            else:
+                project.create_model(
+                    model_name,
+                    body.predict,
+                    engine_md5,
+                    body.select_data_query,
+                    data_source_md5,
+                )
+        except Exception:
+            pass
 
         if model_name in [model.name for model in project.list_models()]:
             model = project.get_model(model_name)
