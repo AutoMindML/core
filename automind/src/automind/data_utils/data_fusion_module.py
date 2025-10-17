@@ -13,8 +13,6 @@ from automind.models.primitive import (
 )
 from automind.utils.logging import logger
 
-__all__ = ["DataFusionModule"]
-
 
 class PrimitiveDict(TypedDict):
     agg: List[AggregationPrimitive]
