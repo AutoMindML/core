@@ -2,6 +2,10 @@ import asyncio
 
 from automind.utils.console import rc, read_output
 
+from automind_api.configs import get_config
+
+config = get_config("api")
+
 api_args = [
     "uv",
     "run",
@@ -10,9 +14,9 @@ api_args = [
     "src.automind_api.main:app",
     # "--reload",
     "--host",
-    "127.0.0.1",
+    config["host"],
     "--port",
-    "8080",
+    config["port"],
 ]
 
 mindsdb_python = "../../mindsdb/.venv/Scripts/python.exe"

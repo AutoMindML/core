@@ -1,36 +1,31 @@
-from typing import Annotated
-
 import sqlalchemy as sql
 from fastapi import (
     APIRouter,
-    Depends,
+    Request,
     Response,
     status,
 )
-from pydantic import BaseModel
 from sqlalchemy.exc import DBAPIError
 
-from automind_api.db.connection import connect_mindsdb_server, create_mssql_engine
-from .utils import verify_member_id
+from automind_api.app.models.project import (
+    ProjectAddRequest,
+    ProjectDeleteRequest,
+)
+from automind_api.db.connection import (
+    connect_mindsdb_server,
+    create_mssql_engine,
+)
 
-router = APIRouter()
+project_router = APIRouter()
 
 
-class ProjectAddRequest(BaseModel):
-    name: str
-    des: str
-
-
-@router.post("/project")
+@project_router.post("/")
 def add_project(
-    req: ProjectAddRequest,
+    body: ProjectAddRequest,
     res: Response,
-    mid: Annotated[int | None, Depends(verify_member_id)] = None,
+    req: Request,
 ):
-    if mid is None:
-        res.status_code = status.HTTP_401_UNAUTHORIZED
-        return {"message": "session not found."}
-
+    user_id = req.state.user_id
     mssql_engine = create_mssql_engine()
 
     new_id = None
@@ -46,8 +41,8 @@ def add_project(
             """
             )
 
-            params = req.model_dump()
-            params["mid"] = mid
+            params = body.model_dump()
+            params["mid"] = user_id
 
             new_id = connection.execute(query, params).scalar()
 
@@ -69,20 +64,13 @@ def add_project(
     return {"newId": str(new_id)}
 
 
-class ProjectDeleteRequest(BaseModel):
-    cid: int
-
-
-@router.delete("/project")
+@project_router.delete("/")
 def delete_project(
-    req: ProjectDeleteRequest,
+    body: ProjectDeleteRequest,
+    req: Request,
     res: Response,
-    mid: Annotated[int | None, Depends(verify_member_id)] = None,
 ):
-    if mid is None:
-        res.status_code = status.HTTP_401_UNAUTHORIZED
-        return {"message": "session not found."}
-
+    user_id = req.state.user_id
     mssql_engine = create_mssql_engine()
 
     with mssql_engine.begin() as connection:
@@ -93,13 +81,13 @@ def delete_project(
                 """
             )
 
-            params = req.model_dump()
-            params["mid"] = mid
+            params = body.model_dump()
+            params["mid"] = user_id
 
             connection.execute(query, params)
 
             if status == 0:
-                project_name = f"project_{req.cid}"
+                project_name = f"project_{body.cid}"
 
                 mindsdb_server = connect_mindsdb_server()
 

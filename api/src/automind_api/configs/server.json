@@ -12,5 +12,9 @@
     "user": "mindsdb",
     "host": "10.21.20.205",
     "port": "47334"
+  },
+  "api": {
+    "host": "localhost",
+    "port": "8080"
   }
 }

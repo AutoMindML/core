@@ -1,32 +1,42 @@
 import json
 import tempfile
 from io import StringIO
-from typing import Annotated, Dict
+from typing import Annotated
 
 import pandas as pd
 import sqlalchemy as sql
-from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.exc import DBAPIError
 
-from automind_api.db.connection import connect_mindsdb_server, create_mssql_engine
-from .utils import verify_member_id
+from automind_api.app.models.dataset import AddDatabaseModel
+from automind_api.app.services.user import verify_user
+from automind_api.db.connection import (
+    connect_mindsdb_server,
+    create_mssql_engine,
+)
 
-router = APIRouter()
+dataset_router = APIRouter()
 
 
-@router.post("/file")
+@dataset_router.post("/file")
 async def add_data_source_file(
     name: Annotated[str, Form()],
     des: Annotated[str, Form()],
     file: Annotated[UploadFile, File()],
-    res: Response,
-    mid: Annotated[int | None, Depends(verify_member_id)] = None,
+    req: Request,
 ):
-    if mid is None:
-        res.status_code = status.HTTP_401_UNAUTHORIZED
-        return {"message": "session not found."}
+    user_id = req.state.user_id
 
     mssql_engine = create_mssql_engine()
 
@@ -34,10 +44,10 @@ async def add_data_source_file(
     file_content = await file.read()
 
     df = pd.read_csv(StringIO(file_content.decode()))
-    df.to_sql(f"{mid}_{name}", mssql_engine, "dbo", "replace")
+    df.to_sql(f"{user_id}_{name}", mssql_engine, "dbo", "replace")
 
     with mssql_engine.begin() as connection:
-        params = {"mid": mid, "name": name, "des": des}
+        params = {"mid": user_id, "name": name, "des": des}
         query = sql.text(
             """
             set nocount on;
@@ -72,20 +82,13 @@ async def add_data_source_file(
     }
 
 
-class AddDatabaseRequest(BaseModel):
-    name: str
-    des: str
-    engine: str
-    connection_args: Dict[str, str | int]
-
-
-@router.post("/database")
+@dataset_router.post("/database")
 def add_data_source_database(
-    req: AddDatabaseRequest,
+    req: AddDatabaseModel,
     res: Response,
-    mid: Annotated[int | None, Depends(verify_member_id)] = None,
+    user_id: Annotated[int | None, Depends(verify_user)],
 ):
-    if mid is None:
+    if user_id is None:
         res.status_code = status.HTTP_401_UNAUTHORIZED
         return {"message": "session not found."}
 
@@ -94,7 +97,7 @@ def add_data_source_database(
     with mssql_engine.begin() as connection:
         params = req.model_dump()
         params["connection_args"] = json.dumps(params["connection_args"])
-        params["mid"] = mid
+        params["mid"] = user_id
 
         query = sql.text(
             """
@@ -136,15 +139,13 @@ class DeleteDataSouce(BaseModel):
     oid: int
 
 
-@router.delete("/")
+@dataset_router.delete("/")
 def delete_data_source(
-    req: DeleteDataSouce,
+    body: DeleteDataSouce,
+    req: Request,
     res: Response,
-    mid: Annotated[int | None, Depends(verify_member_id)] = None,
 ):
-    if mid is None:
-        res.status_code = status.HTTP_401_UNAUTHORIZED
-        return {"message": "session not found."}
+    user_id = req.state.user_id
 
     mssql_engine = create_mssql_engine()
 
@@ -156,8 +157,8 @@ def delete_data_source(
                 """
             )
 
-            params = req.model_dump()
-            params["mid"] = mid
+            params = body.model_dump()
+            params["mid"] = user_id
 
             connection.execute(query, params)
 
@@ -171,15 +172,13 @@ def delete_data_source(
             return {"message": e._sql_message()}
 
 
-@router.get("/")
+@dataset_router.get("/")
 def get_data_source_file(
     oid: int,
+    req: Request,
     res: Response,
-    mid: Annotated[int | None, Depends(verify_member_id)] = None,
 ):
-    if mid is None:
-        res.status_code = status.HTTP_401_UNAUTHORIZED
-        return {"message": "session not found."}
+    user_id = req.state.user_id
 
     mssql_engine = create_mssql_engine()
     mindsdb_server = connect_mindsdb_server()
@@ -192,7 +191,9 @@ def get_data_source_file(
             """
         )
 
-        data_source = connection.execute(query, {"mid": mid, "oid": oid}).fetchone()
+        data_source = connection.execute(
+            query, {"mid": user_id, "oid": oid}
+        ).fetchone()
 
         if data_source is None:
             res.status_code = status.HTTP_404_NOT_FOUND

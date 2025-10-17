@@ -4,16 +4,19 @@ import requests
 import sqlalchemy as sql
 from fastapi import FastAPI
 
-from .db.connection import connect_mindsdb_server, create_mssql_engine
-from .routers.app import router as app_router
-from .routers.data import router as data_router
-from .routers.model import router as model_router
-from .routers.project import router as project_router
-from .routers.service import router as service_router
+from automind_api.app.controllers.app import app_router
+from automind_api.app.controllers.dataset import dataset_router
+from automind_api.app.controllers.model import model_router
+from automind_api.app.controllers.project import project_router
+from automind_api.app.models.middleware import HeaderSessionMiddleware
+from automind_api.db.connection import (
+    connect_mindsdb_server,
+    create_mssql_engine,
+)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_: FastAPI):
     try:
         mssql_engine = create_mssql_engine()
         with mssql_engine.begin() as connection:
@@ -31,8 +34,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-app.include_router(project_router, prefix="/api")
-app.include_router(data_router, prefix="/api/data")
-app.include_router(model_router, prefix="/api/model")
+app.add_middleware(HeaderSessionMiddleware)
+app.include_router(dataset_router, prefix="/api/dataset")
+app.include_router(project_router, prefix="/api/project")
+app.include_router(model_router, prefix="/api/automl/model")
 app.include_router(app_router, prefix="/api/app")
-app.include_router(service_router, prefix="/api/service")

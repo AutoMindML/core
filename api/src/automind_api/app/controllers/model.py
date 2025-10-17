@@ -1,30 +1,30 @@
 from time import sleep
-from typing import Annotated
 
 import pandas as pd
 import sqlalchemy as sql
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
+from fastapi.responses import JSONResponse, ORJSONResponse
 from sqlalchemy.exc import DBAPIError
 from starlette.status import HTTP_404_NOT_FOUND
 
-from automind_api.db.connection import connect_mindsdb_server, create_mssql_engine
-from .utils import verify_member_id
+from automind_api.app.models.model import (
+    ModelAddRequest,
+    ModelDeleteRequest,
+    ModelPredictionBody,
+)
+from automind_api.db.connection import (
+    connect_mindsdb_server,
+    create_mssql_engine,
+)
 
-router = APIRouter()
-
-
-class ModelAddRequest(BaseModel):
-    cid: int
-    data_oid: int
-    engine_oid: int
-    name: str
-    des: str
-    predict: str
-    tag: str
-    select_data_query: str
-    training_options: str
+model_router = APIRouter()
 
 
 def update_model(project_id: int, model_id: int):
@@ -34,7 +34,9 @@ def update_model(project_id: int, model_id: int):
     project_name = f"project_{project_id}"
     model_name = f"model_{model_id}"
 
-    if project_name in [project.name for project in mindsdb_server.list_projects()]:
+    if project_name in [
+        project.name for project in mindsdb_server.list_projects()
+    ]:
         project = mindsdb_server.get_project(project_name)
 
         if model_name in [model.name for model in project.list_models()]:
@@ -95,7 +97,9 @@ def update_model(project_id: int, model_id: int):
                         model_inputs = model_info.get("inputs")
                         model_outputs = model_info.get("outputs")
 
-                        if (model_inputs is not None) and (model_outputs is not None):
+                        if (model_inputs is not None) and (
+                            model_outputs is not None
+                        ):
                             params = {
                                 "model_id": model_id,
                                 "input": str(",".join(model_inputs[0])),
@@ -117,19 +121,15 @@ def update_model(project_id: int, model_id: int):
                 sleep(5)
 
 
-@router.post("/")
+@model_router.post("/train")
 def add_model(
-    req: ModelAddRequest,
+    body: ModelAddRequest,
     background_tasks: BackgroundTasks,
+    req: Request,
     res: Response,
-    mid: Annotated[int | None, Depends(verify_member_id)] = None,
 ):
-    if mid is None:
-        res.status_code = status.HTTP_401_UNAUTHORIZED
-        return {"message": "session not found."}
-
+    user_id = req.state.user_id
     mssql_engine = create_mssql_engine()
-
     new_id = None
 
     with mssql_engine.begin() as connection:
@@ -149,8 +149,8 @@ def add_model(
         """
         )
 
-        params = req.model_dump()
-        params["mid"] = mid
+        params = body.model_dump()
+        params["mid"] = user_id
 
         new_id = connection.execute(query, params).scalar()
 
@@ -159,7 +159,7 @@ def add_model(
 
         mindsdb_server = connect_mindsdb_server()
 
-        project_name = f"project_{req.cid}"
+        project_name = f"project_{body.cid}"
 
         if project_name not in [
             project.name for project in mindsdb_server.list_projects()
@@ -195,7 +195,7 @@ def add_model(
             """
             project.create_model(
                 model_name,
-                req.predict,
+                body.predict,
                 engine_md5,
                 select_data_query,
                 "files",
@@ -203,9 +203,9 @@ def add_model(
         else:
             project.create_model(
                 model_name,
-                req.predict,
+                body.predict,
                 engine_md5,
-                req.select_data_query,
+                body.select_data_query,
                 data_source_md5,
             )
 
@@ -229,7 +229,7 @@ def add_model(
 
                 connection.execute(query, params)
 
-        background_tasks.add_task(update_model, req.cid, new_id)
+        background_tasks.add_task(update_model, body.cid, new_id)
 
     return {
         "status": 0,
@@ -238,24 +238,13 @@ def add_model(
     }
 
 
-class ModelDeleteRequest(BaseModel):
-    model_config = ConfigDict(protected_namespaces=())
-    project_id: int
-    model_id: int
-
-    model_config = ConfigDict(protected_namespaces=())
-
-
-@router.delete("/")
+@model_router.delete("/")
 def delete_model(
-    req: ModelDeleteRequest,
+    body: ModelDeleteRequest,
+    req: Request,
     res: Response,
-    mid: Annotated[int | None, Depends(verify_member_id)] = None,
 ):
-    if mid is None:
-        res.status_code = status.HTTP_401_UNAUTHORIZED
-        return {"message": "session not found."}
-
+    user_id = req.state.user_id
     mssql_engine = create_mssql_engine()
 
     with mssql_engine.begin() as connection:
@@ -268,13 +257,13 @@ def delete_model(
                 """
             )
 
-            params = req.model_dump()
-            params["mid"] = mid
+            params = body.model_dump()
+            params["mid"] = user_id
 
             connection.execute(query, params)
 
             if status == 0:
-                project_name = f"project_{req.project_id}"
+                project_name = f"project_{body.project_id}"
 
                 mindsdb_server = connect_mindsdb_server()
 
@@ -282,9 +271,11 @@ def delete_model(
                     project.name for project in mindsdb_server.list_projects()
                 ]:
                     project = mindsdb_server.get_project(project_name)
-                    model_name = f"model_{req.model_id}"
+                    model_name = f"model_{body.model_id}"
 
-                    if model_name in [model.name for model in project.list_models()]:
+                    if model_name in [
+                        model.name for model in project.list_models()
+                    ]:
                         project.drop_model(model_name)
 
             res.status_code = status.HTTP_200_OK
@@ -295,3 +286,75 @@ def delete_model(
             res.status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
 
             return {"message": e._sql_message()}
+
+
+@model_router.post("/predict")
+async def use_model(body: ModelPredictionBody, req: Request):
+    user_id = req.state.user_id
+    mssql_engine = create_mssql_engine()
+
+    if len(body.input_features) == 0:
+        return ORJSONResponse([])
+
+    with mssql_engine.begin() as connection:
+        params = {"model_id": body.model_id, "mid": user_id}
+        query = sql.text(
+            """
+            select project_id, model_id, input_features, output_features
+            from [dbo].[vd_Model] where model_id = :model_id and owner_mid = :mid;
+            """
+        )
+
+        models = [
+            (sequence[0], sequence[1], sequence[2], sequence[3])
+            for sequence in connection.execute(query, params).fetchall()
+        ]
+
+        input_features = str(models[0][2]).split(",")
+        output_features = str(models[0][3]).split(",")
+
+        project_id = models[0][0]
+        model_id = models[0][1]
+        project_name = f"project_{project_id}"
+        model_name = f"model_{model_id}"
+
+        mindsdb_server = connect_mindsdb_server()
+        project = mindsdb_server.get_project(project_name)
+        model = project.get_model(model_name)
+        model_status = model.get_status()
+
+        if model_status == "complete":
+            model_outputs = []
+            output_feature = output_features[0]
+
+            for req_input_features in body.input_features:
+                if isinstance(input_features, str) and set(
+                    req_input_features
+                ) != set(input_features):
+                    raise HTTPException(
+                        400,
+                        "Input features not correct. Require ("
+                        + ", ".join(set(input_features))
+                        + ") features",
+                    )
+
+                predicted_result = pd.DataFrame(
+                    model.predict(req_input_features)
+                )
+                predicted_result = predicted_result.to_dict().get(
+                    output_feature
+                )
+
+                if predicted_result is not None:
+                    model_output = predicted_result.get(0)
+                    model_outputs.append({output_feature: model_output})
+                else:
+                    model_outputs.append({output_feature: None})
+
+            return ORJSONResponse(model_outputs)
+
+        else:
+            return {
+                "model_status": model_status,
+                "message": "model can't be used currently.",
+            }

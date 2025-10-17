@@ -1,25 +1,14 @@
 import hashlib
 import uuid
-from typing import Annotated
 
 import sqlalchemy as sql
-from fastapi import APIRouter, Depends, Response, status
-from pydantic import BaseModel, ConfigDict
+from fastapi import APIRouter, Request, Response, status
 from sqlalchemy.exc import DBAPIError
 
+from automind_api.app.models.app import AddAppBody, DeleteAppBody
 from automind_api.db.connection import create_mssql_engine
 
-from .utils import verify_member_id
-
-router = APIRouter()
-
-
-class AppPredictionAddRequest(BaseModel):
-    model_config = ConfigDict(protected_namespaces=())
-    project_id: int
-    model_id: int
-    name: str
-    des: str
+app_router = APIRouter()
 
 
 def generate_api_key(id):
@@ -28,16 +17,12 @@ def generate_api_key(id):
     return hashed_key
 
 
-@router.post("/prediction")
+@app_router.post("/")
 def add_app(
-    req: AppPredictionAddRequest,
-    res: Response,
-    mid: Annotated[int | None, Depends(verify_member_id)] = None,
+    body: AddAppBody,
+    req: Request,
 ):
-    if mid is None:
-        res.status_code = status.HTTP_401_UNAUTHORIZED
-        return {"message": "session not found."}
-
+    user_id = req.state.user_id
     mssql_engine = create_mssql_engine()
 
     with mssql_engine.begin() as connection:
@@ -55,8 +40,8 @@ def add_app(
         """
         )
 
-        params = req.model_dump()
-        params["mid"] = mid
+        params = body.model_dump()
+        params["mid"] = user_id
 
         new_id = connection.execute(query, params).scalar()
 
@@ -71,20 +56,13 @@ def add_app(
         return {"new_id": new_id, "api_key": api_key}
 
 
-class AppPredictionDeleteRequest(BaseModel):
-    app_id: int
-
-
-@router.delete("/prediction")
+@app_router.delete("/")
 def delete_app(
-    req: AppPredictionDeleteRequest,
+    body: DeleteAppBody,
+    req: Request,
     res: Response,
-    mid: Annotated[int | None, Depends(verify_member_id)] = None,
 ):
-    if mid is None:
-        res.status_code = status.HTTP_401_UNAUTHORIZED
-        return {"message": "session not found."}
-
+    user_id = req.state.user_id
     mssql_engine = create_mssql_engine()
 
     with mssql_engine.begin() as connection:
@@ -95,8 +73,8 @@ def delete_app(
                 """
             )
 
-            params = req.model_dump()
-            params["mid"] = mid
+            params = body.model_dump()
+            params["mid"] = user_id
 
             connection.execute(query, params)
 
