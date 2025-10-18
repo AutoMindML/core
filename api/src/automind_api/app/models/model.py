@@ -3,7 +3,7 @@ from typing import Dict
 from pydantic import BaseModel, ConfigDict
 
 
-class ModelAddRequest(BaseModel):
+class TrainModelBody(BaseModel):
     cid: int
     data_oid: int
     engine_oid: int

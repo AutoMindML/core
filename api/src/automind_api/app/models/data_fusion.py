@@ -1,9 +1,26 @@
-from typing import List
+from typing import List, TypedDict
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 
-class DataFusionBody(BaseModel):
-    model_config = ConfigDict(protected_namespaces=())
-    model_ids = List[str]
-    pass
+class InitDataFusion(BaseModel):
+    name: str
+    des: str
+
+
+class InitDataFusionDict(TypedDict):
+    user_id: int
+    name: str
+    des: str
+
+
+class CreateDataFusion(BaseModel):
+    target_id: int
+    dataset_ids: List[int]
+    relationships: List[List[str]]
+
+
+class CreateDataFusionDict(TypedDict):
+    target_id: int
+    dataset_ids: List[int]
+    relationships: List[List[str]]

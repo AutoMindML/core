@@ -7,7 +7,6 @@ import pandas as pd
 import sqlalchemy as sql
 from fastapi import (
     APIRouter,
-    Depends,
     File,
     Form,
     Request,
@@ -16,11 +15,10 @@ from fastapi import (
     status,
 )
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
 from sqlalchemy.exc import DBAPIError
 
-from automind_api.app.models.dataset import AddDatabaseModel
-from automind_api.app.services.user import verify_user
+from automind_api.app.models.dataset import AddDatabaseBody, DatasetType
+from automind_api.app.repositories.dataset import get_dataset
 from automind_api.db.connection import (
     connect_mindsdb_server,
     create_mssql_engine,
@@ -82,18 +80,15 @@ async def add_data_source_file(
 
 @dataset_router.post("/database")
 def add_data_source_database(
-    req: AddDatabaseModel,
+    req: Request,
     res: Response,
-    user_id: Annotated[int | None, Depends(verify_user)],
+    body: AddDatabaseBody,
 ):
-    if user_id is None:
-        res.status_code = status.HTTP_401_UNAUTHORIZED
-        return {"message": "session not found."}
-
+    user_id = req.state.user_id
     mssql_engine = create_mssql_engine()
 
     with mssql_engine.begin() as connection:
-        params = req.model_dump()
+        params = body.model_dump()
         params["connection_args"] = json.dumps(params["connection_args"])
         params["mid"] = user_id
 
@@ -125,16 +120,12 @@ def add_data_source_database(
             database.name for database in mindsdb_server.list_databases()
         ]:
             mindsdb_server.create_database(
-                engine=req.engine,
+                engine=body.engine,
                 name=str(MD5),
-                connection_args=req.connection_args,
+                connection_args=body.connection_args,
             )
 
-    return {"engine": req.engine, "md5": MD5, "new_id": new_id}
-
-
-class DeleteDataSouce(BaseModel):
-    oid: int
+    return {"engine": body.engine, "md5": MD5, "new_id": new_id}
 
 
 @dataset_router.delete("/{dataset_id}")
@@ -144,7 +135,6 @@ def delete_data_source(
     res: Response,
 ):
     user_id = req.state.user_id
-
     mssql_engine = create_mssql_engine()
 
     with mssql_engine.begin() as connection:
@@ -169,52 +159,42 @@ def delete_data_source(
             return {"message": e._sql_message()}
 
 
-@dataset_router.get("/")
-def get_data_source_file(
-    oid: int,
+@dataset_router.get("/{dataset_id}/preview/{rows}")
+def get_dataset_preview(
+    dataset_id: int,
+    rows: int,
     req: Request,
     res: Response,
+    dataset_type: DatasetType = "file",
 ):
     user_id = req.state.user_id
+    dataset = get_dataset(
+        dataset_id, user_id, dataset_type, rows if rows > 0 else -1
+    )
 
-    mssql_engine = create_mssql_engine()
-    mindsdb_server = connect_mindsdb_server()
-    file_db = mindsdb_server.get_database("files")
+    if dataset is None:
+        res.status_code = status.HTTP_404_NOT_FOUND
+        return {"message": "data source not exists"}
 
-    with mssql_engine.begin() as connection:
-        query = sql.text(
-            """
-            select md5, source_type from [dbo].[vd_Data_Source] where oid = :oid and owner_mid = :mid
-            """
-        )
+    temp_source_file = tempfile.NamedTemporaryFile(delete=False, mode="w")
 
-        data_source = connection.execute(
-            query, {"mid": user_id, "oid": oid}
-        ).fetchone()
+    try:
+        dataset["table"].to_csv(temp_source_file.name, index=False)
+        return FileResponse(temp_source_file.name)
+    finally:
+        temp_source_file.close()
+        res.status_code = status.HTTP_200_OK
 
-        if data_source is None:
-            res.status_code = status.HTTP_404_NOT_FOUND
-            return {"message": "data source is not exists."}
 
-        data_source = data_source._tuple()
-        md5 = data_source[0]
-        # source_type = data_source[1]
+@dataset_router.get("/{dataset_id}/columns")
+def get_dataset_columns(
+    dataset_id: int, req: Request, res: Response, dataset_type: DatasetType
+):
+    user_id = req.state.user_id
+    dataset = get_dataset(dataset_id, user_id, dataset_type, 1)
 
-        if md5 not in [table.name for table in file_db.list_tables()]:
-            res.status_code = status.HTTP_404_NOT_FOUND
-            return {
-                "message": "can't not found table from given md5 in mindsdb files.",
-            }
+    if dataset is None:
+        res.status_code = status.HTTP_404_NOT_FOUND
+        return {"message": "data source not exists"}
 
-        source = file_db.get_table(md5)
-        source_df = source.fetch()
-        source_df: pd.DataFrame = source_df.iloc[:20]
-
-        temp_source_file = tempfile.NamedTemporaryFile(delete=False, mode="w")
-
-        try:
-            source_df.to_csv(temp_source_file.name, index=False)
-            return FileResponse(temp_source_file.name)
-        finally:
-            temp_source_file.close()
-            res.status_code = status.HTTP_200_OK
+    return dataset["columns"]

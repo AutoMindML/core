@@ -15,9 +15,9 @@ from sqlalchemy.exc import DBAPIError
 from starlette.status import HTTP_404_NOT_FOUND
 
 from automind_api.app.models.model import (
-    ModelAddRequest,
     ModelDeleteRequest,
     ModelPredictionBody,
+    TrainModelBody,
 )
 from automind_api.db.connection import (
     connect_mindsdb_server,
@@ -122,8 +122,8 @@ def update_model(project_id: int, model_id: int):
 
 
 @model_router.post("/train")
-def add_model(
-    body: ModelAddRequest,
+def train_model(
+    body: TrainModelBody,
     background_tasks: BackgroundTasks,
     req: Request,
     res: Response,
@@ -292,7 +292,7 @@ def delete_model(
 
 
 @model_router.post("/predict")
-async def use_model(body: ModelPredictionBody, req: Request):
+async def model_prediction(body: ModelPredictionBody, req: Request):
     user_id = req.state.user_id
     mssql_engine = create_mssql_engine()
 
