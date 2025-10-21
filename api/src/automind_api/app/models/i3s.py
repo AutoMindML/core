@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import Optional, TypedDict
 
 
 class ObjectInfo(TypedDict):
@@ -8,3 +8,13 @@ class ObjectInfo(TypedDict):
 class ExecMutationSpOutput(TypedDict):
     state: int
     message: str
+    new_id: Optional[int]
+
+
+class GetViewCommonOpts(TypedDict):
+    limit: int
+
+
+class GetViewByIdOpts(TypedDict):
+    id: int
+    id_col_name: str

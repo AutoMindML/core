@@ -1,5 +1,4 @@
 import json
-import tempfile
 from io import StringIO
 from typing import Annotated
 
@@ -14,11 +13,18 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import FileResponse
-from sqlalchemy.exc import DBAPIError
 
-from automind_api.app.models.dataset import AddDatabaseBody, DatasetType
-from automind_api.app.repositories.dataset import get_dataset
+from automind_api.app.models.dataset import (
+    AddDatabaseBody,
+    DatasetType,
+    DeleteDatasetParameter,
+)
+from automind_api.app.repositories.dataset import (
+    dataset_to_mindsdb,
+    get_dataset,
+)
+from automind_api.app.repositories.i3s import exec_mutation_sp
+from automind_api.app.services.file import generate_file_response
 from automind_api.db.connection import (
     connect_mindsdb_server,
     create_mssql_engine,
@@ -30,6 +36,7 @@ dataset_router = APIRouter()
 @dataset_router.post("/file")
 async def add_data_source_file(
     req: Request,
+    res: Response,
     name: Annotated[str, Form()],
     file: Annotated[UploadFile, File()],
     des: Annotated[str, Form()] = "",
@@ -62,14 +69,13 @@ async def add_data_source_file(
             select EName from Object where OID = :oid
         """
         )
-        MD5 = connection.execute(query, params).scalar()
+        md5 = connection.execute(query, params).scalar()
 
-        mindsdb_server = connect_mindsdb_server()
+        if md5 is None:
+            res.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            return {"state": 1, "message": "error occur when add data source"}
 
-        files_db = mindsdb_server.get_database("files")
-
-        if str(MD5) not in [table.name for table in files_db.list_tables()]:
-            files_db.create_table(str(MD5), df, True)
+        dataset_to_mindsdb(df, md5)
 
     return {
         "filename": file.filename,
@@ -81,7 +87,6 @@ async def add_data_source_file(
 @dataset_router.post("/database")
 def add_data_source_database(
     req: Request,
-    res: Response,
     body: AddDatabaseBody,
 ):
     user_id = req.state.user_id
@@ -132,31 +137,13 @@ def add_data_source_database(
 def delete_data_source(
     dataset_id: int,
     req: Request,
-    res: Response,
 ):
-    user_id = req.state.user_id
-    mssql_engine = create_mssql_engine()
+    params: DeleteDatasetParameter = {
+        "user_id": req.state.user_id,
+        "dataset_id": dataset_id,
+    }
 
-    with mssql_engine.begin() as connection:
-        try:
-            query = sql.text(
-                """
-                exec [dbo].[xp_delete_data_source] @mid = :mid, @oid = :oid;
-                """
-            )
-
-            params = {"mid": user_id, "oid": dataset_id}
-
-            connection.execute(query, params)
-
-            res.status_code = status.HTTP_200_OK
-
-            return {"message": "delete data source successfully."}
-
-        except DBAPIError as e:
-            res.status_code = status.HTTP_403_FORBIDDEN
-
-            return {"message": e._sql_message()}
+    return exec_mutation_sp("[dbo].[xp_delete_data_source]", params)
 
 
 @dataset_router.get("/{dataset_id}/preview/{rows}")
@@ -176,14 +163,7 @@ def get_dataset_preview(
         res.status_code = status.HTTP_404_NOT_FOUND
         return {"message": "data source not exists"}
 
-    temp_source_file = tempfile.NamedTemporaryFile(delete=False, mode="w")
-
-    try:
-        dataset["table"].to_csv(temp_source_file.name, index=False)
-        return FileResponse(temp_source_file.name)
-    finally:
-        temp_source_file.close()
-        res.status_code = status.HTTP_200_OK
+    return generate_file_response(dataset["table"], res)
 
 
 @dataset_router.get("/{dataset_id}/columns")

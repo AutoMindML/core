@@ -226,6 +226,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "automind" },
+    { name = "azure-ai-language-conversations" },
     { name = "debugpy" },
     { name = "fastapi", extra = ["standard"] },
     { name = "fastapi-utils" },
@@ -248,6 +249,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "automind", editable = "../automind" },
+    { name = "azure-ai-language-conversations" },
     { name = "debugpy" },
     { name = "fastapi", extras = ["standard"] },
     { name = "fastapi-utils" },
@@ -265,6 +267,33 @@ requires-dist = [
     { name = "sqlalchemy" },
     { name = "tqdm" },
     { name = "wcwidth" },
+]
+
+[[package]]
+name = "azure-ai-language-conversations"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "azure-core" },
+    { name = "isodate" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bd/ce/f6f8b57a1dcde19465c395734ce9b9ac35f560e4383c9bbcee3011b475d7/azure-ai-language-conversations-1.1.0.zip", hash = "sha256:d3b996bd7134da32db8ade1d5371fac7143b968572ed4c0fa62768d7494b831f", size = 186242 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/63/cb/205b421614d23e90df92eb9aceae7584ff5ebbb9866589a01e8b9a78e444/azure_ai_language_conversations-1.1.0-py3-none-any.whl", hash = "sha256:b96797bbc46f8a03fd5807d225b765d474b67a271727ee2bd6387a450e383c2b", size = 121979 },
+]
+
+[[package]]
+name = "azure-core"
+version = "1.36.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0a/c4/d4ff3bc3ddf155156460bff340bbe9533f99fac54ddea165f35a8619f162/azure_core-1.36.0.tar.gz", hash = "sha256:22e5605e6d0bf1d229726af56d9e92bc37b6e726b141a18be0b4d424131741b7", size = 351139 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b1/3c/b90d5afc2e47c4a45f4bba00f9c3193b0417fad5ad3bb07869f9d12832aa/azure_core-1.36.0-py3-none-any.whl", hash = "sha256:fee9923a3a753e94a259563429f3644aaf05c486d45b1215d098115102d91d3b", size = 213302 },
 ]
 
 [[package]]
@@ -1053,6 +1082,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f2/97/ebf4da567aa6827c909642694d71c9fcf53e5b504f2d96afea02718862f3/iniconfig-2.1.0.tar.gz", hash = "sha256:3abbd2e30b36733fee78f9c7f7308f2d0050e88f0087fd25c2645f63c773e1c7", size = 4793 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2c/e1/e6716421ea10d38022b952c159d5161ca1193197fb744506875fbb87ea7b/iniconfig-2.1.0-py3-none-any.whl", hash = "sha256:9deba5723312380e77435581c6bf4935c94cbfab9b1ed33ef8d238ea168eb760", size = 6050 },
+]
+
+[[package]]
+name = "isodate"
+version = "0.7.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/54/4d/e940025e2ce31a8ce1202635910747e5a87cc3a6a6bb2d00973375014749/isodate-0.7.2.tar.gz", hash = "sha256:4cd1aa0f43ca76f4a6c6c0292a85f40b35ec2e43e315b59f06e6d32171a953e6", size = 29705 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/15/aa/0aca39a37d3c7eb941ba736ede56d689e7be91cab5d9ca846bde3999eba6/isodate-0.7.2-py3-none-any.whl", hash = "sha256:28009937d8031054830160fce6d409ed342816b543597cece116d966c6d99e15", size = 22320 },
 ]
 
 [[package]]

@@ -3,24 +3,37 @@ from typing import List, TypedDict
 from pydantic import BaseModel
 
 
-class InitDataFusion(BaseModel):
+class InitDataFusionBody(BaseModel):
     name: str
     des: str
 
 
-class InitDataFusionDict(TypedDict):
+class SaveDataFusionBody(BaseModel):
+    fusion_id: int
+    target_dataset_id: int
+    dataset_ids: List[str]
+    primary_keys: List[str]
+    relationships: List[str]
+
+
+class SaveDataFusion(TypedDict):
     user_id: int
-    name: str
-    des: str
+    fusion_id: int
+    target_dataset_id: int
+    dataset_ids: str
+    primary_keys: str
+    relationships: str
 
 
-class CreateDataFusion(BaseModel):
-    target_id: int
-    dataset_ids: List[int]
-    relationships: List[List[str]]
+class ViewDataFusion(TypedDict):
+    dataset_ids: str
+    relationships: str
+    primary_keys: str
+    fusion_id: int
+    target_dataset_id: int
 
 
-class CreateDataFusionDict(TypedDict):
-    target_id: int
-    dataset_ids: List[int]
-    relationships: List[List[str]]
+class MergeDataFusion(TypedDict):
+    fusion_id: int
+    user_id: int
+    md5: str

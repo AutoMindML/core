@@ -1,4 +1,4 @@
-USE [AutoML];
+﻿USE [AutoML];
 
 
 GO
@@ -76,7 +76,7 @@ EXEC sp_executesql @clear_query;
 
 DECLARE @data_source_cid int = (
 	SELECT
-		[dbo].[fn_get_member_data_source_cid] (2)
+		[dbo].[fn_get_member_data_source_cid] (@mid)
 );
 
 
@@ -200,68 +200,3 @@ end catch;
 
 
 GO
--------------------------------------------------------------------------------
--- SP: delete data source 																						    	  |
--------------------------------------------------------------------------------
-CREATE OR ALTER PROCEDURE
-	[dbo].[xp_delete_data_source] @mid int,
-	@oid int as begin try
-	--
-
-begin tran;
-
-DECLARE @data_source_cid int = [dbo].[fn_get_member_data_source_cid] (@mid);
-
-
-
-IF NOT EXISTS (
-	SELECT
-		*
-	FROM
-		[dbo].[vd_Data_Source]
-	WHERE
-		oid = @oid
-		AND used_status = 0
-		AND owner_mid = @mid
-) begin;
-	throw 50403, 'Forbidden, user doesn''t has permission of this source.', 1;
-end;
-
-
-
-
-DELETE FROM CO
-WHERE
-	CID = @data_source_cid
-	AND OID = @oid;
-
-
-IF NOT EXISTS (
-	SELECT
-		*
-	FROM
-		Data_Source
-	WHERE
-		DSID = @oid
-)
-DELETE FROM Object
-WHERE
-	OID = @oid;
-
-
-ELSE
-UPDATE Object
-SET
-	bDel = 1
-WHERE
-	OID = @oid;
-
-commit tran;
-
-end try
-begin catch
-	if @@TRANCOUNT > 0 rollback tran;
-	throw;
-end catch;
-
-go

@@ -17,13 +17,13 @@ def get_dataset(
     mindsdb_server = connect_mindsdb_server()
 
     match type:
-        case "file":
-            file_db = mindsdb_server.get_database("files")
+        case "file" | "fusion":
+            file_db = mindsdb_server.get_database("files")  # pyright: ignore[reportAttributeAccessIssue]
 
             with mssql_engine.begin() as connection:
                 query = sql.text(
                     """
-                    select md5 from [dbo].[vd_Data_Source] where oid = :oid and owner_mid = :mid and source_type = 'file'
+                    select md5 from [dbo].[vd_Data_Source] where oid = :oid and owner_mid = :mid and source_type in ('file', 'fusion')
                     """
                 )
 
@@ -50,3 +50,10 @@ def get_dataset(
                 }
         case _:
             return None
+
+
+def dataset_to_mindsdb(dataset: DataFrame, md5: str):
+    mindsdb_server = connect_mindsdb_server()
+    files_db = mindsdb_server.get_database("files")  # pyright: ignore[reportAttributeAccessIssue]
+    if md5 not in [table.name for table in files_db.list_tables()]:
+        files_db.create_table(md5, dataset, True)

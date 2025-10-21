@@ -39,6 +39,8 @@ dependencies = [
   # "scipy-stubs",
   "microsoft-python-type-stubs@git+https://github.com/microsoft/python-type-stubs.git",
 
+  # -------------------- other --------------------
+  "azure-ai-language-conversations",
   "debugpy",
 ]
 
