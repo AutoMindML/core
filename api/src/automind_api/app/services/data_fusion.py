@@ -1,10 +1,12 @@
 import json
 
 from automind.data_utils.data_fusion_module import DataFusionModule
+from fastapi import HTTPException, status
 
 from automind_api.app.models.data_fusion import (
     ViewDataFusion,
 )
+from automind_api.app.models.dataset import ViewDataSource
 from automind_api.app.repositories.dataset import get_dataset
 from automind_api.app.repositories.i3s import get_object_info, get_view_by_id
 
@@ -71,3 +73,19 @@ def create_data_fusion_module(
         )
 
     return dfm
+
+
+def verify_fusion_id(fusion_id: int):
+    view: ViewDataSource = get_view_by_id(
+        "[dbo].[vd_Data_Source]",
+        {"id": fusion_id, "id_col_name": "oid"},
+        ViewDataSource,
+    )
+
+    if view.get("source_type") == "fusion":
+        return fusion_id
+
+    raise HTTPException(
+        status.HTTP_400_BAD_REQUEST,
+        "this data is not for fusion task or data is not exists",
+    )

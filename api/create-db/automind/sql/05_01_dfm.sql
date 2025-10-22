@@ -15,7 +15,6 @@ create table dbo.DFM (
 	constraint FK_DFM_DID foreign key (DID) references [Object] (OID)
 );
 end;
-
 go
 
 create or alter procedure dbo.xp_init_dfm (
@@ -76,11 +75,11 @@ create or alter procedure dbo.xp_update_dfm (
 as begin try
 	begin tran;
 
-	if not exists (select * from [Object] where OwnerMID = @user_id and OID = @fusion_id)
+	if not exists (select * from [Object] where OwnerMID = @user_id and OID = @fusion_id and [Type] = 116)
 	begin
 		select
 			@state = 1,
-			@message = 'data fusion id not exists or user has no permission';
+			@message = 'data fusion id not exists | this data is not for fusion task | user has no permission';
 		commit tran;
 		return;
 	end

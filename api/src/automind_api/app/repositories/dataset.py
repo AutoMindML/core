@@ -3,7 +3,13 @@ from typing import Optional
 from pandas import DataFrame
 from sqlalchemy import sql
 
-from automind_api.app.models.dataset import DatasetReturn, DatasetType
+from automind_api.app.models.dataset import (
+    DatasetReturn,
+    DatasetType,
+    ViewDataSource,
+)
+from automind_api.app.models.view_sp import AvailableView
+from automind_api.app.repositories.i3s import get_view_by_id
 from automind_api.db.connection import (
     connect_mindsdb_server,
     create_mssql_engine,
@@ -11,10 +17,21 @@ from automind_api.db.connection import (
 
 
 def get_dataset(
-    dataset_id: int, user_id: int, type: DatasetType, limit: int = 20
+    dataset_id: int,
+    user_id: int,
+    type: Optional[DatasetType] = None,
+    limit: int = 20,
 ) -> Optional[DatasetReturn]:
     mssql_engine = create_mssql_engine()
     mindsdb_server = connect_mindsdb_server()
+
+    if type is None:
+        view: ViewDataSource = get_view_by_id(
+            AvailableView.dataset,
+            {"id": dataset_id, "id_col_name": "oid"},
+            ViewDataSource,
+        )
+        type = view.get("source_type")
 
     match type:
         case "file" | "fusion":

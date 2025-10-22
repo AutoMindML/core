@@ -31,7 +31,8 @@ MERGE INTO
 			(113, '應用:預測', 'app:prediction', 1),
 			(114, '應用:排程', 'app:schedule', 1),
 			(115, '機器學習引擎', 'engine:member', 1),
-			(116, '資料:合成', 'data:fusion', 1)
+			(116, '資料:合成', 'data:fusion', 1),
+			(117, '元資料', 'metadata', 1)
 	) AS Source (EID, CName, EName, bORel) ON Target.EName = Source.EName
 WHEN MATCHED THEN
 UPDATE SET

@@ -5,15 +5,6 @@ from starlette.responses import Response
 from automind_api.app.repositories.user import get_session_id_by_user_id
 from automind_api.configs import get_config
 
-config = get_config("api")
-url = f"http://{config['host']}:{config['port']}"
-
-fastapi_urls = [
-    f"{url}/docs",
-    f"{url}/openapi.json",
-    f"{url}/.well-known/appspecific/com.chrome.devtools.json",
-]
-
 
 class HeaderSessionMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, header_name: str = "X-User-Id"):
@@ -21,6 +12,15 @@ class HeaderSessionMiddleware(BaseHTTPMiddleware):
         self.header_name = header_name
 
     async def dispatch(self, request: Request, call_next):
+        config = get_config("api")
+        url = f"http://{config['host']}:{config['port']}"
+
+        fastapi_urls = [
+            f"{url}/docs",
+            f"{url}/openapi.json",
+            f"{url}/.well-known/appspecific/com.chrome.devtools.json",
+        ]
+
         if (request.url._url in fastapi_urls) or (config["env"] == "test"):
             request.state.user_id = 1
             request.state.session_id = 1

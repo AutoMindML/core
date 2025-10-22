@@ -1,6 +1,7 @@
 import json
+from typing import Annotated
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from pandas import DataFrame
 
 from automind_api.app.models.data_fusion import (
@@ -11,7 +12,10 @@ from automind_api.app.models.data_fusion import (
 )
 from automind_api.app.repositories.dataset import dataset_to_mindsdb
 from automind_api.app.repositories.i3s import exec_mutation_sp
-from automind_api.app.services.data_fusion import create_data_fusion_module
+from automind_api.app.services.data_fusion import (
+    create_data_fusion_module,
+    verify_fusion_id,
+)
 from automind_api.app.services.file import (
     calculate_dataframe_md5,
     generate_file_response,
@@ -43,14 +47,20 @@ def save_data_fusion(body: SaveDataFusionBody, req: Request):
 
 # fetch saved dataset and relationships by user selected
 @data_fusion_router.get("/{fusion_id}/preview")
-def preview_data_fusion(fusion_id: int, req: Request):
+def preview_data_fusion(
+    fusion_id: Annotated[int, Depends(verify_fusion_id)], req: Request
+):
     dfm = create_data_fusion_module(fusion_id, req.state.user_id, 10)
     return dfm.get_entity_set_relationships()
 
 
 # fetch saved dataset and relationships by user selected and generate deep feature
 @data_fusion_router.post("/{fusion_id}/feature/generate")
-def data_fusion_generate_feature(fusion_id: int, req: Request, res: Response):
+def data_fusion_generate_feature(
+    fusion_id: Annotated[int, Depends(verify_fusion_id)],
+    req: Request,
+    res: Response,
+):
     dfm = create_data_fusion_module(fusion_id, req.state.user_id, 10)
     dfm.apply_dfs()
     deep_feature_df = dfm.get_deep_feature_dataframe()
@@ -61,7 +71,9 @@ def data_fusion_generate_feature(fusion_id: int, req: Request, res: Response):
 
 # merge user selected dataset and relationships and generate deep feature
 @data_fusion_router.post("/{fusion_id}/merge")
-def merge_data_fusion(fusion_id: int, req: Request, res: Response):
+def merge_data_fusion(
+    fusion_id: Annotated[int, Depends(verify_fusion_id)], req: Request
+):
     dfm = create_data_fusion_module(fusion_id, req.state.user_id, -1)
     dfm.apply_dfs()
     deep_feature_df: DataFrame = dfm.get_deep_feature_dataframe()
