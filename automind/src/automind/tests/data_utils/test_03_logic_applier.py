@@ -1,8 +1,12 @@
 import pytest
-from conftest import TARGET_COLUMN, get_dataset, get_llm_response
 from pandas import DataFrame
 
 from automind.data_utils.logic_applier import LogicApplier
+from automind.tests.data_utils.conftest import (
+    TARGET_COLUMN,
+    get_dataset,
+    get_llm_response,
+)
 from automind.utils.console import rc
 
 

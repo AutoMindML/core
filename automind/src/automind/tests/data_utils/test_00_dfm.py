@@ -36,10 +36,10 @@ class TestDataset:
         # dfm.add_relationship("encounters", "Id", "conditions", "ENCOUNTER")
         dfm.apply_dfs()
 
-        dfm.entity_set.plot("tests/es.png")
+        # dfm.entity_set.plot("tests/es.png")
 
-        if dfm.feature_matrix is not None:
-            dfm.feature_matrix.to_csv("tests/es.csv")
+        # if dfm.feature_matrix is not None:
+        #     dfm.feature_matrix.to_csv("tests/es.csv")
 
     def test_dataset(self, dataset: DataFrame):
         assert dataset.size != 0

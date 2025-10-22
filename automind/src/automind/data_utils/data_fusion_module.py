@@ -97,6 +97,12 @@ class DataFusionModule:
     ):
         self._primitives.update({"transform": transform, "agg": agg})
 
+    def plot_entity_set(self, path: str):
+        self.entity_set.plot(path)
+
+    def get_entity_set_relationships(self):
+        return self.entity_set.to_dictionary()
+
     @staticmethod
     def get_default_primitives() -> PrimitiveDict:
         return {
