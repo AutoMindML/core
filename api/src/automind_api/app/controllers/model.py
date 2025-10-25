@@ -35,9 +35,9 @@ def update_model(project_id: int, model_id: int):
     model_name = f"model_{model_id}"
 
     if project_name in [
-        project.name for project in mindsdb_server.list_projects()
+        project.name for project in mindsdb_server.list_projects() # pyright: ignore
     ]:
-        project = mindsdb_server.get_project(project_name)
+        project = mindsdb_server.get_project(project_name) #pyright: ignore
 
         if model_name in [model.name for model in project.list_models()]:
             while True:
@@ -126,7 +126,6 @@ def train_model(
     body: TrainModelBody,
     background_tasks: BackgroundTasks,
     req: Request,
-    res: Response,
 ):
     user_id = req.state.user_id
     mssql_engine = create_mssql_engine()
@@ -162,11 +161,11 @@ def train_model(
         project_name = f"project_{body.cid}"
 
         if project_name not in [
-            project.name for project in mindsdb_server.list_projects()
+            project.name for project in mindsdb_server.list_projects() # pyright: ignore
         ]:
             return JSONResponse(None, HTTP_404_NOT_FOUND)
 
-        project = mindsdb_server.get_project(project_name)
+        project = mindsdb_server.get_project(project_name) # pyright: ignore
         model_name = f"model_{new_id}"
 
         params = {"model_id": new_id}
@@ -271,9 +270,9 @@ def delete_model(
                 mindsdb_server = connect_mindsdb_server()
 
                 if project_name in [
-                    project.name for project in mindsdb_server.list_projects()
+                    project.name for project in mindsdb_server.list_projects() # pyright: ignore
                 ]:
-                    project = mindsdb_server.get_project(project_name)
+                    project = mindsdb_server.get_project(project_name) # pyright: ignore
                     model_name = f"model_{body.model_id}"
 
                     if model_name in [
@@ -322,7 +321,7 @@ async def model_prediction(body: ModelPredictionBody, req: Request):
         model_name = f"model_{model_id}"
 
         mindsdb_server = connect_mindsdb_server()
-        project = mindsdb_server.get_project(project_name)
+        project = mindsdb_server.get_project(project_name) # pyright: ignore
         model = project.get_model(model_name)
         model_status = model.get_status()
 

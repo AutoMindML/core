@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from automind_api.app.controllers.app import app_router
 from automind_api.app.controllers.data_fusion import data_fusion_router
 from automind_api.app.controllers.dataset import dataset_router
+from automind_api.app.controllers.meta_generator import meta_generator_router
 from automind_api.app.controllers.model import model_router
 from automind_api.app.controllers.project import project_router
 from automind_api.app.models.middleware import HeaderSessionMiddleware
@@ -39,5 +40,7 @@ app.add_middleware(HeaderSessionMiddleware)
 app.include_router(dataset_router, prefix="/api/dataset")
 app.include_router(project_router, prefix="/api/project")
 app.include_router(model_router, prefix="/api/automl/model")
-app.include_router(data_fusion_router, prefix="/api/automl/data-fusion")
+app.include_router(data_fusion_router, prefix="/api/automl/fusion")
+app.include_router(meta_generator_router, prefix="/api/automl/metadata")
+
 app.include_router(app_router, prefix="/api/app")

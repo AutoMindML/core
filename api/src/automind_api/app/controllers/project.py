@@ -52,9 +52,9 @@ def add_project(
                 mindsdb_server = connect_mindsdb_server()
 
                 if project_name not in [
-                    project.name for project in mindsdb_server.list_projects()
+                    project.name for project in mindsdb_server.list_projects() # pyright: ignore
                 ]:
-                    mindsdb_server.create_project(project_name)
+                    mindsdb_server.create_project(project_name) # pyright: ignore
 
             res.status_code = status.HTTP_200_OK
 
@@ -92,9 +92,9 @@ def delete_project(
                 mindsdb_server = connect_mindsdb_server()
 
                 if project_name in [
-                    project.name for project in mindsdb_server.list_projects()
+                    project.name for project in mindsdb_server.list_projects() # pyright: ignore
                 ]:
-                    mindsdb_server.drop_project(project_name)
+                    mindsdb_server.drop_project(project_name) # pyright: ignore
 
             res.status_code = status.HTTP_200_OK
             return {"message": "delete project successfully"}

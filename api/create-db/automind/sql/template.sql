@@ -16,8 +16,11 @@ as begin try
 end try
 begin catch;
 	if @@TRANCOUNT > 0 rollback tran;
-	declare @error_message nvarchar(4000) = error_message();
-	raiserror (@error_message, 18, 1);
+	declare 
+		@error_message nvarchar(4000) = error_message()
+		, @error_severity int = error_severity()
+		, @error_state int = error_state();
+	raiserror (@error_message, @error_severity, @error_state);
 end catch;
 
 go

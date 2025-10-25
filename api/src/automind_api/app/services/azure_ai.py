@@ -1,11 +1,26 @@
-from azure.ai.language.conversations import ConversationAnalysisClient
-from azure.core.credentials import AzureKeyCredential
+from openai import AzureOpenAI
 
 from automind_api.configs import get_config
 
-# doc: https://azuresdkdocs.z19.web.core.windows.net/python/azure-ai-language-conversations/latest/azure.ai.language.conversations.html
-config = get_config("private", "azure_ai")
+config = get_config(
+    "azure_ai",
+    "private",
+)
 endpoint = config["endpoint"]
-credential = AzureKeyCredential(config["api_key"])
-client = ConversationAnalysisClient(endpoint, credential)
-# result = client.analyze_conversation()
+key = config["api_key"]
+
+
+client = AzureOpenAI(
+    azure_endpoint=endpoint,
+    api_key=key,
+    api_version="2024-07-01-preview",
+    azure_deployment="gpt35_azure",
+)
+
+if __name__ == "__main__":
+    completion = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "data scientist", "content": "hello"}],  # pyright: ignore[reportArgumentType]
+    )
+
+    print(completion.choices[0].message.content)

@@ -6,7 +6,7 @@ from .iris_decision_tree import IrisPredictor
 
 if __name__ == "__main__":
     mindsdb_server = connect_mindsdb_server()
-    iris_df = mindsdb_server.get_database("files").get_table("iris").fetch()
+    iris_df = mindsdb_server.get_database("files").get_table("iris").fetch() # pyright: ignore
 
     iris_df.drop(columns="Id", inplace=True)
 

@@ -1,8 +1,10 @@
 from datetime import date
-from typing import Dict, List, Literal, TypedDict
+from typing import Dict, List, Literal, Optional, TypedDict
 
 from pandas import DataFrame
 from pydantic import BaseModel
+
+from automind_api.app.models.i3s import BasePostResponse
 
 DatasetType = Literal["file", "database", "fusion"]
 
@@ -10,6 +12,11 @@ DatasetType = Literal["file", "database", "fusion"]
 class DatasetReturn(TypedDict):
     table: DataFrame
     columns: List[str]
+
+
+class VerifyDatasetResponse(BasePostResponse):
+    table: Optional[DataFrame]
+    columns: Optional[List[str]]
 
 
 class DeleteDatasetParameter(TypedDict):

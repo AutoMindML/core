@@ -13,8 +13,8 @@ if __name__ == "__main__":
 
     url = f"{get_mindsdb_ml_engine_upload_url()}/{ml_engine_name}"
 
-    if ml_engine_name in [engine.name for engine in mindsdb_server.ml_engines.list()]:
-        mindsdb_server.ml_engines.drop(ml_engine_name)
+    if ml_engine_name in [engine.name for engine in mindsdb_server.ml_engines.list()]: # pyright: ignore
+        mindsdb_server.ml_engines.drop(ml_engine_name) # pyright: ignore
 
     with open(f"{Path(__file__).parent.absolute()}/iris_decision_tree.py", "rb") as f:
         with open("./requirements.txt") as f2:

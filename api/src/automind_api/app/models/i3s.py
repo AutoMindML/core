@@ -5,9 +5,12 @@ class ObjectInfo(TypedDict):
     CName: str
 
 
-class ExecMutationSpOutput(TypedDict):
+class BasePostResponse(TypedDict):
     state: int
     message: str
+
+
+class ExecMutationSpOutput(BasePostResponse):
     new_id: Optional[int]
 
 

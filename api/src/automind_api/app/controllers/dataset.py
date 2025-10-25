@@ -122,9 +122,9 @@ def add_data_source_database(
         mindsdb_server = connect_mindsdb_server()
 
         if str(MD5) not in [
-            database.name for database in mindsdb_server.list_databases()
+            database.name for database in mindsdb_server.list_databases() # pyright: ignore
         ]:
-            mindsdb_server.create_database(
+            mindsdb_server.create_database( # pyright: ignore
                 engine=body.engine,
                 name=str(MD5),
                 connection_args=body.connection_args,
@@ -146,18 +146,16 @@ def delete_data_source(
     return exec_mutation_sp("[dbo].[xp_delete_data_source]", params)
 
 
-@dataset_router.get("/{dataset_id}/preview/{rows}")
+@dataset_router.get("/{dataset_id}/preview")
 def get_dataset_preview(
     dataset_id: int,
-    rows: int,
     req: Request,
     res: Response,
+    rows: int = 20,
     dataset_type: DatasetType = "file",
 ):
     user_id = req.state.user_id
-    dataset = get_dataset(
-        dataset_id, user_id, dataset_type, rows if rows > 0 else -1
-    )
+    dataset = get_dataset(dataset_id, user_id, dataset_type, rows)
 
     if dataset is None:
         res.status_code = status.HTTP_404_NOT_FOUND
@@ -168,7 +166,10 @@ def get_dataset_preview(
 
 @dataset_router.get("/{dataset_id}/columns")
 def get_dataset_columns(
-    dataset_id: int, req: Request, res: Response, dataset_type: DatasetType
+    dataset_id: int,
+    req: Request,
+    res: Response,
+    dataset_type: DatasetType = "file",
 ):
     user_id = req.state.user_id
     dataset = get_dataset(dataset_id, user_id, dataset_type, 1)

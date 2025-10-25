@@ -3,7 +3,7 @@ from sklearn import tree
 
 
 class IrisPredictor:
-    def train(self, df: DataFrame, target_col: str, args=None):
+    def train(self, df: DataFrame, target_col: str):
         self.target_col = target_col
         self.model = tree.DecisionTreeClassifier()
 
@@ -13,7 +13,7 @@ class IrisPredictor:
 
         self.predictor = self.model.fit(x, y)
 
-    def predict(self, df: DataFrame, args=None):
+    def predict(self, df: DataFrame):
         x = df[self.x_cols]
         res = self.predictor.predict(x)
 
