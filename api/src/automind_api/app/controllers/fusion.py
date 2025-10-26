@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, Response
 from pandas import DataFrame
 
-from automind_api.app.models.data_fusion import (
+from automind_api.app.models.fusion import (
     InitDataFusionBody,
     MergeDataFusion,
     SaveDataFusion,
@@ -12,7 +12,7 @@ from automind_api.app.models.data_fusion import (
 )
 from automind_api.app.repositories.dataset import dataset_to_mindsdb
 from automind_api.app.repositories.i3s import exec_mutation_sp
-from automind_api.app.services.data_fusion import (
+from automind_api.app.services.fusion import (
     create_data_fusion_module,
     verify_fusion_id,
 )
@@ -21,17 +21,17 @@ from automind_api.app.services.file import (
     generate_file_response,
 )
 
-data_fusion_router = APIRouter()
+fusion_router = APIRouter()
 
 
-@data_fusion_router.post("/init")
+@fusion_router.post("/init")
 def init_data_fusion(body: InitDataFusionBody, req: Request):
     opts = body.model_dump()
     opts["user_id"] = req.state.user_id
     return exec_mutation_sp("[dbo].[xp_init_dfm]", opts)
 
 
-@data_fusion_router.put("/save")
+@fusion_router.put("/save")
 def save_data_fusion(body: SaveDataFusionBody, req: Request):
     opts: SaveDataFusion = {
         "target_dataset_id": body.target_dataset_id,
@@ -46,7 +46,7 @@ def save_data_fusion(body: SaveDataFusionBody, req: Request):
 
 
 # fetch saved dataset and relationships by user selected
-@data_fusion_router.get("/{fusion_id}/preview")
+@fusion_router.get("/{fusion_id}/preview")
 def preview_data_fusion(
     fusion_id: Annotated[int, Depends(verify_fusion_id)], req: Request
 ):
@@ -55,7 +55,7 @@ def preview_data_fusion(
 
 
 # fetch saved dataset and relationships by user selected and generate deep feature
-@data_fusion_router.post("/{fusion_id}/feature/generate")
+@fusion_router.post("/{fusion_id}/feature/generate")
 def data_fusion_generate_feature(
     fusion_id: Annotated[int, Depends(verify_fusion_id)],
     req: Request,
@@ -70,7 +70,7 @@ def data_fusion_generate_feature(
 
 
 # merge user selected dataset and relationships and generate deep feature
-@data_fusion_router.post("/{fusion_id}/merge")
+@fusion_router.post("/{fusion_id}/merge")
 def merge_data_fusion(
     fusion_id: Annotated[int, Depends(verify_fusion_id)], req: Request
 ):

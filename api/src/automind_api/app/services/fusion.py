@@ -3,7 +3,7 @@ import json
 from automind.data_utils.data_fusion_module import DataFusionModule
 from fastapi import HTTPException, status
 
-from automind_api.app.models.data_fusion import (
+from automind_api.app.models.fusion import (
     ViewDataFusion,
 )
 from automind_api.app.models.dataset import ViewDataSource

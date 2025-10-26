@@ -9,12 +9,12 @@ from automind_api.app.models.view_sp import (
 )
 from automind_api.app.repositories.i3s import exec_mutation_sp, get_view_by_id
 from automind_api.app.services.dataset import verify_dataset
-from automind_api.app.services.meta_generator import verify_metadata
+from automind_api.app.services.metadata import verify_metadata
 
-meta_generator_router = APIRouter()
+metadata_router = APIRouter()
 
 
-@meta_generator_router.post("/{dataset_id}")
+@metadata_router.post("/{dataset_id}")
 def generate_meta_generator_prompt(
     dataset_id: int,
     target_column: str,
@@ -44,7 +44,7 @@ def generate_meta_generator_prompt(
     return exec_mutation_sp(AvailableSP.add_or_update_metadata, opt)
 
 
-@meta_generator_router.get("/{dataset_id}")
+@metadata_router.get("/{dataset_id}")
 def get_meta_generator_prompt(dataset_id: int, req: Request, res: Response):
     ret = verify_dataset(dataset_id, req.state.user_id, res)
 
