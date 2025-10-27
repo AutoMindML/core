@@ -3,7 +3,7 @@ from openai import AzureOpenAI
 from automind_api.configs import get_config
 
 config = get_config(
-    "it108",
+    "azure",
     "private",
 )
 endpoint = config["endpoint"]
@@ -16,7 +16,7 @@ client = AzureOpenAI(
     azure_endpoint=endpoint,
     api_key=key,
     api_version="2024-07-01-preview",
-    azure_deployment="IT108_gpt35",
+    azure_deployment="AutoML",
 )
 
 if __name__ == "__main__":

@@ -15,3 +15,6 @@ class ViewMetaData(TypedDict):
     metadata_id: int
     prompt: str
     source_updated: date
+    llm_response: str
+    parsed_action: str
+    target_column_name: str

@@ -1,79 +1,114 @@
-﻿if not exists (
-	select * from INFORMATION_SCHEMA.TABLES 
-	where 
-		TABLE_NAME = 'MetaData'
-		and TABLE_SCHEMA = 'dbo'
+﻿IF
+    NOT EXISTS (
+        SELECT * FROM INFORMATION_SCHEMA.TABLES
+        WHERE
+            TABLE_NAME = 'MetaData'
+            AND TABLE_SCHEMA = 'dbo'
+    )
+    BEGIN
+        CREATE TABLE Dbo.MetaData (
+            MID int NOT NULL,
+            Prompt nvarchar(MAX) NULL,
+            SourceUpdated datetime NULL,
+            LLMResponse nvarchar(MAX) NULL,
+            ParsedAction nvarchar(MAX) NULL,
+            ParsedHistory nvarchar(MAX) NULL,
+            TargetColumnName nvarchar(100) NULL,
+            CONSTRAINT PK_Meta_MID PRIMARY KEY CLUSTERED (MID ASC),
+            CONSTRAINT FK_Meta_MID FOREIGN KEY (MID) REFERENCES [Object] (OID)
+        );
+    END;
+
+
+GO
+
+CREATE OR ALTER VIEW Vd_Metadata
+AS
+SELECT
+    MID AS Metadata_Id,
+    Prompt AS Prompt,
+    SourceUpdated AS Source_Updated,
+    LLMResponse AS Llm_Response,
+    ParsedAction AS Parsed_Action,
+    ParsedHistory AS Parsed_History,
+    TargetColumnName AS Target_Column_Name
+FROM Dbo.MetaData
+
+GO
+
+CREATE OR ALTER PROCEDURE Dbo.Xp_Add_Metadata (
+    @dataset_id int,
+    @user_id int,
+    @prompt nvarchar(MAX),
+    @llm_response nvarchar(MAX),
+    @parsed_action nvarchar(MAX),
+    @parsed_history nvarchar(MAX),
+    @target_column_name nvarchar(100),
+    @state int OUTPUT,
+    @message nvarchar(4000) OUTPUT,
+    @new_id int OUTPUT
 )
-begin
-create table dbo.MetaData (
-	MID int not null,
-	Prompt nvarchar(max) null,
-	SourceUpdated datetime null,
-	constraint PK_Meta_MID primary key clustered (MID ASC),
-	constraint FK_Meta_MID foreign key (MID) references [Object] (OID)
-);
-end;
-go
+AS BEGIN TRY
 
-create or alter view vd_metadata
-as
-select
-	MID as metadata_id
-	, Prompt as prompt
-	, SourceUpdated as source_updated
-from dbo.MetaData
+    IF
+        NOT EXISTS (
+            SELECT 1 FROM Vd_Data_Source
+            WHERE Oid = @dataset_id AND Owner_Mid = @user_id
+        )
+        BEGIN
+            SELECT
+                @state = 0,
+                @message = 'data not exists or user has no permission';
+            RETURN
+        END
 
-go
+    BEGIN TRAN;
 
-create or alter procedure dbo.xp_add_metadata (
-	@dataset_id int,
-	@user_id int,
-	@prompt nvarchar(max),
-	@state int output,
-	@message nvarchar(4000) output,
-	@new_id int output
-)
-as begin try
+    MERGE INTO [dbo].[MetaData] AS T
+    USING (
+        VALUES (@dataset_id, @prompt, (
+            SELECT LastModifiedDT FROM [Object]
+            WHERE OID = @dataset_id
+        ), @llm_response, @parsed_action, @target_column_name, @parsed_history)
+    ) AS S (Metadata_Id, Prompt, Source_Updated, LLM_Response, Parsed_Action, Target_Column_Name, Parsed_History)
+        ON S.Metadata_Id = T.MID
+    WHEN MATCHED
+        THEN
+        UPDATE
+            SET
+                T.Prompt = S.Prompt,
+                T.LLMResponse = S.LLM_Response,
+                T.ParsedAction = S.Parsed_Action,
+                T.ParsedHistory = S.Parsed_History,
+                T.TargetColumnName = S.Target_Column_Name
+    WHEN NOT MATCHED BY TARGET
+        THEN
+        INSERT (MID, Prompt, SourceUpdated, LLMResponse, ParsedAction, TargetColumnName, ParsedHistory)
+        VALUES
+            (
+                S.Metadata_Id,
+                S.Prompt,
+                S.Source_Updated,
+                S.LLM_Response,
+                S.Parsed_Action,
+                S.Target_Column_Name,
+                S.Parsed_History
+            );
 
-	if not exists (select 1 from vd_Data_Source where oid = @dataset_id and owner_mid = @user_id)
-	begin
-		select
-			@state = 0,
-			@message = 'data not exists or user has no permission';
-		return
-	end
+    COMMIT TRAN;
 
-	begin tran;
+    SELECT
+        @state = 0,
+        @message = 'add metadata successfully'
 
+END TRY
+BEGIN CATCH;
+    IF @@TRANCOUNT > 0 ROLLBACK TRAN;
+    DECLARE
+        @error_message nvarchar(4000) = error_message(),
+        @error_severity int = error_severity(),
+        @error_state int = error_state();
+    RAISERROR (@error_message, @error_severity, @error_state);
+END CATCH;
 
-		merge into [dbo].[MetaData] as t
-		using (
-			values (@dataset_id, @prompt, (select LastModifiedDT from [Object] where OID = @dataset_id))
-		) as s (metadata_id, prompt, source_updated)
-		on s.metadata_id = t.MID
-		when matched
-			then
-				update
-				set t.Prompt = s.prompt
-		when not matched by target
-			then
-				insert (MID, Prompt, SourceUpdated)
-				values (s.metadata_id, s.prompt, s.source_updated);
-
-	commit tran;
-
-	select
-		@state = 0,
-		@message = 'add metadata successfully'
-
-end try
-begin catch;
-	if @@TRANCOUNT > 0 rollback tran;
-	declare 
-		@error_message nvarchar(4000) = error_message()
-		, @error_severity int = error_severity()
-		, @error_state int = error_state();
-	raiserror (@error_message, @error_severity, @error_state);
-end catch;
-
-go
+GO

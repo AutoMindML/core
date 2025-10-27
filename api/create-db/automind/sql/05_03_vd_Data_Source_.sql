@@ -1,54 +1,49 @@
-﻿CREATE OR ALTER VIEW vd_Data_Source AS
+﻿CREATE OR ALTER VIEW Vd_Data_Source AS
 SELECT
-	O.OID AS oid,
-	(
-		SELECT
-			VALUE
-		FROM
-			STRING_SPLIT (
-				(
-					SELECT
-						EName
-					FROM
-						Entity
-					WHERE
-						EID = O.Type
-				),
-				':',
-				1
-			)
-		ORDER BY
-			ordinal ASC
-		OFFSET
-			1 ROWS
-		FETCH NEXT
-			1 ROWS ONLY
-	) AS source_type,
-	O.CName AS name,
-	O.CDes AS description,
-	O.EName AS md5,
-	O.Since AS created_at,
-	O.LastModifiedDT AS updated_at,
-	O.DataByte AS used_status,
-	O.bHided AS is_hided,
-	O.bDel AS is_deleted,
-	C.CID AS cid,
-	C.OwnerMID AS owner_mid
+    O.OID AS Oid,
+    (
+        SELECT VALUE
+        FROM
+            string_split(
+                (
+                    SELECT EName
+                    FROM
+                        Entity
+                    WHERE
+                        EID = O.Type
+                ),
+                ':',
+                1
+            )
+        ORDER BY
+            Ordinal ASC
+            OFFSET
+            1 ROWS
+            FETCH NEXT
+            1 ROWS ONLY
+    ) AS Source_Type,
+    O.CName AS Name,
+    O.CDes AS Description,
+    O.EName AS Md5,
+    O.Since AS Created_At,
+    O.LastModifiedDT AS Updated_At,
+    O.DataByte AS Used_Status,
+    O.BHided AS Is_Hided,
+    O.BDel AS Is_Deleted,
+    C.CID AS Cid,
+    C.OwnerMID AS Owner_Mid
 FROM
-	[Object] O
-	, Class C
-	, CO
+    [Object] O, [Class] C, [CO]
 WHERE
-	(
-		SELECT
-			EName
-		FROM
-			Entity
-		WHERE
-			EID = O.Type
-	) LIKE 'data:%'
-	AND O.bDel != 1
-	and C.NamePath LIKE 'member/%/data_source'
-	and CO.CID = C.CID and O.OID = CO.OID
+    (
+        SELECT EName
+        FROM
+            Entity
+        WHERE
+            EID = O.Type
+    ) LIKE 'data:%'
+    AND O.BDel != 1
+    AND C.NamePath LIKE 'member/%/data_source'
+    AND CO.CID = C.CID AND O.OID = CO.OID
 
 GO

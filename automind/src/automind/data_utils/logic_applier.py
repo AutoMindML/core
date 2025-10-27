@@ -71,6 +71,15 @@ class LogicApplier:
         self.llm_response = llm_response
         self.logic_actions: List[LLMResponseSchema] = []
 
+    def get_origin_df(self):
+        return self.original_df
+
+    def get_processed_df(self) -> pd.DataFrame:
+        return self.processed_df
+
+    def get_processing_history(self):
+        return self.processing_history
+
     def apply_llm_recommendations(
         self, logic_action_index: int = 0, modeling_approach_index: int = 0
     ):
