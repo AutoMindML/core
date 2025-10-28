@@ -5,8 +5,9 @@ import sqlalchemy as sql
 from fastapi import FastAPI
 
 from automind_api.app.controllers.app import app_router
-from automind_api.app.controllers.fusion import fusion_router
+from automind_api.app.controllers.applier import applier_router
 from automind_api.app.controllers.dataset import dataset_router
+from automind_api.app.controllers.fusion import fusion_router
 from automind_api.app.controllers.metadata import metadata_router
 from automind_api.app.controllers.model import model_router
 from automind_api.app.controllers.project import project_router
@@ -42,5 +43,6 @@ app.include_router(project_router, prefix="/api/project")
 app.include_router(model_router, prefix="/api/automl/model")
 app.include_router(fusion_router, prefix="/api/automl/fusion")
 app.include_router(metadata_router, prefix="/api/automl/metadata")
+app.include_router(applier_router, prefix="/api/automl/applier")
 
 app.include_router(app_router, prefix="/api/app")

@@ -1,5 +1,8 @@
+import json
+
 from automind.data_utils import LogicApplier
 from fastapi import HTTPException
+from openai.types.chat import ChatCompletion
 from starlette import status
 
 from automind_api.app.models.dataset import ViewDataSource
@@ -57,6 +60,10 @@ def get_metadata_view(dataset_id: int):
     return metadata_view
 
 
+def update_metadata_status(dataset_id: int):
+    pass
+
+
 def get_logic_applier_by_dataset_id(
     dataset_id: int, user_id: int, limit: int = 20
 ):
@@ -71,8 +78,16 @@ def get_logic_applier_by_dataset_id(
     ):
         return None
 
-    return LogicApplier(
-        dataset.get("table"),
-        metadata_view.get("target_column_name"),
-        metadata_view.get("llm_response"),
+    llm_response = json.loads(metadata_view.get("llm_response"))
+    completion = ChatCompletion.model_validate(llm_response)
+    content = completion.choices[0].message.content or ""
+
+    applier = LogicApplier(
+        dataset.get("table"), metadata_view.get("target_column_name"), content
     )
+
+    logic_action = json.loads(metadata_view.get("logic_action", "[]"))
+    applier.logic_actions = logic_action
+    applier.parse_llm_response()
+
+    return applier

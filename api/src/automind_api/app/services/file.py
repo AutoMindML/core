@@ -39,4 +39,4 @@ def calculate_dataframe_md5(df: DataFrame) -> str:
     df_string = df_normalized.to_csv(index=False).encode("utf-8")
     md5_hash = hashlib.md5(df_string).hexdigest()
 
-    return md5_hash
+    return md5_hash.upper()

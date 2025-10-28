@@ -1,39 +1,99 @@
 from fastapi import APIRouter, Request, Response
-from starlette import status
 
-from automind_api.app.services.file import generate_file_response
-from automind_api.app.services.metadata import get_logic_applier_by_dataset_id
+from automind_api.app.models.applier import ApplierGenerateNewDatasetParameter
+from automind_api.app.models.metadata import UpdateMetaDataStatusParameter
+from automind_api.app.models.view_sp import AvailableSP
+from automind_api.app.repositories.dataset import dataset_to_mindsdb
+from automind_api.app.repositories.i3s import exec_mutation_sp
+from automind_api.app.services.applier import generate_409_conflict_response
+from automind_api.app.services.file import (
+    calculate_dataframe_md5,
+    generate_file_response,
+)
+from automind_api.app.services.metadata import (
+    get_logic_applier_by_dataset_id,
+    get_metadata_view,
+)
 
 applier_router = APIRouter()
 
 
-@applier_router.get("/{dataset_id}/preview")
-def preview(dataset_id: int, req: Request, res: Response):
+@applier_router.get("/{dataset_id}/preview/actions")
+def applier_preview_actions(dataset_id: int, req: Request, res: Response):
     applier = get_logic_applier_by_dataset_id(
         dataset_id, req.state.user_id, limit=20
     )
 
     if applier is None:
-        res.status_code = status.HTTP_409_CONFLICT
-        return {
-            "state": 2,
-            "message": "dataset is not found or target column not be specified or llm response not exists",
-        }
+        return generate_409_conflict_response(res)
+
+    return applier.logic_actions
+
+
+@applier_router.get("/{dataset_id}/preview/processing")
+def applier_preview_processing_result(
+    dataset_id: int, req: Request, res: Response
+):
+    applier = get_logic_applier_by_dataset_id(
+        dataset_id, req.state.user_id, limit=20
+    )
+
+    if applier is None:
+        return generate_409_conflict_response(res)
 
     applier.apply_llm_recommendations()
     return generate_file_response(applier.get_processed_df(), res)
 
 
-@applier_router.post("/apply")
-def apply():
-    pass
+@applier_router.post("/{dataset_id}/save")
+def applier_save_processing_result(
+    dataset_id: int, req: Request, res: Response
+):
+    applier = get_logic_applier_by_dataset_id(
+        dataset_id, req.state.user_id, limit=-1
+    )
 
+    if applier is None:
+        return generate_409_conflict_response(res)
 
-@applier_router.post("/save")
-def save():
-    pass
+    metadata_view = get_metadata_view(dataset_id)
 
+    update_metadata_status_opt: UpdateMetaDataStatusParameter = {
+        "dataset_id": dataset_id,
+        "user_id": req.state.user_id,
+        "status": metadata_view.get("status"),
+        "applier_status": "generating",
+    }
 
-# @applier_router.get("/status")
-# def status():
-#     pass
+    exec_mutation_sp(
+        AvailableSP.update_metadata_status, update_metadata_status_opt
+    )
+
+    processed_df = applier.get_processed_df()
+    md5 = calculate_dataframe_md5(processed_df)
+
+    applier_generate_new_dataset_opt: ApplierGenerateNewDatasetParameter = {
+        "name": "",
+        "des": "",
+        "md5": md5,
+        "origin_dataset_id": dataset_id,
+        "user_id": req.state.user_id,
+    }
+
+    dataset_to_mindsdb(processed_df, md5)
+
+    update_metadata_status_opt = {
+        "dataset_id": dataset_id,
+        "user_id": req.state.user_id,
+        "status": metadata_view.get("status"),
+        "applier_status": "complete",
+    }
+
+    exec_mutation_sp(
+        AvailableSP.update_metadata_status, update_metadata_status_opt
+    )
+
+    return exec_mutation_sp(
+        AvailableSP.applier_generate_new_dataset,
+        applier_generate_new_dataset_opt,
+    )

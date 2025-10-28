@@ -49,6 +49,9 @@ class LogicApplier:
     Handles data cleaning, feature engineering, and dataset preparation for modeling.
     """
 
+    logic_actions: List[LLMResponseSchema]
+    processing_history: List[ProcessingHistoryType]
+
     def __init__(
         self,
         dataset: pd.DataFrame,
@@ -66,10 +69,10 @@ class LogicApplier:
         self.processed_df = dataset.copy()
         self.target_column = target_column
         self.fitted_transformers = {}
-        self.processing_history: List[ProcessingHistoryType] = []
+        self.processing_history = []
         self.removed_columns = []
         self.llm_response = llm_response
-        self.logic_actions: List[LLMResponseSchema] = []
+        self.logic_actions = []
 
     def get_origin_df(self):
         return self.original_df
