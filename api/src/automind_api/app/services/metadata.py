@@ -60,10 +60,6 @@ def get_metadata_view(dataset_id: int):
     return metadata_view
 
 
-def update_metadata_status(dataset_id: int):
-    pass
-
-
 def get_logic_applier_by_dataset_id(
     dataset_id: int, user_id: int, limit: int = 20
 ):

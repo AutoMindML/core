@@ -177,39 +177,7 @@ WHERE
 
 
 GO
--------------------------------------------------------------------------------
--- App Prediction	  																									    	  |
--------------------------------------------------------------------------------
-CREATE OR ALTER VIEW [dbo].[vd_App_Prediction] AS
-SELECT
-	C.CID AS project_id,
-	O.OID AS app_id,
-	(
-		SELECT
-			EName
-		FROM
-			Entity
-		WHERE
-			EID = O.Type
-	) AS app_type,
-	O.CName AS name,
-	O.CDes AS description,
-	O.Since AS created_at,
-	O.LastModifiedDT AS updated_at,
-	O.OwnerMID AS owner_mid,
-	O.nOutlinks AS active_models,
-	A.[Key] AS api_key,
-	A.Status AS app_status
-FROM
-	[dbo].[Object] O
-	LEFT JOIN [dbo].[CO] CO ON CO.OID = O.OID
-	LEFT JOIN [dbo].[App_Prediction] A ON O.OID = A.APID
-	LEFT JOIN [dbo].[Class] C ON CO.CID = C.CID
-WHERE
-	O.TYPE IN (113);
 
-
-GO
 -------------------------------------------------------------------------------
 -- Valid API Keys		      																					    			|
 -------------------------------------------------------------------------------

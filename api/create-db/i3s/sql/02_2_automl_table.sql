@@ -1,4 +1,4 @@
-USE [$(DBName)];
+﻿USE [$(DBName)];
 
 
 GO
@@ -13,34 +13,7 @@ QUOTED_IDENTIFIER ON;
 
 
 GO
-CREATE TABLE [dbo].[App_Prediction] (
-	[APID] [int] NOT NULL,
-	[Key] [nvarchar] (64) NOT NULL,
-	[Status] [nvarchar] (50) NULL,
-	CONSTRAINT [PK_App_Prediction] PRIMARY KEY CLUSTERED ([APID] ASC)
-	WITH
-		(
-			PAD_INDEX = OFF,
-			STATISTICS_NORECOMPUTE = OFF,
-			IGNORE_DUP_KEY = OFF,
-			ALLOW_ROW_LOCKS = ON,
-			ALLOW_PAGE_LOCKS = ON,
-			OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF
-		) ON [PRIMARY],
-		CONSTRAINT [UQ_App_Prediction_Key] UNIQUE NONCLUSTERED ([Key] ASC)
-	WITH
-		(
-			PAD_INDEX = OFF,
-			STATISTICS_NORECOMPUTE = OFF,
-			IGNORE_DUP_KEY = OFF,
-			ALLOW_ROW_LOCKS = ON,
-			ALLOW_PAGE_LOCKS = ON,
-			OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF
-		) ON [PRIMARY]
-) ON [PRIMARY];
 
-
-GO
 /****** Object:  Table [dbo].[App_Schedule]    Script Date: 2024/12/3 下午 03:27:13 ******/
 SET
 ANSI_NULLS ON;

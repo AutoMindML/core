@@ -5,6 +5,7 @@ from typing import Literal, TypedDict
 class AvailableView:
     dataset = "[dbo].[vd_Data_Source]"
     metadata = "[dbo].[vd_metadata]"
+    app_prediction = "[dbo].[vd_App_Prediction]"
 
 
 class AvailableSP:

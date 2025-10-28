@@ -1,6 +1,3 @@
-import hashlib
-import uuid
-
 import sqlalchemy as sql
 from fastapi import APIRouter, Request, Response, status
 from sqlalchemy.exc import DBAPIError
@@ -9,12 +6,6 @@ from automind_api.app.models.app import AddAppBody, DeleteAppBody
 from automind_api.db.connection import create_mssql_engine
 
 app_router = APIRouter()
-
-
-def generate_api_key(id):
-    raw_key = f"{id}-{uuid.uuid4()}"
-    hashed_key = hashlib.sha256(raw_key.encode()).hexdigest()
-    return hashed_key
 
 
 @app_router.post("/")
