@@ -8,6 +8,15 @@ from automind_api.app.models.i3s import BasePostResponse
 
 DatasetType = Literal["file", "database", "fusion"]
 
+dtype_map = {
+    "int64": "int",
+    "float64": "float",
+    "object": "string",
+    "bool": "bool",
+    "datetime64[ns]": "datetime",
+    "string": "string",
+}
+
 
 class DatasetReturn(TypedDict):
     table: DataFrame
@@ -44,3 +53,24 @@ class ViewDataSource(TypedDict):
     is_deleted: int
     cid: int
     owner_mid: int
+    rows: int
+    cols: int
+    col_names: str
+    col_types: str
+    size: float
+    size_unit: str
+    quality: float
+
+
+class AddDatasetFileParameter(TypedDict):
+    user_id: int
+    name: str
+    des: str
+    md5: str
+    rows: int
+    cols: int
+    col_names: str
+    col_types: str
+    size: float
+    size_unit: str
+    quality: float

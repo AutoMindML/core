@@ -46,22 +46,33 @@ def add_project(
 
             new_id = connection.execute(query, params).scalar()
 
-            if new_id is not None:
-                project_name = f"project_{new_id}"
+            if new_id is None:
+                return {
+                    "state": 2,
+                    "message": "error occur when add project",
+                    "new_id": None,
+                }
 
-                mindsdb_server = connect_mindsdb_server()
+            project_name = f"project_{new_id}"
 
-                if project_name not in [
-                    project.name for project in mindsdb_server.list_projects() # pyright: ignore
-                ]:
-                    mindsdb_server.create_project(project_name) # pyright: ignore
+            mindsdb_server = connect_mindsdb_server()
+
+            if project_name not in [
+                project.name
+                for project in mindsdb_server.list_projects()  # pyright: ignore
+            ]:
+                mindsdb_server.create_project(project_name)  # pyright: ignore
 
             res.status_code = status.HTTP_200_OK
 
+            return {
+                "state": 0,
+                "message": "add project successfully",
+                "new_id": int(new_id),
+            }
+
         except DBAPIError:
             res.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-
-    return {"newId": str(new_id)}
 
 
 @project_router.delete("/")
@@ -92,9 +103,10 @@ def delete_project(
                 mindsdb_server = connect_mindsdb_server()
 
                 if project_name in [
-                    project.name for project in mindsdb_server.list_projects() # pyright: ignore
+                    project.name
+                    for project in mindsdb_server.list_projects()  # pyright: ignore
                 ]:
-                    mindsdb_server.drop_project(project_name) # pyright: ignore
+                    mindsdb_server.drop_project(project_name)  # pyright: ignore
 
             res.status_code = status.HTTP_200_OK
             return {"message": "delete project successfully"}

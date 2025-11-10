@@ -4,6 +4,7 @@ from typing import Literal, TypedDict
 
 class AvailableView:
     dataset = "[dbo].[vd_Data_Source]"
+    fusion = "[dbo].[vd_data_fusion]"
     metadata = "[dbo].[vd_metadata]"
     app_prediction = "[dbo].[vd_App_Prediction]"
 

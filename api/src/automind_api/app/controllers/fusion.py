@@ -9,16 +9,18 @@ from automind_api.app.models.fusion import (
     MergeDataFusion,
     SaveDataFusion,
     SaveDataFusionBody,
+    ViewDataFusion,
 )
+from automind_api.app.models.view_sp import AvailableView
 from automind_api.app.repositories.dataset import dataset_to_mindsdb
-from automind_api.app.repositories.i3s import exec_mutation_sp
-from automind_api.app.services.fusion import (
-    create_data_fusion_module,
-    verify_fusion_id,
-)
+from automind_api.app.repositories.i3s import exec_mutation_sp, get_view_by_id
 from automind_api.app.services.file import (
     calculate_dataframe_md5,
     generate_file_response,
+)
+from automind_api.app.services.fusion import (
+    create_data_fusion_module,
+    verify_fusion_id,
 )
 
 fusion_router = APIRouter()
@@ -39,6 +41,7 @@ def save_data_fusion(body: SaveDataFusionBody, req: Request):
         "dataset_ids": str.join(",", body.dataset_ids),
         "primary_keys": str.join(",", body.primary_keys),
         "relationships": json.dumps(body.relationships),
+        "position": json.dumps(body.position),
         "user_id": req.state.user_id,
     }
 
@@ -46,12 +49,16 @@ def save_data_fusion(body: SaveDataFusionBody, req: Request):
 
 
 # fetch saved dataset and relationships by user selected
-@fusion_router.get("/{fusion_id}/preview")
+@fusion_router.get("/{fusion_id}")
 def preview_data_fusion(
     fusion_id: Annotated[int, Depends(verify_fusion_id)], req: Request
 ):
-    dfm = create_data_fusion_module(fusion_id, req.state.user_id, 10)
-    return dfm.get_entity_set_relationships()
+    view: ViewDataFusion = get_view_by_id(
+        AvailableView.fusion,
+        {"id": fusion_id, "id_col_name": "fusion_id"},
+        ViewDataFusion,
+    )
+    return view
 
 
 # fetch saved dataset and relationships by user selected and generate deep feature

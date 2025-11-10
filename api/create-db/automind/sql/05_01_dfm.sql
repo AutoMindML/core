@@ -11,6 +11,7 @@ create table dbo.DFM (
 	PKs nvarchar(max) default '',
 	Relationships nvarchar(max) default '[]',
 	TargetDataset int null,
+	Position nvarchar(max) null,
 	constraint PK_DFM_DID primary key clustered (DID ASC),
 	constraint FK_DFM_DID foreign key (DID) references [Object] (OID)
 );
@@ -68,6 +69,7 @@ create or alter procedure dbo.xp_update_dfm (
 	@relationships nvarchar(max),
 	@target_dataset_id int,
 	@primary_keys nvarchar(max),
+	@position nvarchar(max),
 	@state int output,
 	@message nvarchar(4000) output,
 	@new_id int output
@@ -133,6 +135,7 @@ as begin try
 			, Relationships = @relationships
 			, TargetDataset = @target_dataset_id
 			, PKs = @primary_keys
+			, Position = @position
 		where DID = @fusion_id;
 
 	select
@@ -156,6 +159,7 @@ select
 	, Relationships as relationships
 	, TargetDataset as target_dataset_id
 	, Pks as primary_keys
+	, Position as position
 from dbo.DFM
 
 go
