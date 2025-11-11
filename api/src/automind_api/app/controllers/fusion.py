@@ -4,6 +4,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, Response
 from pandas import DataFrame
 
+from automind_api.app.models.dataset import (
+    dtype_map,
+)
 from automind_api.app.models.fusion import (
     InitDataFusionBody,
     MergeDataFusion,
@@ -50,9 +53,7 @@ def save_data_fusion(body: SaveDataFusionBody, req: Request):
 
 # fetch saved dataset and relationships by user selected
 @fusion_router.get("/{fusion_id}")
-def preview_data_fusion(
-    fusion_id: Annotated[int, Depends(verify_fusion_id)], req: Request
-):
+def preview_data_fusion(fusion_id: Annotated[int, Depends(verify_fusion_id)]):
     view: ViewDataFusion = get_view_by_id(
         AvailableView.fusion,
         {"id": fusion_id, "id_col_name": "fusion_id"},
@@ -62,7 +63,7 @@ def preview_data_fusion(
 
 
 # fetch saved dataset and relationships by user selected and generate deep feature
-@fusion_router.post("/{fusion_id}/feature/generate")
+@fusion_router.get("/{fusion_id}/generate")
 def data_fusion_generate_feature(
     fusion_id: Annotated[int, Depends(verify_fusion_id)],
     req: Request,
@@ -92,11 +93,32 @@ def merge_data_fusion(
         }
         deep_feature_df.rename(columns=new_column_mapping, inplace=True)
         md5 = calculate_dataframe_md5(deep_feature_df).upper()
+        rows, cols = deep_feature_df.shape
+        new_column_mapping = {
+            col: col.replace("(", "_").replace(")", "").replace(".", "_")
+            for col in deep_feature_df.columns
+        }
+        deep_feature_df.rename(columns=new_column_mapping, inplace=True)
+        col_names = deep_feature_df.columns.to_list()
+        col_types = [
+            dtype_map.get(str(dt), str(dt))
+            for _, dt in deep_feature_df.dtypes.items()
+        ]
         opts: MergeDataFusion = {
             "user_id": req.state.user_id,
             "fusion_id": fusion_id,
             "md5": md5,
+            "rows": rows,
+            "cols": cols,
+            "col_names": ",".join(col_names),
+            "col_types": ",".join(col_types),
+            "size": float(
+                deep_feature_df.memory_usage(index=False, deep=True).sum()
+            ),
+            "size_unit": "bytes",
+            "quality": 0.0,
         }
-        exec_mutation_sp("[dbo].[xp_data_fusion_merge]", opts)
+        sp_message = exec_mutation_sp("[dbo].[xp_data_fusion_merge]", opts)
         dataset_to_mindsdb(deep_feature_df, md5)
-        return {"state": 0, "message": md5}
+
+        return sp_message

@@ -14,7 +14,7 @@ class SaveDataFusionBody(BaseModel):
     dataset_ids: List[str]
     primary_keys: List[str]
     relationships: List[str]
-    position: List[str]
+    position: List[object]
 
 
 class SaveDataFusion(TypedDict):
@@ -40,3 +40,10 @@ class MergeDataFusion(TypedDict):
     fusion_id: int
     user_id: int
     md5: str
+    rows: int
+    cols: int
+    col_names: str
+    col_types: str
+    size: float
+    size_unit: str
+    quality: float
