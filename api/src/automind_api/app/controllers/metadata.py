@@ -30,11 +30,11 @@ def generate_metadata_prompt(
     target_column: str = "",
     force: bool = False,
 ):
-    if (not verify_metadata(dataset_id)) and (not force):
-        return {"state": 0, "message": "no change", "new_id": None}
-
     if target_column == "":
         target_column = verify_metadata_target_column(dataset_id)
+
+    if (not verify_metadata(dataset_id, target_column)) and (not force):
+        return {"state": 0, "message": "no change", "new_id": None}
 
     ret = verify_dataset(dataset_id, req.state.user_id, res, limit=-1)
     if ret.get("state") != 0:
@@ -108,5 +108,6 @@ def get_metadata_status(dataset_id: int, req: Request, res: Response):
         "content": {
             "metadata_status": metadata_view.get("status"),
             "applier_status": metadata_view.get("applier_status"),
+            "target_column": metadata_view.get("target_column_name"),
         },
     }

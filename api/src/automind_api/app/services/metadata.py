@@ -11,7 +11,7 @@ from automind_api.app.repositories.dataset import get_dataset
 from automind_api.app.repositories.i3s import get_view_by_id
 
 
-def verify_metadata(dataset_id: int) -> bool:
+def verify_metadata(dataset_id: int, target_column: str) -> bool:
     data_source_view: ViewDataSource = get_view_by_id(
         AvailableView.dataset,
         {"id": dataset_id, "id_col_name": "oid"},
@@ -23,6 +23,9 @@ def verify_metadata(dataset_id: int) -> bool:
         {"id": dataset_id, "id_col_name": "metadata_id"},
         ViewMetaData,
     )
+
+    if metadata_view.get("target_column_name") != target_column:
+        return True
 
     if metadata_view.get("source_updated") is None:
         return True

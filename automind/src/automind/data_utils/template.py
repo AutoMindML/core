@@ -32,9 +32,7 @@ def get_zero_shot_prompt(modeling_approach_limit: int):
     or detecting errors in data records without prior examples.
     """
 
-    return f"""
-You are an expert data scientist.
-
+    return f""" You are an expert data scientist.
 Your task is to analyze the provided dataset metadata and generate recommendations for:
 - data quality assessment.
 - data preparation.

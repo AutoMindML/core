@@ -68,11 +68,16 @@ where = ["src"]
 
 # more setting refer to: https://microsoft.github.io/pyright/#/configuration?id=sample-pyprojecttoml-file
 [tool.pyright]
+disableOrganizeImports = true
+include = ["src"]
 reportMissingTypeStubs = false
+reportMissingImports = false
 useLibraryCodeForTypes = false
 extraPaths = ["typings"]
-# reportUnusedVariable = false
-# typeCheckingMode = "basic"
+autoSearchPaths = true
+diagnosticMode = "workspace"
+typeCheckingMode = "standard"
+
 
 [tool.ruff.lint]
 ignore = ["F403", "E402"]

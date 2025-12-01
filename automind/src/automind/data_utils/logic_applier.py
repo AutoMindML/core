@@ -1,6 +1,13 @@
 import json
 import re
-from typing import Dict, List, Literal, Optional, TypedDict, Union
+from typing import (
+    Dict,
+    List,
+    Literal,
+    Optional,
+    TypedDict,
+    Union,
+)
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -14,10 +21,15 @@ from automind.data_utils.template import escape_tag_end, escape_tag_start
 from automind.models.preprocessing import (
     DC,
     FE,
+    DataCleaningOptions,
+    FeatureEngineeringOptions,
     FeatureEngineeringRecommendations,
     LLMResponseSchema,
+    LLMResponseUtil,
+    LLMResponseUtilProtocol,
     SamplingRecommendation,
 )
+from automind.utils.json import JsonCleaner, JsonCleanerProtocal
 from automind.utils.logging import logger
 
 LogicApplierDatasetType = Dict[str, Union[pd.DataFrame, pd.Series]]
@@ -57,6 +69,8 @@ class LogicApplier:
         dataset: pd.DataFrame,
         target_column: Optional[str] = None,
         llm_response: str = "",
+        json_cleaner: JsonCleanerProtocal = JsonCleaner(),
+        llm_response_util: LLMResponseUtilProtocol = LLMResponseUtil(),
     ):
         """
         Initialize the LogicApplier with original DataFrame.
@@ -73,6 +87,8 @@ class LogicApplier:
         self.removed_columns = []
         self.llm_response = llm_response
         self.logic_actions = []
+        self.json_cleaner = json_cleaner
+        self.llm_response_util = llm_response_util
 
     def get_origin_df(self):
         return self.original_df
@@ -84,7 +100,12 @@ class LogicApplier:
         return self.processing_history
 
     def apply_llm_recommendations(
-        self, logic_action_index: int = 0, modeling_approach_index: int = 0
+        self,
+        data_cleaning_options: Optional[DataCleaningOptions] = None,
+        feature_engineering_options: Optional[FeatureEngineeringOptions] = None,
+        logic_action_index: int = 0,
+        modeling_approach_index: int = 0,
+        only_cleaning: bool = False,
     ):
         """
         Apply all recommendations from LLM response.
@@ -114,6 +135,9 @@ class LogicApplier:
         )
         logger.info(f"Target column: {modeling_approach.target}")
 
+        # reset
+        self.processed_df = self.original_df.copy()
+
         # update target column if specified in modeling approach
         if (
             modeling_approach.target
@@ -125,9 +149,10 @@ class LogicApplier:
             modeling_approach.data_cleaning
         )
 
-        self._apply_feature_engineering_recommendations(
-            modeling_approach.feature_engineering
-        )
+        if not only_cleaning:
+            self._apply_feature_engineering_recommendations(
+                modeling_approach.feature_engineering
+            )
 
         datasets = self._prepare_datasets(
             modeling_approach.test_size,
@@ -622,7 +647,7 @@ class LogicApplier:
             try:
                 parsed_json = json.loads(match)
             except json.JSONDecodeError:
-                cleaned_json = self._clean_json_text(match)
+                cleaned_json = self.json_cleaner.clean_json_text(match)
 
                 try:
                     parsed_json = json.loads(cleaned_json)
@@ -630,7 +655,7 @@ class LogicApplier:
                     continue
 
             try:
-                validated_json = LLMResponseSchema.model_validate(parsed_json)
+                validated_json = self.llm_response_util.model_validate(parsed_json)
                 self.logic_actions.append(validated_json)
                 return validated_json
             except ValueError as e:
@@ -638,27 +663,3 @@ class LogicApplier:
                 continue
 
         return None
-
-    @staticmethod
-    def _clean_json_text(json_text: str) -> str:
-        """
-        Clean up malformed JSON text by removing common formatting issues.
-
-        Args:
-            json_text: Potentially malformed JSON string
-
-        Returns:
-            Cleaned JSON string
-        """
-        # extract JSON content between first { and last }
-        start_idx = json_text.find("{")
-        end_idx = json_text.rfind("}")
-
-        if start_idx != -1 and end_idx != -1:
-            json_text = json_text[start_idx : end_idx + 1]
-
-        # remove trailing commas
-        json_text = re.sub(r",\s*}", "}", json_text)
-        json_text = re.sub(r",\s*]", "]", json_text)
-
-        return json_text

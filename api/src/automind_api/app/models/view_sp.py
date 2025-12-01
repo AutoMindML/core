@@ -1,6 +1,8 @@
 from datetime import date
 from typing import Literal, TypedDict
 
+from automind_api.app.models.shared import Status
+
 
 class AvailableView:
     dataset = "[dbo].[vd_Data_Source]"
@@ -23,5 +25,5 @@ class ViewMetaData(TypedDict):
     target_column_name: str
     logic_action: str
     processing_history: str
-    status: Literal["unavailable", "generating", "complete"]
+    status: Status
     applier_status: Literal["unavailable", "generating", "complete"]

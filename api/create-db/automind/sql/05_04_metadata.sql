@@ -83,7 +83,7 @@ AS BEGIN TRY
                 T.Prompt = S.Prompt,
                 T.LLMResponse = S.LLM_Response,
                 T.LogicAction = S.Logic_Action,
-                T.SourceUpdated = S.Source_Updated,
+                T.SourceUpdated = getdate(),
                 T.ProcessingHistory = S.Processing_History,
                 T.TargetColumnName = S.Target_Column_Name,
                 T.[Status] = 'complete'

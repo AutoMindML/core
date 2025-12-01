@@ -1,5 +1,5 @@
 from enum import Enum, auto
-from typing import Annotated, List, Union
+from typing import Annotated, Any, Dict, List, Protocol, TypedDict, Union
 
 from pydantic import BaseModel
 
@@ -299,3 +299,57 @@ ALL_PROCESSING_METHOD = Union[
     FE.Extraction,
     # FE.Selection,
 ]
+
+ChoosedMethods = Dict[int, List[bool]]
+
+
+class DataCleaningOptions(TypedDict):
+    # {[missing value recommendation index]: [choosed methods(boolean)]}
+    missing_values: ChoosedMethods
+    sampling: ChoosedMethods
+
+
+class FeatureEngineeringOptions(TypedDict): ...
+
+
+class LLMResponseUtilProtocol(Protocol):
+    def model_validate(self, obj: Any) -> LLMResponseSchema: ...
+
+    def filter_methods(
+        self,
+        modeling_approach: ModelingApproach,
+        data_cleaning_options: DataCleaningOptions,
+        feature_engineering_options: FeatureEngineeringOptions,
+    ): ...
+
+
+class LLMResponseUtil:
+    model_validate = LLMResponseSchema.model_validate
+
+    def filter_methods(
+        self,
+        modeling_approach: ModelingApproach,
+        data_cleaning_options: DataCleaningOptions,
+        feature_engineering_options: FeatureEngineeringOptions,
+    ):
+        copied_modeling_approach = modeling_approach.model_copy()
+
+        for rec in copied_modeling_approach.data_cleaning.missing_values:
+            copied_methods = rec.methods.copy()
+            ...
+
+        for rec in copied_modeling_approach.data_cleaning.sampling:
+            copied_methods = rec.methods.copy()
+            ...
+
+        for rec in copied_modeling_approach.feature_engineering.transformation:
+            copied_methods = rec.methods.copy()
+            ...
+
+        for rec in copied_modeling_approach.feature_engineering.extraction:
+            copied_methods = rec.methods.copy()
+            ...
+
+        for rec in copied_modeling_approach.feature_engineering.encoding:
+            copied_methods = rec.methods.copy()
+            ...

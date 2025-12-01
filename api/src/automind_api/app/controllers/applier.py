@@ -27,7 +27,11 @@ def applier_preview_actions(dataset_id: int, req: Request, res: Response):
     if applier is None:
         return generate_409_conflict_response(res)
 
-    return applier.logic_actions
+    return {
+        "state": 0,
+        "message": "get actions successfully",
+        "content": applier.logic_actions,
+    }
 
 
 @applier_router.get("/{dataset_id}/preview/processing")
