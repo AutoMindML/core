@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Request, Response
 
-from automind_api.app.models.applier import ApplierGenerateNewDatasetParameter
+from automind_api.app.models.applier import (
+    ApplierGenerateNewDatasetParameter,
+    ApplierProcessingBody,
+)
 from automind_api.app.models.metadata import UpdateMetaDataStatusParameter
 from automind_api.app.models.view_sp import AvailableSP
 from automind_api.app.repositories.dataset import dataset_to_mindsdb
@@ -18,7 +21,7 @@ from automind_api.app.services.metadata import (
 applier_router = APIRouter()
 
 
-@applier_router.get("/{dataset_id}/preview/actions")
+@applier_router.get("/{dataset_id}/preview/actions/")
 def applier_preview_actions(dataset_id: int, req: Request, res: Response):
     applier = get_logic_applier_by_dataset_id(
         dataset_id, req.state.user_id, limit=20
@@ -34,9 +37,9 @@ def applier_preview_actions(dataset_id: int, req: Request, res: Response):
     }
 
 
-@applier_router.get("/{dataset_id}/preview/processing")
+@applier_router.post("/{dataset_id}/preview/processing")
 def applier_preview_processing_result(
-    dataset_id: int, req: Request, res: Response
+    dataset_id: int, req: Request, res: Response, body: ApplierProcessingBody
 ):
     applier = get_logic_applier_by_dataset_id(
         dataset_id, req.state.user_id, limit=20
@@ -45,7 +48,12 @@ def applier_preview_processing_result(
     if applier is None:
         return generate_409_conflict_response(res)
 
-    applier.apply_llm_recommendations()
+    applier.apply_llm_recommendations(
+        body.data_cleaning_options,
+        body.feature_engineering_options,
+        only_cleaning=body.only_cleaning,
+    )
+
     return generate_file_response(applier.get_processed_df(), res)
 
 

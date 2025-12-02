@@ -1,6 +1,6 @@
 import json
 
-from automind.data_utils import LogicApplier
+from automind.data_utils.logic_applier import LogicApplier
 from fastapi import HTTPException
 from openai.types.chat import ChatCompletion
 from starlette import status

@@ -130,6 +130,12 @@ class LogicApplier:
             modeling_approach_index
         ]
 
+        modeling_approach = self.llm_response_util.filter_methods(
+            modeling_approach,
+            data_cleaning_options,
+            feature_engineering_options,
+        )
+
         logger.info(
             f"Applying recommendations for {modeling_approach.task_type.name} task"
         )
@@ -655,7 +661,9 @@ class LogicApplier:
                     continue
 
             try:
-                validated_json = self.llm_response_util.model_validate(parsed_json)
+                validated_json = self.llm_response_util.model_validate(
+                    parsed_json
+                )
                 self.logic_actions.append(validated_json)
                 return validated_json
             except ValueError as e:

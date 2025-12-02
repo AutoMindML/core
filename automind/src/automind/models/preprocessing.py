@@ -1,7 +1,16 @@
 from enum import Enum, auto
-from typing import Annotated, Any, Dict, List, Protocol, TypedDict, Union
+from typing import (
+    Annotated,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Union,
+)
 
 from pydantic import BaseModel
+from typing_extensions import TypedDict
 
 from automind.data_utils.shared import (
     EnumByName,
@@ -318,9 +327,9 @@ class LLMResponseUtilProtocol(Protocol):
     def filter_methods(
         self,
         modeling_approach: ModelingApproach,
-        data_cleaning_options: DataCleaningOptions,
-        feature_engineering_options: FeatureEngineeringOptions,
-    ): ...
+        data_cleaning_options: Optional[DataCleaningOptions],
+        feature_engineering_options: Optional[FeatureEngineeringOptions],
+    ) -> ModelingApproach: ...
 
 
 class LLMResponseUtil:
@@ -329,27 +338,74 @@ class LLMResponseUtil:
     def filter_methods(
         self,
         modeling_approach: ModelingApproach,
-        data_cleaning_options: DataCleaningOptions,
-        feature_engineering_options: FeatureEngineeringOptions,
+        data_cleaning_options: Optional[DataCleaningOptions] = None,
+        feature_engineering_options: Optional[FeatureEngineeringOptions] = None,
     ):
         copied_modeling_approach = modeling_approach.model_copy()
 
-        for rec in copied_modeling_approach.data_cleaning.missing_values:
-            copied_methods = rec.methods.copy()
+        if data_cleaning_options is not None:
+            for value_idx in range(
+                len(copied_modeling_approach.data_cleaning.missing_values)
+            ):
+                if (
+                    data_cleaning_options["missing_values"].get(value_idx)
+                    is None
+                ):
+                    continue
+
+                copied_methods = (
+                    copied_modeling_approach.data_cleaning.missing_values[
+                        value_idx
+                    ].methods.copy()
+                )
+
+                copied_modeling_approach.data_cleaning.missing_values[
+                    value_idx
+                ].methods = [
+                    method
+                    for method, choose in zip(
+                        copied_methods,
+                        data_cleaning_options["missing_values"][value_idx],
+                    )
+                    if choose
+                ]
+
+            for value_idx in range(
+                len(copied_modeling_approach.data_cleaning.sampling)
+            ):
+                if data_cleaning_options["sampling"].get(value_idx) is None:
+                    continue
+
+                copied_methods = (
+                    copied_modeling_approach.data_cleaning.sampling[
+                        value_idx
+                    ].methods.copy()
+                )
+
+                copied_modeling_approach.data_cleaning.sampling[
+                    value_idx
+                ].methods = [
+                    method
+                    for method, choose in zip(
+                        copied_methods,
+                        data_cleaning_options["missing_values"][value_idx],
+                    )
+                    if choose
+                ]
+
+        if feature_engineering_options is not None:
             ...
 
-        for rec in copied_modeling_approach.data_cleaning.sampling:
-            copied_methods = rec.methods.copy()
-            ...
+        # for rec in copied_modeling_approach.feature_engineering.transformation:
+        #     copied_methods = rec.methods.copy()
+        #     ...
+        #
+        # for rec in copied_modeling_approach.feature_engineering.extraction:
+        #     copied_methods = rec.methods.copy()
+        #     ...
+        #
+        # for rec in copied_modeling_approach.feature_engineering.encoding:
+        #     copied_methods = rec.methods.copy()
+        #     ...
 
-        for rec in copied_modeling_approach.feature_engineering.transformation:
-            copied_methods = rec.methods.copy()
-            ...
-
-        for rec in copied_modeling_approach.feature_engineering.extraction:
-            copied_methods = rec.methods.copy()
-            ...
-
-        for rec in copied_modeling_approach.feature_engineering.encoding:
-            copied_methods = rec.methods.copy()
-            ...
+        return copied_modeling_approach

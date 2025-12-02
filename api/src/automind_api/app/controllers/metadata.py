@@ -1,6 +1,6 @@
 import json
 
-from automind.data_utils import MetaGenerator
+from automind.data_utils.meta_generator import MetaGenerator
 from fastapi import APIRouter, Request, Response
 
 from automind_api.app.models.metadata import (
