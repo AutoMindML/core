@@ -10,7 +10,6 @@ from typing import (
 )
 
 from pydantic import BaseModel
-from typing_extensions import TypedDict
 
 from automind.data_utils.shared import (
     EnumByName,
@@ -309,16 +308,19 @@ ALL_PROCESSING_METHOD = Union[
     # FE.Selection,
 ]
 
-ChoosedMethods = Dict[int, List[bool]]
+ChoosedMethods = Dict[str, List[bool]]
 
 
-class DataCleaningOptions(TypedDict):
+class DataCleaningOptions(BaseModel):
     # {[missing value recommendation index]: [choosed methods(boolean)]}
-    missing_values: ChoosedMethods
-    sampling: ChoosedMethods
+    missing_values: ChoosedMethods = {}
+    sampling: ChoosedMethods = {}
 
 
-class FeatureEngineeringOptions(TypedDict): ...
+class FeatureEngineeringOptions(BaseModel):
+    transformation: ChoosedMethods = {}
+    encoding: ChoosedMethods = {}
+    extraction: ChoosedMethods = {}
 
 
 class LLMResponseUtilProtocol(Protocol):
@@ -348,7 +350,7 @@ class LLMResponseUtil:
                 len(copied_modeling_approach.data_cleaning.missing_values)
             ):
                 if (
-                    data_cleaning_options["missing_values"].get(value_idx)
+                    data_cleaning_options.missing_values.get(str(value_idx))
                     is None
                 ):
                     continue
@@ -365,7 +367,7 @@ class LLMResponseUtil:
                     method
                     for method, choose in zip(
                         copied_methods,
-                        data_cleaning_options["missing_values"][value_idx],
+                        data_cleaning_options.missing_values[str(value_idx)],
                     )
                     if choose
                 ]
@@ -373,7 +375,7 @@ class LLMResponseUtil:
             for value_idx in range(
                 len(copied_modeling_approach.data_cleaning.sampling)
             ):
-                if data_cleaning_options["sampling"].get(value_idx) is None:
+                if data_cleaning_options.sampling.get(str(value_idx)) is None:
                     continue
 
                 copied_methods = (
@@ -388,7 +390,7 @@ class LLMResponseUtil:
                     method
                     for method, choose in zip(
                         copied_methods,
-                        data_cleaning_options["missing_values"][value_idx],
+                        data_cleaning_options.missing_values[str(value_idx)],
                     )
                     if choose
                 ]

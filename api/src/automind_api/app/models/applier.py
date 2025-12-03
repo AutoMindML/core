@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import Optional, TypedDict
 
 from automind.models.preprocessing import (
     DataCleaningOptions,
@@ -16,6 +16,6 @@ class ApplierGenerateNewDatasetParameter(TypedDict):
 
 
 class ApplierProcessingBody(BaseModel):
-    only_cleaning: bool
-    data_cleaning_options: DataCleaningOptions
-    feature_engineering_options: FeatureEngineeringOptions
+    only_cleaning: Optional[bool] = False
+    data_cleaning_options: Optional[DataCleaningOptions] = None
+    feature_engineering_options: Optional[FeatureEngineeringOptions] = None

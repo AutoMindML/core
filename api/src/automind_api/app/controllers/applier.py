@@ -21,7 +21,7 @@ from automind_api.app.services.metadata import (
 applier_router = APIRouter()
 
 
-@applier_router.get("/{dataset_id}/preview/actions/")
+@applier_router.get("/{dataset_id}/preview/actions")
 def applier_preview_actions(dataset_id: int, req: Request, res: Response):
     applier = get_logic_applier_by_dataset_id(
         dataset_id, req.state.user_id, limit=20
