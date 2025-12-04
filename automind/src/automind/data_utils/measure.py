@@ -11,7 +11,7 @@ from scipy.linalg import eigvals
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.preprocessing import LabelEncoder
 
-from automind.data_utils.shared import method_registry, register_method
+from automind.shared import method_registry, register_method
 from automind.models.measure import InformationTheoretic, Simple, Statistical
 
 warnings.filterwarnings("ignore")

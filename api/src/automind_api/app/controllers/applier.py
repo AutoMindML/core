@@ -51,7 +51,7 @@ def applier_preview_processing_result(
     applier.apply_llm_recommendations(
         body.data_cleaning_options,
         body.feature_engineering_options,
-        only_cleaning=body.only_cleaning,
+        only_cleaning=body.only_cleaning or False,
     )
 
     return generate_file_response(applier.get_processed_df(), res)

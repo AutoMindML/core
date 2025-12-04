@@ -17,14 +17,14 @@ from sklearn.preprocessing import (
 )
 
 from automind.data_utils.parser import DataParser
-from automind.data_utils.shared import (
-    method_registry,
-    register_method,
-)
 from automind.models.preprocessing import (
     COMMON,
     DC,
     FE,
+)
+from automind.shared import (
+    method_registry,
+    register_method,
 )
 from automind.utils.logging import logger
 

@@ -6,7 +6,7 @@ from sklearn.base import clone
 from sklearn.metrics import classification_report
 from sklearn.model_selection import KFold, StratifiedKFold
 
-from automind.console import rich_console
+from automind.utils.console import rc
 
 ALL_CROSS_VALIDATION_METHOD = Union[KFold, StratifiedKFold]
 
@@ -32,7 +32,9 @@ def cross_validation(
     all_y_true = []
     all_y_pred = []
 
-    for fold_count, (train_index, validation_index) in enumerate(cv.split(X, y)):
+    for fold_count, (train_index, validation_index) in enumerate(
+        cv.split(X, y)
+    ):
         X_train, y_train = X.loc[train_index], y.loc[train_index]
         X_validation, y_true = X.loc[validation_index], y.loc[validation_index]
 
@@ -52,9 +54,11 @@ def cross_validation(
 
 
 def print_classification_report(
-    y_true: ArrayLike, y_pred: ArrayLike, name: Optional[str] = "Classification Report"
+    y_true: ArrayLike,
+    y_pred: ArrayLike,
+    name: Optional[str] = "Classification Report",
 ):
-    rich_console.print(
+    rc.print(
         "\n",
         f"[green]{name}[/green]",
         "\n\n",

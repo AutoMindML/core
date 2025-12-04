@@ -8,7 +8,7 @@ import ollama
 from dotenv import dotenv_values, load_dotenv
 from ollama import chat
 
-from automind.console import ANSI_ESCAPE, SPINNER_SYMBOLS
+from automind.utils.console import ANSI_ESCAPE, SPINNER_SYMBOLS
 
 load_dotenv()
 env = dotenv_values()
@@ -80,7 +80,9 @@ def run_ollama(prompt: str, model: str = DEFAULT_MODEL):
 
 
 def ollama_stream(
-    prompt: str, model: str = DEFAULT_MODEL, buffer_queue: Optional[queue.Queue] = None
+    prompt: str,
+    model: str = DEFAULT_MODEL,
+    buffer_queue: Optional[queue.Queue] = None,
 ):
     process = subprocess.Popen(
         [CMD, "run", model, prompt],

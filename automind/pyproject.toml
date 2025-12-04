@@ -71,7 +71,6 @@ where = ["src"]
 disableOrganizeImports = true
 include = ["src"]
 reportMissingTypeStubs = false
-reportMissingImports = false
 useLibraryCodeForTypes = false
 extraPaths = ["typings"]
 autoSearchPaths = true
