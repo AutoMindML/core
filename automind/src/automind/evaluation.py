@@ -62,5 +62,5 @@ def print_classification_report(
         "\n",
         f"[green]{name}[/green]",
         "\n\n",
-        classification_report(y_true, y_pred, zero_division="0.0"),
+        classification_report(y_true, y_pred, zero_division=0),
     )

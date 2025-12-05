@@ -11,8 +11,8 @@ from scipy.linalg import eigvals
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.preprocessing import LabelEncoder
 
-from automind.shared import method_registry, register_method
 from automind.models.measure import InformationTheoretic, Simple, Statistical
+from automind.shared import method_registry, register_method
 
 warnings.filterwarnings("ignore")
 
@@ -272,7 +272,8 @@ def can_cor(
         lda.fit(feature_df.fillna(0), y_encoded)
 
         # Canonical correlations are related to eigenvalues
-        eigenvals = np.array(eigvals(lda.covariance_))
+        cov_matrix = np.array(lda.covariance_)
+        eigenvals = np.array(eigvals(cov_matrix))
         can_corrs = np.sqrt(eigenvals / (eigenvals + 1))
         return df, np.real(can_corrs), feature_df.columns.values
     except Exception:
@@ -478,7 +479,7 @@ def mad(
 
     mad_values = []
     for col in feature_df.columns:
-        vals = feature_df[col].dropna()
+        vals = feature_df[col].dropna().to_numpy()
         if len(vals) > 0:
             median = np.median(vals)
             mad_val = np.median(np.abs(vals - median))
@@ -648,7 +649,7 @@ def range_val(
 
     return (
         df,
-        (feature_df.max() - feature_df.min()).values,
+        np.array((feature_df.max() - feature_df.min()).values),
         feature_df.columns.values,
     )
 
@@ -813,7 +814,8 @@ def w_lambda(
         lda.fit(feature_df.fillna(0), y_encoded)
 
         # Approximate Wilks lambda from eigenvalues
-        eigenvals = eigvals(lda.covariance_)
+        cov_matrix = np.array(lda.covariance_)
+        eigenvals = eigvals(cov_matrix)
         wilks_lambda = 1.0 / (1.0 + np.sum(np.real(eigenvals)))
         return df, min(1.0, max(0.0, wilks_lambda))
     except Exception:
