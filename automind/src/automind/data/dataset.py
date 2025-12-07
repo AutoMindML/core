@@ -133,3 +133,34 @@ def slice_datasets(
         )
 
     logger.info("All done!")
+
+
+def read_csv_from_dir(directory: Path, filename: str) -> pd.DataFrame:
+    """
+    Reads a CSV file from a specified directory and converts it to a pandas DataFrame.
+
+    Args:
+        directory (str): The path to the directory (e.g., 'data/raw').
+        filename (str): The name of the CSV file (e.g., 'patients.csv').
+
+    Returns:
+        pd.DataFrame: The loaded DataFrame.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+    """
+    # Construct safe file path
+    file_path = directory / filename
+
+    # Validation
+    if not file_path.is_file():
+        raise FileNotFoundError(f"File not found at: {file_path}")
+
+    # Load data
+    try:
+        logger.info(f"Reading {file_path.relative_to(Path().cwd())}")
+        df = pd.read_csv(file_path)
+        logger.info(f"Successfully loaded '{filename}' (Shape: {df.shape})")
+        return df
+    except Exception as e:
+        raise RuntimeError(f"Failed to read CSV: {str(e)}")

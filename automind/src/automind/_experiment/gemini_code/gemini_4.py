@@ -55,7 +55,7 @@ df = df.drop(columns=["HEALTHCARE_EXPENSES", "HEALTHCARE_COVERAGE"])
 # 5. Cleaning & Transformation
 # Calculate Age
 df["BIRTHDATE"] = pd.to_datetime(df["BIRTHDATE"], errors="coerce")
-df["age"] = (pd.Timestamp.now() - df["BIRTHDATE"]).dt.days // 365
+df["age"] = (pd.Series(pd.Timestamp.now()) - df["BIRTHDATE"]).dt.days // 365
 
 # Impute missing numerical values with median
 num_cols = [
