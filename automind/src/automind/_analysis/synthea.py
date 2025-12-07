@@ -19,6 +19,10 @@ if __name__ == "__main__":
                 "SUFFIX",
                 "LAT",
                 "LON",
+                "ADDRESS",
+                "ZIP",
+                "STATE",
+                "MAIDEN",
             ],
             AvailableDataset.synthea_covid19_10k.datasets["conditions"].name: [
                 # correspond DESCREPTION (condition)

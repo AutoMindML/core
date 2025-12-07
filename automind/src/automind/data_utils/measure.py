@@ -12,7 +12,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.preprocessing import LabelEncoder
 
 from automind.models.measure import InformationTheoretic, Simple, Statistical
-from automind.shared import method_registry, register_method
+from automind.models.shared import method_registry, register_method
 
 warnings.filterwarnings("ignore")
 

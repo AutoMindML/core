@@ -22,7 +22,7 @@ from automind.models.preprocessing import (
     DC,
     FE,
 )
-from automind.shared import (
+from automind.models.shared import (
     method_registry,
     register_method,
 )

@@ -12,6 +12,7 @@ dependencies = [
   # "chainlit>=2.5.5",
   # "mcp[cli]>=1.6.0",
   "ollama",
+  "xgboost",
 
 
   # -------------------- data processing --------------------
@@ -80,7 +81,7 @@ typeCheckingMode = "standard"
 
 [tool.ruff.lint]
 ignore = ["F403", "E402"]
+exclude = ["**/__init__.py"]
 
 [tool.ruff]
 line-length = 80
-exclude = ["**/__init__.py"]

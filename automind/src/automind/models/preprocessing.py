@@ -11,7 +11,7 @@ from typing import (
 
 from pydantic import BaseModel
 
-from automind.shared import (
+from automind.models.shared import (
     EnumByName,
 )
 

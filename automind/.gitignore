@@ -1,4 +1,5 @@
 **/tests/**/llm_query.txt
 **/tests/**/*.png
+**/output
 **/*.csv
 **/typings

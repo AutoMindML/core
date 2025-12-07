@@ -51,7 +51,10 @@ def dataframe_to_csv(data_info: DatasetInfo, data: pd.DataFrame, name: str):
         / f"{name}.{data_info.extension.value}"
     )
 
-    return data.to_csv(full_path, index=False)
+    try:
+        data.to_csv(full_path, index=False)
+    except PermissionError:
+        logger.error("Permission denied, close opened file first")
 
 
 class DatasetGroup(Generic[T]):
