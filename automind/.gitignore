@@ -3,3 +3,4 @@
 **/output
 **/*.csv
 **/typings
+**/private.*

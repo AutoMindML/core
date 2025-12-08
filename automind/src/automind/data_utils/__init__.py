@@ -1,4 +1,6 @@
 from automind.data_utils.logic_applier import LogicApplier
+from automind.data_utils.data_fusion_module import DataFusionModule
+from automind.data_utils.meta_generator import MetaGenerator
 from pathlib import Path
 
 from pandas import DataFrame
@@ -10,4 +12,4 @@ def dataframe_to_csv_with_mkdir(df: DataFrame, output_dir_path: str, output_file
     df.to_csv(output_dir / output_filename, index=False) 
 
 
-__all__ = ["LogicApplier"]
+__all__ = ["LogicApplier", "DataFusionModule", "MetaGenerator"]

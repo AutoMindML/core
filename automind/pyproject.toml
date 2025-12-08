@@ -5,7 +5,6 @@ description = "an automl framework with llm-based data processing module"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-
   # -------------------- model --------------------
   # "torch==2.6.0",
   # "optuna>=4.2.1",
@@ -13,6 +12,7 @@ dependencies = [
   # "mcp[cli]>=1.6.0",
   "ollama",
   "xgboost",
+  "openai",
 
 
   # -------------------- data processing --------------------
@@ -57,31 +57,32 @@ dependencies = [
   "wcwidth",
   "rich",
   "graphviz",
+  "pdm",
 ]
 
 # also self install automind
 [build-system]
 requires = ["setuptools"]
 
-# define package entry
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.pdm.scripts]
+report = "uv run ./src/automind/_experiment/report.py"
+expe = "uv run ./src/automind/_experiment/main.py"
 
 # more setting refer to: https://microsoft.github.io/pyright/#/configuration?id=sample-pyprojecttoml-file
 [tool.pyright]
-disableOrganizeImports = true
 include = ["src"]
 reportMissingTypeStubs = false
 useLibraryCodeForTypes = false
 extraPaths = ["typings"]
-autoSearchPaths = true
-diagnosticMode = "workspace"
 typeCheckingMode = "standard"
 
+[tool.ruff]
+line-length = 80
 
 [tool.ruff.lint]
 ignore = ["F403", "E402"]
 exclude = ["**/__init__.py"]
 
-[tool.ruff]
-line-length = 80
+# define package entry
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -443,7 +443,6 @@ class DataParser:
         # Handle integer types
         if pd.api.types.is_integer_dtype(series):
             return self._optimize_integer_series(series)
-
         # Handle float types
         elif pd.api.types.is_float_dtype(series):
             return self._optimize_float_series(series)

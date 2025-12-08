@@ -1,5 +1,7 @@
+import json
 import time
 from itertools import combinations
+from pathlib import Path
 from typing import Any, Dict, List, Type, TypedDict, cast
 
 import numpy as np
@@ -36,8 +38,8 @@ class ReproducibilityMetrics(TypedDict):
 
 
 class RawDetails(TypedDict):
-    quality: pd.DataFrame
-    performance: pd.DataFrame
+    quality: List[DataQualityMetrics]
+    performance: List[ModelPerformanceMetrics]
 
 
 class SingleRunResult(TypedDict):
@@ -165,7 +167,7 @@ class ExperimentEvaluator:
 
         # 2. Mutual Information (MI) - Average of top 10 features
         # Fill NaN to calculate MI (required by scikit-learn)
-        X_mi = X.fillna(X.mean())
+        X_mi = X.fillna(round(X.mean()))
         mi_scores = mutual_info_classif(
             X_mi, y, discrete_features="auto", random_state=42
         )
@@ -267,15 +269,16 @@ class ExperimentEvaluator:
 
     def _aggregate_report(self) -> ExperimentReport:
         """Average the results of multiple experiments to generate a final report."""
-        df_quality = pd.DataFrame(self.results["data_quality"])
-        df_performance = pd.DataFrame(self.results["model_performance"])
+        df_quality = self.results["data_quality"]
+        df_performance = self.results["model_performance"]
 
         summary: ExperimentReport = {
             "average_data_quality": cast(
-                DataQualityMetrics, df_quality.mean().to_dict()
+                DataQualityMetrics, pd.DataFrame(df_quality).mean().to_dict()
             ),
             "average_model_performance": cast(
-                ModelPerformanceMetrics, df_performance.mean().to_dict()
+                ModelPerformanceMetrics,
+                pd.DataFrame(df_performance).mean().to_dict(),
             ),
             "reproducibility_metrics": self.results["reproducibility"],
             "raw_details": {
@@ -284,3 +287,24 @@ class ExperimentEvaluator:
             },
         }
         return summary
+
+    @staticmethod
+    def save_report(report: ExperimentReport, path: Path) -> None:
+        with open(
+            path,
+            "w",
+            encoding="utf-8",
+        ) as f:
+            f.write(json.dumps(report))
+
+    @staticmethod
+    def load_report(path: Path) -> ExperimentReport:
+        report: ExperimentReport
+        with open(
+            path,
+            "r",
+            encoding="utf-8",
+        ) as f:
+            report = json.loads(f.read())
+
+        return report

@@ -3,7 +3,8 @@ from pathlib import Path
 
 from xgboost import XGBClassifier
 
-from automind import logger, rc
+from automind import logger
+from automind._experiment.core import apply_data_preprocessing_workflow
 from automind.data.dataset import AvailableDataset, load_data, read_csv_from_dir
 from automind.evaluation.evaluator import ExperimentEvaluator
 
@@ -20,8 +21,16 @@ df_conditions = load_data(
 )
 
 iterations = 5
+target_column = "HEALTHCARE_EXPENSES"
 gemini_code_dir = Path(__file__).parent.absolute() / "gemini_code"
 output_dir = Path(__file__).parent.absolute() / "output"
+gemini_report_path = (
+    Path(__file__).parent.absolute() / "report/gemini_report.txt"
+)
+automind_report_path = (
+    Path(__file__).parent.absolute() / "report/automind_report.txt"
+)
+llm_response_dir = Path(__file__).parent.absolute() / "llm_response"
 
 
 def init_gemini_result_csv():
@@ -58,4 +67,24 @@ if __name__ == "__main__":
     )
 
     report = evaluator.evaluate(dfs)
-    rc.print(report)
+    evaluator.save_report(report, gemini_report_path)
+
+    dfs.clear()
+    for i in range(iterations):
+        df = apply_data_preprocessing_workflow(
+            df_patients,
+            df_conditions,
+            df_encounters,
+            llm_response_dir / f"llm_response_{i + 1}.txt",
+            target_column,
+        )
+        if df is not None:
+            dfs.append(df)
+
+    evaluator = ExperimentEvaluator(
+        model_class=XGBClassifier,
+        model_params=xgb_params,
+        target_col="HEALTHCARE_EXPENSES",
+    )
+    report = evaluator.evaluate(dfs)
+    evaluator.save_report(report, automind_report_path)

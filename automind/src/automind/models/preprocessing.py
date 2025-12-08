@@ -21,6 +21,7 @@ from automind.models.shared import (
 
 class COMMON(Enum):
     DROP_DUPLICATE_ROWS = auto()
+    DROP_UNNECESSARY_COLUMN = auto()
 
 
 class DC:

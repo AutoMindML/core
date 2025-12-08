@@ -326,6 +326,12 @@ def drop_duplicate_rows(
     return df.drop_duplicates()
 
 
+@register_method(COMMON.DROP_UNNECESSARY_COLUMN)
+def drop_unnecessary_column(df: pd.DataFrame, column: str):
+    df = df.copy()
+    return df.drop(columns=[column])
+
+
 # -------------------- util --------------------
 
 
