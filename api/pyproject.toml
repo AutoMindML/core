@@ -42,34 +42,35 @@ dependencies = [
   # -------------------- other --------------------
   "openai",
   "debugpy",
+  "pdm",
 ]
 
-
+# install self
 [build-system]
 requires = ["setuptools"]
 
-# define package entry
-[tool.setuptools.packages.find]
-where = ["src"]
+# pdm command
+[tool.pdm.scripts]
+start = "uv run start.py"
 
 # more setting refer to: https://microsoft.github.io/pyright/#/configuration?id=sample-pyprojecttoml-file
 [tool.pyright]
-disableOrganizeImports = true
 include = ["src"]
 reportMissingTypeStubs = false
 useLibraryCodeForTypes = false
 extraPaths = ["typings"]
-autoSearchPaths = true
-diagnosticMode = "workspace"
 typeCheckingMode = "standard"
-
-
-[tool.ruff.lint]
-ignore = ["F403", "E402"]
 
 [tool.ruff]
 line-length = 80
+
+[tool.ruff.lint]
+ignore = ["F403", "E402"]
 exclude = ["**/__init__.py"]
+
+# define package entry
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.uv.sources]
 automind = { path = "../automind/", editable = true }

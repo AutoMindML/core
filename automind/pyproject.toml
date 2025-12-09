@@ -65,6 +65,7 @@ dependencies = [
 requires = ["setuptools"]
 
 [tool.pdm.scripts]
+test = "uv run -m pytest ./src/automind/tests -x"
 report = "uv run ./src/automind/_experiment/report.py"
 expe = "uv run ./src/automind/_experiment/main.py"
 

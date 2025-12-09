@@ -73,7 +73,4 @@ def apply_data_preprocessing_workflow(
 
     logger.info("Apply logic applier successfully!")
 
-    # rc.print(applier.logic_actions)
-    # rc.print(applier.get_processed_df())
-
     return applier.get_processed_df()

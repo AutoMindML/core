@@ -23,7 +23,7 @@ def dataset():
 
 @pytest.fixture
 def override_types():
-    return {"ZIP": ColumnType.CATEGORICAL}
+    return {"GENDER": ColumnType.CATEGORICAL}
 
 
 @pytest.fixture
