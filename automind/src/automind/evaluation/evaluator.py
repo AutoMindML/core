@@ -37,12 +37,18 @@ class ReproducibilityMetrics(TypedDict):
     performance_variance_f1: float
 
 
+class RawScore(TypedDict):
+    fi_scores: dict
+
+
 class RawDetails(TypedDict):
+    score: List[RawScore]
     quality: List[DataQualityMetrics]
     performance: List[ModelPerformanceMetrics]
 
 
 class SingleRunResult(TypedDict):
+    raw_score: RawScore
     quality: DataQualityMetrics
     performance: ModelPerformanceMetrics
 
@@ -55,6 +61,7 @@ class ExperimentReport(TypedDict):
 
 
 class ExperimentEvaluatorResult(TypedDict):
+    raw_score: List[RawScore]
     data_quality: List[DataQualityMetrics]
     model_performance: List[ModelPerformanceMetrics]
     reproducibility: ReproducibilityMetrics
@@ -97,6 +104,7 @@ class ExperimentEvaluator:
         self.model_params = model_params
         self.target_col = target_col
         self.results: ExperimentEvaluatorResult = {
+            "raw_score": [],
             "data_quality": [],
             "model_performance": [],
             "reproducibility": {
@@ -131,6 +139,7 @@ class ExperimentEvaluator:
             # Store single run results
             self.results["data_quality"].append(run_result["quality"])
             self.results["model_performance"].append(run_result["performance"])
+            self.results["raw_score"].append(run_result["raw_score"])
 
             # Collect data for reproducibility analysis
             feature_sets.append(set(df.columns) - {self.target_col})
@@ -216,7 +225,24 @@ class ExperimentEvaluator:
 
         # 3. Feature Importance (FI)
         # Get Feature Importance (if model supports it)
+
+        feature_importance_mapping = {}  # a dict to hold feature_name: feature_importance
         if hasattr(model, "feature_importances_"):
+            for feature, importance in zip(
+                X.columns, model.feature_importances_
+            ):
+                feature_importance_mapping[feature] = float(
+                    importance  # add the name/value pair
+                )
+
+            feature_importance_mapping = dict(
+                sorted(
+                    feature_importance_mapping.items(),
+                    key=lambda x: x[1],
+                    reverse=True,
+                )
+            )
+
             fi_score = np.mean(
                 np.sort(model.feature_importances_)[-10:]
             )  # Top 10 mean
@@ -224,6 +250,9 @@ class ExperimentEvaluator:
             fi_score = 0.0
 
         return {
+            "raw_score": {
+                "fi_scores": feature_importance_mapping,
+            },
             "quality": {
                 "missing_rate": missing_rate,
                 "mi_score_top10_avg": float(avg_top_mi),
@@ -255,11 +284,12 @@ class ExperimentEvaluator:
         # Represents the stability of the feature space dimensions.
         num_features = [len(fs) for fs in feature_sets]
         feature_space_var = (
-            np.var(num_features) if len(num_features) > 1 else 0.0
+            np.var(num_features, ddof=1) if len(num_features) > 1 else 0.0
         )
 
         # 3. Performance Variance (Variance of F1-Score)
-        perf_variance = np.var(f1_scores) if len(f1_scores) > 1 else 0.0
+        perf_variance = np.var(f1_scores, ddof=1) if len(f1_scores) > 1 else 0.0
+        # perf_std = np.std(f1_scores, ddof=1) if len(f1_scores) > 1 else 0.0
 
         return {
             "action_consistency_jaccard": float(action_consistency),
@@ -269,21 +299,22 @@ class ExperimentEvaluator:
 
     def _aggregate_report(self) -> ExperimentReport:
         """Average the results of multiple experiments to generate a final report."""
-        df_quality = self.results["data_quality"]
-        df_performance = self.results["model_performance"]
+        quality = self.results["data_quality"]
+        performance = self.results["model_performance"]
 
         summary: ExperimentReport = {
             "average_data_quality": cast(
-                DataQualityMetrics, pd.DataFrame(df_quality).mean().to_dict()
+                DataQualityMetrics, pd.DataFrame(quality).mean().to_dict()
             ),
             "average_model_performance": cast(
                 ModelPerformanceMetrics,
-                pd.DataFrame(df_performance).mean().to_dict(),
+                pd.DataFrame(performance).mean().to_dict(),
             ),
             "reproducibility_metrics": self.results["reproducibility"],
             "raw_details": {
-                "quality": df_quality,
-                "performance": df_performance,
+                "quality": quality,
+                "performance": performance,
+                "score": self.results["raw_score"],
             },
         }
         return summary

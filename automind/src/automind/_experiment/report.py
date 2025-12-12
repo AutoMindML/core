@@ -57,8 +57,8 @@ def visualize_report_comparison(
         automind_report["reproducibility_metrics"][m] for m in rep_metrics
     ]
 
-    # Create subplots
-    fig, axes = plt.subplots(3, 2, figsize=(18, 18))
+    # Create subplots (4 rows to include the separated Feature Importance plots)
+    fig, axes = plt.subplots(4, 2, figsize=(18, 24))
     plt.subplots_adjust(hspace=0.4)
 
     # Plot 1: Average Model Performance
@@ -96,7 +96,7 @@ def visualize_report_comparison(
             fontsize=9,
         )
 
-    # Plot 2: Training Time (Log Scale recommended due to huge difference)
+    # Plot 2: Training Time
     x_eff = np.arange(len(eff_metrics))
     axes[0, 1].bar(
         x_eff - width / 2, gemini_eff, width, label="Gemini", color="skyblue"
@@ -108,7 +108,7 @@ def visualize_report_comparison(
     axes[0, 1].set_title("Efficiency & Overfitting")
     axes[0, 1].set_xticks(x_eff)
     axes[0, 1].set_xticklabels(eff_metrics)
-    axes[0, 1].set_yscale("log")  # Log scale to handle time difference
+    axes[0, 1].set_yscale("log")
     axes[0, 1].legend()
     for i, v in enumerate(gemini_eff):
         axes[0, 1].text(
@@ -165,9 +165,7 @@ def visualize_report_comparison(
             fontsize=9,
         )
 
-    # Plot 4: Reproducibility (Handling Variance Scale)
-    # Feature Space Variance is huge for Gemini, so we might need log scale again or separate plots.
-    # Let's use log scale for the whole plot for simplicity in visualization
+    # Plot 4: Reproducibility
     x_rep = np.arange(len(rep_metrics))
     axes[1, 1].bar(
         x_rep - width / 2, gemini_rep, width, label="Gemini", color="skyblue"
@@ -183,7 +181,6 @@ def visualize_report_comparison(
     axes[1, 1].legend()
 
     # Plot 5: Raw Performance Distribution (Box Plot)
-    # Extract raw performance data
     raw_perf_metrics = ["accuracy", "f1_score", "auroc"]
     gemini_raw_data = [
         [item[m] for item in gemini_report["raw_details"]["performance"]]
@@ -194,8 +191,6 @@ def visualize_report_comparison(
         for m in raw_perf_metrics
     ]
 
-    # Combine for boxplot
-    # Positions: 1,2 for metric 1; 4,5 for metric 2; 7,8 for metric 3
     positions_gemini = [1, 4, 7]
     positions_automind = [2, 5, 8]
 
@@ -218,7 +213,6 @@ def visualize_report_comparison(
     axes[2, 0].set_xticklabels(raw_perf_metrics)
     axes[2, 0].set_title("Raw Performance Distribution (Accuracy, F1, AUROC)")
     axes[2, 0].set_ylabel("Score")
-    # Legend workaround
     axes[2, 0].legend(
         [parts1["boxes"][0], parts2["boxes"][0]],
         ["Gemini", "Automind"],
@@ -226,10 +220,7 @@ def visualize_report_comparison(
     )
 
     # Plot 6: Raw Data Quality Distribution (Box Plot)
-    raw_qual_metrics = [
-        "mi_score_top10_avg",
-        "fi_score_top10_avg",
-    ]  # Missing rate is mostly 0 or constant
+    raw_qual_metrics = ["mi_score_top10_avg", "fi_score_top10_avg"]
     gemini_raw_qual = [
         [item[m] for item in gemini_report["raw_details"]["quality"]]
         for m in raw_qual_metrics
@@ -263,6 +254,77 @@ def visualize_report_comparison(
     axes[2, 1].legend(
         [parts3["boxes"][0], parts4["boxes"][0]], ["Gemini", "Automind"]
     )
+
+    # Plot 7 & 8: Feature Importance Distribution (Sorted Bar Plot)
+    # dict -> feature_name: feature_importance
+    raw_score = ["fi_scores"]
+    gemini_raw_score = [
+        [item[m] for item in gemini_report["raw_details"]["score"]]
+        for m in raw_score
+    ]
+    automind_raw_score = [
+        [item[m] for item in automind_report["raw_details"]["score"]]
+        for m in raw_score
+    ]
+
+    # Helper function to process Top 10 Feature Importance
+    def get_top10_avg_fi(raw_score_list):
+        if not raw_score_list or not raw_score_list[0]:
+            return [], []
+        
+        # raw_score_list[0] contains the list of dicts (one per fold/run)
+        fi_dicts = raw_score_list[0]
+        n_runs = len(fi_dicts)
+        
+        # Aggregate scores
+        feature_totals = {}
+        for d in fi_dicts:
+            for feat, score in d.items():
+                feature_totals[feat] = feature_totals.get(feat, 0.0) + score
+        
+        # Calculate Average
+        avg_fi = {k: v / n_runs for k, v in feature_totals.items()}
+        
+        # Sort descending
+        sorted_fi = sorted(avg_fi.items(), key=lambda item: item[1], reverse=True)
+        
+        # Take Top 10
+        top10 = sorted_fi[:10]
+        
+        # Prepare for plotting (names and values)
+        names = [x[0] for x in top10]
+        values = [x[1] for x in top10]
+        return names, values
+
+    # Process Data
+    gemini_fi_names, gemini_fi_vals = get_top10_avg_fi(gemini_raw_score)
+    automind_fi_names, automind_fi_vals = get_top10_avg_fi(automind_raw_score)
+
+    # Plot 7: Gemini Feature Importance
+    if gemini_fi_names:
+        y_pos = np.arange(len(gemini_fi_names))
+        axes[3, 0].barh(y_pos, gemini_fi_vals, align='center', color='skyblue')
+        axes[3, 0].set_yticks(y_pos)
+        axes[3, 0].set_yticklabels(gemini_fi_names)
+        axes[3, 0].invert_yaxis()  # Labels read top-to-bottom
+        axes[3, 0].set_xlabel('Average Importance Score')
+        axes[3, 0].set_title('Gemini Top 10 Feature Importance')
+        # Add text labels
+        for i, v in enumerate(gemini_fi_vals):
+            axes[3, 0].text(v, i, f" {v:.4f}", va='center', fontsize=9)
+
+    # Plot 8: Automind Feature Importance
+    if automind_fi_names:
+        y_pos = np.arange(len(automind_fi_names))
+        axes[3, 1].barh(y_pos, automind_fi_vals, align='center', color='salmon')
+        axes[3, 1].set_yticks(y_pos)
+        axes[3, 1].set_yticklabels(automind_fi_names)
+        axes[3, 1].invert_yaxis()  # Labels read top-to-bottom
+        axes[3, 1].set_xlabel('Average Importance Score')
+        axes[3, 1].set_title('Automind Top 10 Feature Importance')
+        # Add text labels
+        for i, v in enumerate(automind_fi_vals):
+            axes[3, 1].text(v, i, f" {v:.4f}", va='center', fontsize=9)
 
     plt.tight_layout()
     plt.savefig(report_dir / "comparison_visualization.png")
