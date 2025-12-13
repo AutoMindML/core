@@ -35,6 +35,21 @@ AS BEGIN TRY
             RETURN;
         END;
 
+    if @dataset_id in (
+		select 
+			dataset.[value]
+		from 
+			string_split((select top 1 Datasets from DFM where DID = @dataset_id), ',', 1) dataset
+	)
+	begin
+		select
+			@state = 1,
+			@message = 'this dataset is used by dfm';
+		commit tran;
+		return;
+	end
+
+
     DELETE FROM CO
     WHERE
         CID = @data_source_cid
@@ -52,6 +67,9 @@ AS BEGIN TRY
             DELETE FROM [DFM]
             WHERE
                 DID = @dataset_id;
+            DELETE FROM [MetaData]
+            WHERE
+                MID = @dataset_id;
             DELETE FROM [Object]
             WHERE
                 OID = @dataset_id;
@@ -69,9 +87,13 @@ AS BEGIN TRY
     COMMIT TRAN;
 
 END TRY
-BEGIN CATCH
+BEGIN CATCH;
     IF @@TRANCOUNT > 0 ROLLBACK TRAN;
-    RAISERROR ('internal server error', 18, 1);
+    DECLARE
+        @error_message nvarchar(4000) = error_message(),
+        @error_severity int = error_severity(),
+        @error_state int = error_state();
+    RAISERROR (@error_message, @error_severity, @error_state);
 END CATCH;
 
 GO

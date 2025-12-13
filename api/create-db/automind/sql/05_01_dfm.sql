@@ -188,7 +188,7 @@ as begin try
     merge into [dbo].[Data_Source] as T
     using (
         VALUES (
-            @new_id, @binary_md5, null, @rows, @cols, @col_names, @size, @size_unit, @quality, @col_types
+			@fusion_id, @binary_md5, null, @rows, @cols, @col_names, @size, @size_unit, @quality, @col_types
         )
     ) as S (dsid, md5, connectiondata, [RowCount], colcount, columnnames, size, unit, quality, columntypes)
     on T.md5 = S.md5
@@ -205,7 +205,7 @@ as begin try
                 T.quality = S.quality,
                 T.columntypes = S.columntypes
     when not matched
-        then
+        then 
         insert (dsid, md5, connectiondata, [RowCount], colcount, columnnames, size, unit, quality, columntypes)
         values (dsid, md5, connectiondata, [RowCount], colcount, columnnames, size, unit, quality, columntypes);
 
