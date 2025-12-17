@@ -1,10 +1,9 @@
-import subprocess
 from pathlib import Path
 
 from xgboost import XGBClassifier
 
-from automind import logger
 from automind._experiment.core import apply_data_preprocessing_workflow
+from automind._experiment.shared import init_gemini_result_csv, iterations
 from automind.data.dataset import AvailableDataset, load_data, read_csv_from_dir
 from automind.evaluation.evaluator import ExperimentEvaluator
 
@@ -20,7 +19,6 @@ df_conditions = load_data(
     AvailableDataset.synthea_covid19_10k.datasets["slice_conditions"]
 )
 
-iterations = 5
 target_column = "HEALTHCARE_EXPENSES"
 gemini_code_dir = Path(__file__).parent.absolute() / "gemini_code"
 output_dir = Path(__file__).parent.absolute() / "output"
@@ -31,18 +29,6 @@ automind_report_path = (
     Path(__file__).parent.absolute() / "report/automind_report.txt"
 )
 llm_response_dir = Path(__file__).parent.absolute() / "llm_response"
-
-
-def init_gemini_result_csv():
-    for i in range(iterations):
-        logger.info(f"executing gemini_{i + 1}.py...")
-        try:
-            subprocess.run(
-                ["uv", "run", f"{gemini_code_dir}/gemini_{i + 1}.py"]
-            )
-            logger.info(f"gemini_{i + 1}.py has finished")
-        except Exception as e:
-            logger.error("error occur: ", e)
 
 
 if __name__ == "__main__":

@@ -6,12 +6,16 @@ import numpy as np
 from automind.evaluation.evaluator import ExperimentEvaluator, ExperimentReport
 
 report_dir = Path(__file__).parent.absolute() / "report"
+report_dir.mkdir(parents=True, exist_ok=True)
 gemini_report_path = (
     Path(__file__).parent.absolute() / "report/gemini_report.txt"
 )
 automind_report_path = (
     Path(__file__).parent.absolute() / "report/automind_report.txt"
 )
+
+visual_output_dir = Path(__file__).parent.absolute() / "visualizations"
+visual_output_dir.mkdir(parents=True, exist_ok=True)
 
 
 def visualize_report_comparison(
@@ -36,7 +40,8 @@ def visualize_report_comparison(
     ]
 
     # 3. Data Quality
-    qual_metrics = ["missing_rate", "mi_score_top10_avg", "fi_score_top10_avg"]
+    # qual_metrics = ["missing_rate", "mi_score_top10_avg", "fi_score_top10_avg"]
+    qual_metrics = ["missing_rate", "mi_score_top10_avg"]
     gemini_qual = [
         gemini_report["average_data_quality"][m] for m in qual_metrics
     ]
@@ -220,7 +225,8 @@ def visualize_report_comparison(
     )
 
     # Plot 6: Raw Data Quality Distribution (Box Plot)
-    raw_qual_metrics = ["mi_score_top10_avg", "fi_score_top10_avg"]
+    # raw_qual_metrics = ["mi_score_top10_avg", "fi_score_top10_avg"]
+    raw_qual_metrics = ["mi_score_top10_avg"]
     gemini_raw_qual = [
         [item[m] for item in gemini_report["raw_details"]["quality"]]
         for m in raw_qual_metrics
@@ -230,8 +236,11 @@ def visualize_report_comparison(
         for m in raw_qual_metrics
     ]
 
-    pos_gemini_q = [1, 4]
-    pos_automind_q = [2, 5]
+    # pos_gemini_q = [1, 4]
+    # pos_automind_q = [2, 5]
+
+    pos_gemini_q = [1]
+    pos_automind_q = [2]
 
     parts3 = axes[2, 1].boxplot(
         gemini_raw_qual,
@@ -248,7 +257,8 @@ def visualize_report_comparison(
         boxprops=dict(facecolor="salmon"),
     )
 
-    axes[2, 1].set_xticks([1.5, 4.5])
+    # axes[2, 1].set_xticks([1.5, 4.5])
+    axes[2, 1].set_xticks([1.5])
     axes[2, 1].set_xticklabels(raw_qual_metrics)
     axes[2, 1].set_title("Raw Data Quality Distribution")
     axes[2, 1].legend(
@@ -271,26 +281,28 @@ def visualize_report_comparison(
     def get_top10_avg_fi(raw_score_list):
         if not raw_score_list or not raw_score_list[0]:
             return [], []
-        
+
         # raw_score_list[0] contains the list of dicts (one per fold/run)
         fi_dicts = raw_score_list[0]
         n_runs = len(fi_dicts)
-        
+
         # Aggregate scores
         feature_totals = {}
         for d in fi_dicts:
             for feat, score in d.items():
                 feature_totals[feat] = feature_totals.get(feat, 0.0) + score
-        
+
         # Calculate Average
         avg_fi = {k: v / n_runs for k, v in feature_totals.items()}
-        
+
         # Sort descending
-        sorted_fi = sorted(avg_fi.items(), key=lambda item: item[1], reverse=True)
-        
+        sorted_fi = sorted(
+            avg_fi.items(), key=lambda item: item[1], reverse=True
+        )
+
         # Take Top 10
         top10 = sorted_fi[:10]
-        
+
         # Prepare for plotting (names and values)
         names = [x[0] for x in top10]
         values = [x[1] for x in top10]
@@ -303,31 +315,31 @@ def visualize_report_comparison(
     # Plot 7: Gemini Feature Importance
     if gemini_fi_names:
         y_pos = np.arange(len(gemini_fi_names))
-        axes[3, 0].barh(y_pos, gemini_fi_vals, align='center', color='skyblue')
+        axes[3, 0].barh(y_pos, gemini_fi_vals, align="center", color="skyblue")
         axes[3, 0].set_yticks(y_pos)
         axes[3, 0].set_yticklabels(gemini_fi_names)
         axes[3, 0].invert_yaxis()  # Labels read top-to-bottom
-        axes[3, 0].set_xlabel('Average Importance Score')
-        axes[3, 0].set_title('Gemini Top 10 Feature Importance')
+        axes[3, 0].set_xlabel("Average Importance Score")
+        axes[3, 0].set_title("Gemini Top 10 Feature Importance")
         # Add text labels
         for i, v in enumerate(gemini_fi_vals):
-            axes[3, 0].text(v, i, f" {v:.4f}", va='center', fontsize=9)
+            axes[3, 0].text(v, i, f" {v:.4f}", va="center", fontsize=9)
 
     # Plot 8: Automind Feature Importance
     if automind_fi_names:
         y_pos = np.arange(len(automind_fi_names))
-        axes[3, 1].barh(y_pos, automind_fi_vals, align='center', color='salmon')
+        axes[3, 1].barh(y_pos, automind_fi_vals, align="center", color="salmon")
         axes[3, 1].set_yticks(y_pos)
         axes[3, 1].set_yticklabels(automind_fi_names)
         axes[3, 1].invert_yaxis()  # Labels read top-to-bottom
-        axes[3, 1].set_xlabel('Average Importance Score')
-        axes[3, 1].set_title('Automind Top 10 Feature Importance')
+        axes[3, 1].set_xlabel("Average Importance Score")
+        axes[3, 1].set_title("Automind Top 10 Feature Importance")
         # Add text labels
         for i, v in enumerate(automind_fi_vals):
-            axes[3, 1].text(v, i, f" {v:.4f}", va='center', fontsize=9)
+            axes[3, 1].text(v, i, f" {v:.4f}", va="center", fontsize=9)
 
     plt.tight_layout()
-    plt.savefig(report_dir / "comparison_visualization.png")
+    plt.savefig(report_dir / visual_output_dir / "comparison.png")
 
 
 if __name__ == "__main__":

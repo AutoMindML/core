@@ -67,6 +67,7 @@ requires = ["setuptools"]
 [tool.pdm.scripts]
 test = "uv run -m pytest ./src/automind/tests -x"
 report = "uv run ./src/automind/_experiment/report.py"
+report2 = "uv run ./src/automind/_experiment/report_df.py"
 expe = "uv run ./src/automind/_experiment/main.py"
 
 # more setting refer to: https://microsoft.github.io/pyright/#/configuration?id=sample-pyprojecttoml-file
