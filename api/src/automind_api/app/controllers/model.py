@@ -40,7 +40,7 @@ def update_model(project_id: int, model_id: int):
     ]:
         project = mindsdb_server.get_project(project_name)  # pyright: ignore
 
-        if model_name in [model.name for model in project.list_models()]:
+        if model_name in [model.name for model in project.models.list()]:
             while True:
                 model_info = (
                     mindsdb_server.query(
@@ -91,9 +91,12 @@ def update_model(project_id: int, model_id: int):
 
                     connection.execute(query, params)
 
-                if params["status"] == "complete":
+                if (
+                    params["status"] == "complete"
+                    or params["status"] == "generating"
+                ):
                     with mssql_engine.begin() as connection:
-                        model = project.get_model(model_name)
+                        model = project.models.get(model_name)
                         model_info = pd.DataFrame(model.describe("info"))
                         model_inputs = model_info.get("inputs")
                         model_outputs = model_info.get("outputs")
@@ -190,28 +193,16 @@ def train_model(
         engine_md5 = model_object[1]
         data_source_type = model_object[2]
 
-        try:
-            if data_source_type == "file" or data_source_type == "fusion":
-                select_data_query = f"""
-                    select * from {data_source_md5}
-                """
-                project.create_model(
-                    model_name,
-                    body.predict,
-                    engine_md5,
-                    select_data_query,
-                    "files",
-                )
-            else:
-                project.create_model(
-                    model_name,
-                    body.predict,
-                    engine_md5,
-                    body.select_data_query,
-                    data_source_md5,
-                )
-        except Exception:
-            pass
+        if data_source_type == "file" or data_source_type == "fusion":
+            select_data_query = f"""
+                select * from files.{data_source_md5}
+            """
+            project.models.create(
+                name=model_name,
+                predict=body.predict,
+                engine=engine_md5,
+                query=select_data_query,
+            )
 
         if model_name in [model.name for model in project.list_models()]:
             model = project.get_model(model_name)
@@ -266,22 +257,21 @@ def delete_model(
 
             connection.execute(query, params)
 
-            if status == 0:
-                project_name = f"project_{body.project_id}"
+            project_name = f"project_{body.project_id}"
 
-                mindsdb_server = connect_mindsdb_server()
+            mindsdb_server = connect_mindsdb_server()
 
-                if project_name in [
-                    project.name
-                    for project in mindsdb_server.list_projects()  # pyright: ignore
+            if project_name in [
+                project.name
+                for project in mindsdb_server.projects.list()  # pyright: ignore
+            ]:
+                project = mindsdb_server.projects.get(project_name)  # pyright: ignore
+                model_name = f"model_{body.model_id}"
+
+                if model_name in [
+                    model.name for model in project.models.list()
                 ]:
-                    project = mindsdb_server.get_project(project_name)  # pyright: ignore
-                    model_name = f"model_{body.model_id}"
-
-                    if model_name in [
-                        model.name for model in project.list_models()
-                    ]:
-                        project.drop_model(model_name)
+                    project.models.drop(model_name)
 
             res.status_code = status.HTTP_200_OK
 

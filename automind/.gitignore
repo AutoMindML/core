@@ -4,3 +4,4 @@
 **/*.csv
 **/typings
 **/private.*
+**/*.pkl

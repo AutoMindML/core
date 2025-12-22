@@ -12,7 +12,7 @@ dependencies = [
 
   # -------------------- database --------------------
   "sqlalchemy",
-  "mindsdb_sdk",
+  "mindsdb_sdk>=3.1.6",
   "sly",
 
   # -------------------- console --------------------

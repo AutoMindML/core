@@ -311,6 +311,7 @@ def apply_pca(
     for i in range(n_components):
         df[f"{column}_pca_component_{i + 1}"] = pca_result[:, i]
 
+    df[column] = pca_result
     df = df.drop(columns=[column])
     return df, pca
 

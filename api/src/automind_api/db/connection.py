@@ -38,6 +38,9 @@ def create_mssql_engine() -> Engine:
     return engine
 
 
+# version history   : https://pypi.org/project/mindsdb-sdk/#history
+# repo              : https://github.com/mindsdb/mindsdb_python_sdk/blob/main/mindsdb_sdk/server.py
+# documents         : https://mindsdb.github.io/mindsdb_python_sdk/
 def connect_mindsdb_server() -> Server:
     f = open(f"{Path().absolute()}/src/automind_api/configs/server.json")
     json_file = json.load(f)

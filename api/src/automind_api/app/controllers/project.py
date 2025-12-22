@@ -97,16 +97,15 @@ def delete_project(
 
             connection.execute(query, params)
 
-            if status == 0:
-                project_name = f"project_{body.cid}"
+            project_name = f"project_{body.cid}"
 
-                mindsdb_server = connect_mindsdb_server()
+            mindsdb_server = connect_mindsdb_server()
 
-                if project_name in [
-                    project.name
-                    for project in mindsdb_server.list_projects()  # pyright: ignore
-                ]:
-                    mindsdb_server.drop_project(project_name)  # pyright: ignore
+            if project_name in [
+                project.name
+                for project in mindsdb_server.projects.list()  # pyright: ignore
+            ]:
+                mindsdb_server.projects.drop(project_name)  # pyright: ignore
 
             res.status_code = status.HTTP_200_OK
             return {"message": "delete project successfully"}

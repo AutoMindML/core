@@ -1,4 +1,4 @@
-USE [AutoML];
+﻿USE [AutoML];
 
 
 GO
@@ -97,5 +97,25 @@ IF NOT EXISTS (
 
 END;
 
+---
+
+IF NOT EXISTS (
+	SELECT
+		*
+	FROM
+		Object O
+		INNER JOIN ML_Engine E ON O.OID = E.MLEID
+	WHERE
+		O.Type = 111
+		AND E.Handler = 'tpot'
+) BEGIN EXEC [dbo].[xp_add_ml_engine] 1,
+'tpot',
+'A Python Automated Machine Learning tool that optimizes machine learning pipelines using genetic programming.',
+'tpot',
+'{}',
+@newOID OUTPUT;
+
+
+END;
 
 GO

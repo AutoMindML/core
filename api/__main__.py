@@ -26,7 +26,7 @@ mindsdb_args = [
     "mindsdb",
     "--config",
     "./src/automind_api/configs/mindsdb.json",
-    "--no_studio",
+    # "--no_studio",
 ]
 
 api_name = "AutoMind Core"

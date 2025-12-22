@@ -28,6 +28,7 @@ from automind.models.preprocessing import (
     LLMResponseUtil,
     LLMResponseUtilProtocol,
     SamplingRecommendation,
+    TaskOptions,
 )
 from automind.utils.json import JsonCleaner, JsonCleanerProtocal
 from automind.utils.logging import logger
@@ -103,6 +104,7 @@ class LogicApplier:
         self,
         data_cleaning_options: Optional[DataCleaningOptions] = None,
         feature_engineering_options: Optional[FeatureEngineeringOptions] = None,
+        task_options: Optional[TaskOptions] = None,
         logic_action_index: int = 0,
         modeling_approach_index: int = 0,
         only_cleaning: bool = False,
@@ -155,21 +157,66 @@ class LogicApplier:
             modeling_approach.data_cleaning
         )
 
+        # for col in self.processed_df.columns.drop(
+        #     [self.target_column]
+        # ).tolist():
+        #     self.processed_df = apply_method(
+        #         DC.MissingValuesImputation.MEDIAN,
+        #         pd.DataFrame(self.processed_df),
+        #         col,
+        #     )
+
         if not only_cleaning:
             self._apply_feature_engineering_recommendations(
                 modeling_approach.feature_engineering
             )
 
-        datasets = self._prepare_datasets(
-            modeling_approach.test_size,
-            modeling_approach.validation_size,
-            modeling_approach.cross_validation.stratified,
-        )
-
-        if modeling_approach.data_cleaning.sampling:
-            datasets = self._apply_balancing(
-                datasets, modeling_approach.data_cleaning.sampling
+        if (task_options is not None) and (task_options.discretize):
+            self.discretize_column(
+                task_options.bins_or_quantiles, task_options.labels
             )
+
+        # datasets = self._prepare_datasets(
+        #     modeling_approach.test_size,
+        #     modeling_approach.validation_size,
+        #     modeling_approach.cross_validation.stratified,
+        # )
+        #
+        # if modeling_approach.data_cleaning.sampling:
+        #     datasets = self._apply_balancing(
+        #         datasets, modeling_approach.data_cleaning.sampling
+        #     )
+
+    def discretize_column(
+        self,
+        bins_or_quantiles: list,
+        labels: Optional[List] = None,
+        method="quantile",
+    ):
+        # threshold = self.processed_df[self.target_column].quantile(0.75)
+        # self.processed_df[self.target_column] = (
+        #     self.processed_df[self.target_column] > threshold
+        # ).astype(int)
+
+        if labels is None:
+            labels = [i for i in range(len(bins_or_quantiles) - 1)]
+
+        col = self.target_column
+
+        if method == "quantile":
+            self.processed_df[col] = pd.qcut(
+                self.processed_df[col], q=bins_or_quantiles, labels=labels
+            )
+        elif method == "value":
+            self.processed_df[col] = pd.cut(
+                self.processed_df[col],
+                bins=bins_or_quantiles,
+                labels=labels,
+                include_lowest=True,
+            )
+
+        if all(isinstance(x, (int, float)) for x in labels):
+            self.processed_df[col] = self.processed_df[col].astype(int)
 
     def _apply_data_cleaning_recommendations(self, data_cleaning) -> None:
         """Apply data cleaning recommendations."""

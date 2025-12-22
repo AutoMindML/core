@@ -324,6 +324,13 @@ class FeatureEngineeringOptions(BaseModel):
     extraction: ChoosedMethods = {}
 
 
+class TaskOptions(BaseModel):
+    type: Annotated[TaskType, EnumByName()]
+    discretize: bool
+    bins_or_quantiles: List = [0, 0.75, 1]
+    labels: Optional[List] = None
+
+
 class LLMResponseUtilProtocol(Protocol):
     def model_validate(self, obj: Any) -> LLMResponseSchema: ...
 

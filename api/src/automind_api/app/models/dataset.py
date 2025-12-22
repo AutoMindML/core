@@ -40,6 +40,17 @@ class AddDatabaseBody(BaseModel):
     connection_args: Dict[str, str | int]
 
 
+class DatasetCommonInfo(TypedDict):
+    md5: str
+    rows: int
+    cols: int
+    col_names: str
+    col_types: str
+    size: float
+    size_unit: str
+    quality: float
+
+
 class ViewDataSource(TypedDict):
     oid: int
     source_type: Literal["file", "database", "fusion"]
