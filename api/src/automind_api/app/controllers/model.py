@@ -1,6 +1,5 @@
 from time import sleep
 
-import pandas as pd
 import sqlalchemy as sql
 from fastapi import (
     APIRouter,
@@ -11,6 +10,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import JSONResponse, ORJSONResponse
+from pandas import DataFrame
 from sqlalchemy.exc import DBAPIError
 from starlette.status import HTTP_404_NOT_FOUND
 
@@ -33,12 +33,27 @@ def update_model(project_id: int, model_id: int):
 
     project_name = f"project_{project_id}"
     model_name = f"model_{model_id}"
+    update_model_query = sql.text(
+        """
+            exec [dbo].[xp_update_model] @model_id = :model_id,
+                @select_data_query = :select_data_query,
+                @active = :active,
+                @status = :status,
+                @score = :score,
+                @training_time = :training_time,
+                @update_status = :update_status,
+                @error = :error,
+                @current_training_phase = :current_training_phase,
+                @total_training_phases = :total_training_phases,
+                @training_options = :training_options;
+        """
+    )
 
     if project_name in [
         project.name
-        for project in mindsdb_server.list_projects()  # pyright: ignore
+        for project in mindsdb_server.projects.list()  # pyright: ignore
     ]:
-        project = mindsdb_server.get_project(project_name)  # pyright: ignore
+        project = mindsdb_server.projects.get(project_name)  # pyright: ignore
 
         if model_name in [model.name for model in project.models.list()]:
             while True:
@@ -56,7 +71,7 @@ def update_model(project_id: int, model_id: int):
                         "select_data_query": model_info["SELECT_DATA_QUERY"],
                         "active": 1 if model_info["ACTIVE"] else 0,
                         "status": model_info["STATUS"],
-                        "accuracy": model_info["ACCURACY"],
+                        "score": "{}",
                         "training_time": model_info["TRAINING_TIME"],
                         "update_status": model_info["UPDATE_STATUS"],
                         "error": model_info["ERROR"],
@@ -73,56 +88,62 @@ def update_model(project_id: int, model_id: int):
                         "training_options": model_info["TRAINING_OPTIONS"],
                     }
 
-                    query = sql.text(
-                        """
-                            exec [dbo].[xp_update_model] @model_id = :model_id,
-                                @select_data_query = :select_data_query,
-                                @active = :active,
-                                @status = :status,
-                                @accuracy = :accuracy,
-                                @training_time = :training_time,
-                                @update_status = :update_status,
-                                @error = :error,
-                                @current_training_phase = :current_training_phase,
-                                @total_training_phases = :total_training_phases,
-                                @training_options = :training_options;
-                        """
-                    )
+                    connection.execute(update_model_query, params)
 
-                    connection.execute(query, params)
-
-                if (
-                    params["status"] == "complete"
-                    or params["status"] == "generating"
-                ):
+                if model_info["STATUS"] == "complete":
                     with mssql_engine.begin() as connection:
                         model = project.models.get(model_name)
-                        model_info = pd.DataFrame(model.describe("info"))
-                        model_inputs = model_info.get("inputs")
-                        model_outputs = model_info.get("outputs")
+                        model_extra_info = DataFrame(model.describe("info"))
+                        model_input = model_extra_info.get("input")
+                        model_output = model_extra_info.get("output")
+                        scores = model_extra_info.get("scores")
 
-                        if (model_inputs is not None) and (
-                            model_outputs is not None
+                        params = {
+                            "model_id": model_id,
+                            "select_data_query": model_info[
+                                "SELECT_DATA_QUERY"
+                            ],
+                            "active": 1 if model_info["ACTIVE"] else 0,
+                            "status": model_info["STATUS"],
+                            "score": scores[0] if scores is not None else "{}",
+                            "training_time": model_info["TRAINING_TIME"],
+                            "update_status": model_info["UPDATE_STATUS"],
+                            "error": model_info["ERROR"],
+                            "current_training_phase": int(
+                                model_info["CURRENT_TRAINING_PHASE"]
+                            )
+                            if model_info["CURRENT_TRAINING_PHASE"]
+                            else 0,
+                            "total_training_phases": int(
+                                model_info["TOTAL_TRAINING_PHASES"]
+                            )
+                            if model_info["TOTAL_TRAINING_PHASES"]
+                            else 0,
+                            "training_options": model_info["TRAINING_OPTIONS"],
+                        }
+
+                        if (model_input is not None) and (
+                            model_output is not None
                         ):
                             params = {
                                 "model_id": model_id,
-                                "input": str(",".join(model_inputs[0])),
-                                "output": str(",".join(model_outputs[0])),
+                                "input": model_input[0],
+                                "output": model_output[0],
                             }
-                            query = sql.text(
+                            update_model_query = sql.text(
                                 """
                                 exec [dbo].[xp_set_model_info] @model_id = :model_id,
                                     @input = :input, @output = :output;
                                 """
                             )
 
-                            connection.execute(query, params)
+                            connection.execute(update_model_query, params)
                     break
 
                 elif params["status"] == "error":
                     break
 
-                sleep(5)
+                sleep(3)
 
 
 @model_router.post("/train")
@@ -206,7 +227,7 @@ def train_model(
 
         if model_name in [model.name for model in project.list_models()]:
             model = project.get_model(model_name)
-            model_info = pd.DataFrame(model.describe("info"))
+            model_info = DataFrame(model.describe("info"))
             model_inputs = model_info.get("inputs")
             model_outputs = model_info.get("outputs")
 
@@ -333,9 +354,7 @@ async def model_prediction(body: ModelPredictionBody, req: Request):
                         + ") features",
                     )
 
-                predicted_result = pd.DataFrame(
-                    model.predict(req_input_features)
-                )
+                predicted_result = DataFrame(model.predict(req_input_features))
                 predicted_result = predicted_result.to_dict().get(
                     output_feature
                 )

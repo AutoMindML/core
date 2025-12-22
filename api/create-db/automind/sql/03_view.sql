@@ -98,7 +98,7 @@ SELECT
 	M.Active AS active,
 	M.Version AS version,
 	M.Status AS status,
-	M.Accuracy AS accuracy,
+	M.Score AS score,
 	M.Predict AS predict,
 	M.LearningType AS learning_type,
 	M.TaskType AS task_type,

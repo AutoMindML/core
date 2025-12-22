@@ -1,4 +1,4 @@
-USE [AutoML];
+﻿USE [AutoML];
 
 
 GO
@@ -288,7 +288,7 @@ CREATE OR ALTER PROCEDURE
 	@select_data_query nvarchar(MAX),
 	@active bit,
 	@status nvarchar(50),
-	@accuracy float,
+	@score nvarchar(1000),
 	@training_time float,
 	@update_status nvarchar(50),
 	@error nvarchar(MAX),
@@ -315,7 +315,7 @@ MERGE INTO
 				@model_id,
 				@active,
 				@status,
-				@accuracy,
+				@score,
 				@training_time,
 				@update_status,
 				@error,
@@ -327,7 +327,7 @@ MERGE INTO
 		id,
 		active,
 		_status,
-		accuracy,
+		score,
 		training_time,
 		update_status,
 		error,
@@ -339,7 +339,7 @@ WHEN MATCHED THEN
 UPDATE SET
 	Target.Active = Source.active,
 	Target.Status = Source._status,
-	Target.Accuracy = Source.accuracy,
+	Target.Score = Source.score,
 	Target.TrainingTime = Source.training_time,
 	Target.UpdateStatus = Source.update_status,
 	Target.Error = Source.error,

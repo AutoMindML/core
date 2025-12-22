@@ -742,7 +742,7 @@ CREATE TABLE [dbo].[Model] (
 	[Active] [bit] NULL,
 	[Version] [int] NULL,
 	[Status] [nvarchar] (50) NULL,
-	[Accuracy] [float] NULL,
+	[Score] [nvarchar] (1000) NULL,
 	[Predict] [nvarchar] (50) NULL,
 	[LearningType] [nvarchar] (100) NULL,
 	[TaskType] [nvarchar] (100) NULL,
