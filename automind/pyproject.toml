@@ -9,12 +9,12 @@ dependencies = [
   "xgboost",
   "openai",
   "tpot==0.12.2",
+  "scikit-learn==1.6.1",
 
 
   # -------------------- data processing --------------------
   "pydantic",
   "lorem",
-  "scikit-learn",
   "imbalanced-learn",
   "umap-learn",
   "pandas",
