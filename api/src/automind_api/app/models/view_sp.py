@@ -9,6 +9,7 @@ class AvailableView:
     fusion = "[dbo].[vd_data_fusion]"
     metadata = "[dbo].[vd_metadata]"
     app_prediction = "[dbo].[vd_App_Prediction]"
+    model = "[dbo].[vd_Model]"
 
 
 class AvailableSP:
@@ -27,3 +28,37 @@ class ViewMetaData(TypedDict):
     processing_history: str
     status: Status
     applier_status: Literal["unavailable", "generating", "complete"]
+
+
+class ViewModel(TypedDict):
+    project_id: int
+    model_id: int
+    app_id: int
+    api_key: str
+    name: str
+    description: str
+    output_features: str
+    input_features: str
+    select_data_query: str
+    create_at: date
+    updated_at: date
+    owner_mid: int
+    active: int
+    version: int
+    status: str
+    score: str
+    predict: str
+    learning_type: str
+    task_type: str
+    error: str
+    training_time: float
+    update_status: str
+    training_options: str
+    tag: str
+    current_training_phase: int
+    total_training_phases: int
+    data_source_id: int
+    data_source_md5: str
+    data_source_type: str
+    engine_id: int
+    engine_md5: str

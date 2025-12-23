@@ -1,4 +1,6 @@
+import json
 from time import sleep
+from typing import List
 
 import sqlalchemy as sql
 from fastapi import (
@@ -9,8 +11,8 @@ from fastapi import (
     Response,
     status,
 )
-from fastapi.responses import JSONResponse, ORJSONResponse
-from pandas import DataFrame
+from fastapi.responses import JSONResponse
+from pandas import DataFrame, concat
 from sqlalchemy.exc import DBAPIError
 from starlette.status import HTTP_404_NOT_FOUND
 
@@ -19,6 +21,10 @@ from automind_api.app.models.model import (
     ModelPredictionBody,
     TrainModelBody,
 )
+from automind_api.app.models.view_sp import AvailableView, ViewModel
+from automind_api.app.repositories.dataset import get_dataset
+from automind_api.app.repositories.i3s import get_view_by_id
+from automind_api.app.services.file import generate_file_response
 from automind_api.db.connection import (
     connect_mindsdb_server,
     create_mssql_engine,
@@ -104,7 +110,7 @@ def update_model(project_id: int, model_id: int):
                                 "SELECT_DATA_QUERY"
                             ],
                             "active": 1 if model_info["ACTIVE"] else 0,
-                            "status": model_info["STATUS"],
+                            "status": "complete",
                             "score": scores[0] if scores is not None else "{}",
                             "training_time": model_info["TRAINING_TIME"],
                             "update_status": model_info["UPDATE_STATUS"],
@@ -121,6 +127,8 @@ def update_model(project_id: int, model_id: int):
                             else 0,
                             "training_options": model_info["TRAINING_OPTIONS"],
                         }
+
+                        connection.execute(update_model_query, params)
 
                         if (model_input is not None) and (
                             model_output is not None
@@ -215,15 +223,26 @@ def train_model(
         data_source_type = model_object[2]
 
         if data_source_type == "file" or data_source_type == "fusion":
-            select_data_query = f"""
-                select * from files.{data_source_md5}
-            """
-            project.models.create(
-                name=model_name,
-                predict=body.predict,
-                engine=engine_md5,
-                query=select_data_query,
-            )
+            try:
+                select_data_query = f"""
+                    select * from files.{str(data_source_md5).lower()}
+                """
+                project.models.create(
+                    name=model_name,
+                    predict=body.predict,
+                    engine=engine_md5,
+                    query=select_data_query,
+                )
+            except Exception:
+                select_data_query = f"""
+                    select * from files.{str(data_source_md5).upper()}
+                """
+                project.models.create(
+                    name=model_name,
+                    predict=body.predict,
+                    engine=engine_md5,
+                    query=select_data_query,
+                )
 
         if model_name in [model.name for model in project.list_models()]:
             model = project.get_model(model_name)
@@ -305,70 +324,53 @@ def delete_model(
 
 
 @model_router.post("/predict")
-async def model_prediction(body: ModelPredictionBody, req: Request):
+async def model_prediction(
+    body: ModelPredictionBody, req: Request, res: Response
+):
     user_id = req.state.user_id
-    mssql_engine = create_mssql_engine()
+    project_id = body.project_id
+    model_id = body.model_id
+    dataset_id = body.dataset_id
+    dataset = get_dataset(dataset_id, user_id, "file", limit=-1)
 
-    if len(body.input_features) == 0:
-        return ORJSONResponse([])
+    if dataset is None:
+        res.status_code = status.HTTP_404_NOT_FOUND
+        return None
 
-    with mssql_engine.begin() as connection:
-        params = {"model_id": body.model_id, "mid": user_id}
-        query = sql.text(
-            """
-            select project_id, model_id, input_features, output_features
-            from [dbo].[vd_Model] where model_id = :model_id and owner_mid = :mid;
-            """
+    view_model: ViewModel = get_view_by_id(
+        AvailableView.model,
+        {"id": model_id, "id_col_name": "model_id"},
+        ViewModel,
+    )
+    project_name = f"project_{project_id}"
+    model_name = f"model_{model_id}"
+
+    mindsdb_server = connect_mindsdb_server()
+    project = mindsdb_server.projects.get(project_name)  # pyright: ignore
+    model = project.models.get(model_name)
+    model_status = model.get_status()
+
+    if model_status == "complete":
+        output_features: List[str] = list(
+            json.loads(view_model["output_features"])
+        )
+        input_features: List[str] = list(
+            json.loads(view_model["input_features"])
         )
 
-        models = [
-            (sequence[0], sequence[1], sequence[2], sequence[3])
-            for sequence in connection.execute(query, params).fetchall()
-        ]
+        source_df = dataset["table"]
 
-        input_features = str(models[0][2]).split(",")
-        output_features = str(models[0][3]).split(",")
+        y = source_df[output_features]
+        X = source_df.drop(columns=output_features)
 
-        project_id = models[0][0]
-        model_id = models[0][1]
-        project_name = f"project_{project_id}"
-        model_name = f"model_{model_id}"
+        # check if input features correct
+        if set(X.columns.tolist()) != set(input_features):
+            res.status_code = status.HTTP_400_BAD_REQUEST
+            return None
 
-        mindsdb_server = connect_mindsdb_server()
-        project = mindsdb_server.get_project(project_name)  # pyright: ignore
-        model = project.get_model(model_name)
-        model_status = model.get_status()
+        pred_df = DataFrame(model.predict(X))
+        result_df = concat([y, pred_df["prediction"], X], axis=1)
 
-        if model_status == "complete":
-            model_outputs = []
-            output_feature = output_features[0]
+        return generate_file_response(result_df, res)
 
-            for req_input_features in body.input_features:
-                if isinstance(input_features, str) and set(
-                    req_input_features
-                ) != set(input_features):
-                    raise HTTPException(
-                        400,
-                        "Input features not correct. Require ("
-                        + ", ".join(set(input_features))
-                        + ") features",
-                    )
-
-                predicted_result = DataFrame(model.predict(req_input_features))
-                predicted_result = predicted_result.to_dict().get(
-                    output_feature
-                )
-
-                if predicted_result is not None:
-                    model_output = predicted_result.get(0)
-                    model_outputs.append({output_feature: model_output})
-                else:
-                    model_outputs.append({output_feature: None})
-
-            return ORJSONResponse(model_outputs)
-
-        else:
-            return {
-                "model_status": model_status,
-                "message": "model can't be used currently.",
-            }
+    return None

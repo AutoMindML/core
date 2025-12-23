@@ -48,12 +48,14 @@ def get_dataset(
                     query, {"mid": user_id, "oid": dataset_id}
                 ).scalar()
 
-                if (md5 is None) or (
-                    md5 not in [table.name for table in file_db.list_tables()]
-                ):
+                if md5 is not None:
+                    md5 = str(md5).lower()
+                else:
                     return None
 
-                md5 = str(md5)
+                if md5 not in [table.name for table in file_db.list_tables()]:
+                    md5 = md5.upper()
+
                 table = file_db.get_table(md5)
 
                 if limit > 0:
@@ -70,6 +72,7 @@ def get_dataset(
 
 
 def dataset_to_mindsdb(dataset: DataFrame, md5: str):
+    md5 = md5.lower()
     mindsdb_server = connect_mindsdb_server()
     files_db = mindsdb_server.get_database("files")  # pyright: ignore[reportAttributeAccessIssue]
     if md5 not in [table.name for table in files_db.list_tables()]:

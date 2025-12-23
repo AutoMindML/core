@@ -26,5 +26,6 @@ InputFeatures = list[Dict[str, float] | Dict[str, str]]
 
 class ModelPredictionBody(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
+    project_id: int
     model_id: int
-    input_features: InputFeatures
+    dataset_id: int
