@@ -10,7 +10,6 @@ from typing import (
 )
 
 import pandas as pd
-from sklearn.model_selection import train_test_split
 
 from automind.data_utils.parser import DataParser
 from automind.data_utils.preprocessing import (
@@ -33,7 +32,7 @@ from automind.models.preprocessing import (
 from automind.utils.json import JsonCleaner, JsonCleanerProtocal
 from automind.utils.logging import logger
 
-LogicApplierDatasetType = Dict[str, Union[pd.DataFrame, pd.Series]]
+LogicApplierDataset = Dict[str, Union[pd.DataFrame, pd.Series]]
 
 
 class ProcessingHistorySuccessType(TypedDict):
@@ -64,6 +63,7 @@ class LogicApplier:
 
     logic_actions: List[LLMResponseSchema]
     processing_history: List[ProcessingHistoryType]
+    split_datasets: LogicApplierDataset
 
     def __init__(
         self,
@@ -176,12 +176,6 @@ class LogicApplier:
                 task_options.bins_or_quantiles, task_options.labels
             )
 
-        # datasets = self._prepare_datasets(
-        #     modeling_approach.test_size,
-        #     modeling_approach.validation_size,
-        #     modeling_approach.cross_validation.stratified,
-        # )
-        #
         # if modeling_approach.data_cleaning.sampling:
         #     datasets = self._apply_balancing(
         #         datasets, modeling_approach.data_cleaning.sampling
@@ -457,121 +451,11 @@ class LogicApplier:
                     }
                 )
 
-    def _prepare_datasets(
-        self, test_size: float, validation_size: float, stratified: bool = True
-    ) -> LogicApplierDatasetType:
-        """Prepare train/validation/test splits."""
-        logger.info("Preparing train/validation/test splits...")
-
-        datasets: LogicApplierDatasetType = {
-            "X_train": pd.DataFrame(),
-            "y_train": pd.Series(),
-            "X_test": pd.DataFrame(),
-            "y_test": pd.Series(),
-            "X_val": pd.DataFrame(),
-            "y_val": pd.Series(),
-        }
-
-        # Ensure target column exists
-        if (
-            not self.target_column
-            or self.target_column not in self.processed_df.columns
-        ):
-            logger.warning(
-                "No valid target column found, creating feature-only splits"
-            )
-            X = self.processed_df
-            y = None
-        else:
-            X = self.processed_df.drop(columns=[self.target_column])
-            y = pd.Series(self.processed_df[self.target_column])
-
-        if self.processed_df.shape[0] == 1:
-            logger.warning(
-                "The sample of data has only one row, so there is no way to split it."
-            )
-
-            datasets["X_train"] = X
-
-            if y is not None:
-                datasets["y_train"] = y
-
-            return datasets
-
-        # First split: separate test set
-        if y is not None and stratified and self._is_classification_target(y):
-            X_temp, X_test, y_temp, y_test = train_test_split(
-                X, y, test_size=test_size, random_state=42, stratify=y
-            )
-        else:
-            if y is not None:
-                X_temp, X_test, y_temp, y_test = train_test_split(
-                    X, y, test_size=test_size, random_state=42
-                )
-            else:
-                X_temp, X_test = train_test_split(
-                    X, test_size=test_size, random_state=42
-                )
-                y_temp = y_test = None
-
-        # Second split: separate validation from remaining training data
-        if validation_size > 0:
-            # Adjust validation size relative to remaining data
-            val_size_adjusted = validation_size / (1 - test_size)
-
-            if (
-                y_temp is not None
-                and stratified
-                and self._is_classification_target(pd.Series(y_temp))
-            ):
-                X_train, X_val, y_train, y_val = train_test_split(
-                    X_temp,
-                    y_temp,
-                    test_size=val_size_adjusted,
-                    random_state=42,
-                    stratify=y_temp,
-                )
-            else:
-                if y_temp is not None:
-                    X_train, X_val, y_train, y_val = train_test_split(
-                        X_temp,
-                        y_temp,
-                        test_size=val_size_adjusted,
-                        random_state=42,
-                    )
-                else:
-                    X_train, X_val = train_test_split(
-                        X_temp, test_size=val_size_adjusted, random_state=42
-                    )
-                    y_train = y_val = None
-        else:
-            X_train, y_train = X_temp, y_temp
-            X_val = y_val = None
-
-        datasets["X_train"] = pd.DataFrame(X_train)
-        datasets["y_train"] = pd.Series(y_train)
-        datasets["X_test"] = pd.DataFrame(X_test)
-        datasets["y_test"] = pd.Series(y_test)
-
-        if X_val is not None:
-            datasets["X_val"] = pd.DataFrame(X_val)
-            datasets["y_val"] = pd.Series(y_val)
-
-        # Log dataset shapes
-        logger.info(f"Training set shape: {datasets['X_train'].shape}")
-
-        if X_val is not None:
-            logger.info(f"Validation set shape: {datasets['X_val'].shape}")
-
-        logger.info(f"Test set shape: {datasets['X_test'].shape}")
-
-        return datasets
-
     def _apply_balancing(
         self,
-        datasets: LogicApplierDatasetType,
+        datasets: LogicApplierDataset,
         recommendations: List[SamplingRecommendation],
-    ) -> LogicApplierDatasetType:
+    ) -> LogicApplierDataset:
         """Apply balancing techniques to training data only."""
         if (datasets["y_train"].size == 0) or (datasets["X_train"].size == 0):
             return datasets
