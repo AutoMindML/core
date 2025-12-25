@@ -258,8 +258,8 @@ GO
 CREATE OR ALTER PROCEDURE
 	[dbo].[xp_set_model_info]
 	@model_id int,
-	@input nvarchar(4000),
-	@output nvarchar(256)
+	@input nvarchar(max),
+	@output nvarchar(max)
 	AS BEGIN try
 	--
 begin tran;

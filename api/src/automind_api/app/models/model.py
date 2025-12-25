@@ -29,3 +29,4 @@ class ModelPredictionBody(BaseModel):
     project_id: int
     model_id: int
     dataset_id: int
+    limit: int = 20

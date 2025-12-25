@@ -40,7 +40,7 @@ class ViewModel(TypedDict):
     output_features: str
     input_features: str
     select_data_query: str
-    create_at: date
+    created_at: date
     updated_at: date
     owner_mid: int
     active: int

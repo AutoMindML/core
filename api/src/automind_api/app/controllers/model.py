@@ -76,7 +76,8 @@ def update_model(project_id: int, model_id: int):
                         "model_id": model_id,
                         "select_data_query": model_info["SELECT_DATA_QUERY"],
                         "active": 1 if model_info["ACTIVE"] else 0,
-                        "status": model_info["STATUS"],
+                        # "status": model_info["STATUS"],
+                        "status": "training",
                         "score": "{}",
                         "training_time": model_info["TRAINING_TIME"],
                         "update_status": model_info["UPDATE_STATUS"],
@@ -368,8 +369,11 @@ async def model_prediction(
             res.status_code = status.HTTP_400_BAD_REQUEST
             return None
 
-        pred_df = DataFrame(model.predict(X))
+        pred_df = DataFrame(model.predict(X.fillna(0)))
         result_df = concat([y, pred_df["prediction"], X], axis=1)
+
+        if body.limit > 0:
+            result_df = result_df.iloc[: body.limit]
 
         return generate_file_response(result_df, res)
 
