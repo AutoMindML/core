@@ -75,5 +75,6 @@ def dataset_to_mindsdb(dataset: DataFrame, md5: str):
     md5 = md5.lower()
     mindsdb_server = connect_mindsdb_server()
     files_db = mindsdb_server.get_database("files")  # pyright: ignore[reportAttributeAccessIssue]
-    if md5 not in [table.name for table in files_db.list_tables()]:
+    file_md5s = [table.name for table in files_db.list_tables()]
+    if (md5 not in file_md5s) and (md5.upper() not in file_md5s):
         files_db.create_table(md5, dataset, True)
