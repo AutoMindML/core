@@ -118,21 +118,6 @@ begin tran;
 
 DECLARE @data_id int, @engine_id int;
 
-
-IF EXISTS (
-	SELECT
-		*
-	FROM
-		vd_Model
-	WHERE
-		model_id = @model_id
-		AND (app_id IS NOT NULL)
-) begin;
-	throw 50422, 'this model is in used and can''t be deleted.', 1;
-	return;
-end
-
-
 SELECT
 	@data_id = data_source_id,
 	@engine_id = engine_id
