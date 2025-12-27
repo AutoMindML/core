@@ -70,45 +70,52 @@ WHERE
 GO
 
 CREATE OR ALTER PROCEDURE
-[dbo].[xp_add_app_prediction]
-    @mid int,
+[dbo].[xp_create_app_prediction]
+    @user_id int,
     @project_id int,
-    @model_id int,
     @name nvarchar(512),
     @des nvarchar(4000),
-    @new_id int OUTPUT AS BEGIN TRY
+    
+    @state int OUTPUT,
+    @message nvarchar(4000) OUTPUT,
+    @new_id int OUTPUT
+    
+    AS BEGIN TRY
     BEGIN TRAN;
 
-    INSERT INTO
-    Object (
-        TYPE,
-        CName,
-        CDes,
-        OwnerMID,
-        NOutlinks
+    if not exists (
+        select 1 from CO, [Object] O where CO.CID = @project_id and CO.OID = O.OID and O.[Type] = 113
     )
-    VALUES
-    (113, @name, @des, @mid, 1);
+    begin
+        INSERT INTO
+            Object (
+            TYPE,
+            CName,
+            CDes,
+            OwnerMID,
+            NOutlinks
+            )
+        VALUES
+            (113, @name, @des, @user_id, 1);
 
-    SELECT @new_id = scope_identity()
-    ;
+        SELECT @new_id = scope_identity();
 
-    INSERT INTO
-    App_Prediction (APID, Status, [Key], [DeploymentId])
-    VALUES
-    (@new_id, 'active', newid(), newid());
+        INSERT INTO
+            App_Prediction (APID, Status, [Key], [DeploymentId])
+        VALUES
+            (@new_id, 'active', newid(), newid());
 
-    INSERT INTO
-    CO (CID, OID)
-    VALUES
-    (@project_id, @new_id);
-
-    INSERT INTO
-    ORel (OID1, OID2)
-    VALUES
-    (@new_id, @model_id);
+        INSERT INTO
+            CO (CID, OID)
+        VALUES
+            (@project_id, @new_id);
+    end;
 
     COMMIT TRAN;
+
+    SELECT
+      @state = 0,
+      @message = 'generate api successfully';
 
 END TRY
 BEGIN CATCH;

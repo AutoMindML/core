@@ -7,7 +7,6 @@ from fastapi import FastAPI
 from automind_api.app.controllers.app import app_router
 from automind_api.app.controllers.applier import applier_router
 from automind_api.app.controllers.dataset import dataset_router
-from automind_api.app.controllers.deployment import deployment_router
 from automind_api.app.controllers.fusion import fusion_router
 from automind_api.app.controllers.metadata import metadata_router
 from automind_api.app.controllers.model import model_router
@@ -46,4 +45,3 @@ app.include_router(fusion_router, prefix="/api/automl/fusion")
 app.include_router(metadata_router, prefix="/api/automl/metadata")
 app.include_router(applier_router, prefix="/api/automl/applier")
 app.include_router(app_router, prefix="/api/app")
-app.include_router(deployment_router, prefix="/app")

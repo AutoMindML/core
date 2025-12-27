@@ -16,6 +16,7 @@ class AvailableSP:
     add_or_update_metadata = "[dbo].[xp_add_metadata]"
     update_metadata_status = "[dbo].[xp_update_metadata_status]"
     applier_generate_new_dataset = "[dbo].[xp_applier_generate_new_dataset]"
+    create_app_prediction = "[dbo].[xp_create_app_prediction]"
 
 
 class ViewMetaData(TypedDict):
@@ -33,8 +34,6 @@ class ViewMetaData(TypedDict):
 class ViewModel(TypedDict):
     project_id: int
     model_id: int
-    app_id: int
-    api_key: str
     name: str
     description: str
     output_features: str

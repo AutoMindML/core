@@ -19,5 +19,5 @@ class GetViewCommonOpts(TypedDict):
 
 
 class GetViewByIdOpts(TypedDict):
-    id: int
+    id: int | str
     id_col_name: str

@@ -1,10 +1,13 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import Header, HTTPException
+from fastapi import HTTPException
 from sqlalchemy import sql
 from sqlalchemy.exc import DBAPIError
 
+from automind_api.app.models.app import ViewAppPrediction
+from automind_api.app.models.view_sp import AvailableView
+from automind_api.app.repositories.i3s import get_view_by_id
 from automind_api.db.connection import create_mssql_engine
 
 
@@ -42,21 +45,17 @@ async def get_session_id_by_user_id(user_id: int) -> Optional[int]:
             return None
 
 
-async def verify_api_key(api_key: Optional[str] = Header(None)):
-    mssql_engine = create_mssql_engine()
+def verify_deployment_and_api_key(api_key: str, deployment_id: str):
+    view_app_prediction: ViewAppPrediction = get_view_by_id(
+        AvailableView.model,
+        {"id": api_key, "id_col_name": "api_key"},
+        ViewAppPrediction,
+    )
 
-    with mssql_engine.begin() as connection:
-        query = sql.text(
-            """
-            select * from [dbo].[vd_valid_api_keys]
-        """
-        )
+    if not dict(view_app_prediction):
+        raise HTTPException(status_code=401, detail="API key not valid")
 
-        VALID_API_KEYS = [
-            sequence[0] for sequence in connection.execute(query).fetchall()
-        ]
+    if view_app_prediction["deployment_id"] != deployment_id:
+        raise HTTPException(status_code=401, detail="Deployment Id not valid")
 
-        if api_key not in VALID_API_KEYS:
-            raise HTTPException(status_code=401, detail="Invalid API key")
-
-        return api_key
+    return view_app_prediction

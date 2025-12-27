@@ -27,6 +27,10 @@ class HeaderSessionMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             return response
 
+        if request.url._url.find("/api/app/deployment") > 0:
+            response: Response = await call_next(request)
+            return response
+
         user_id = request.headers.get(self.header_name)
 
         if (user_id is None) or (user_id == ""):

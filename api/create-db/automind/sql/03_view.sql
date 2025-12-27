@@ -78,15 +78,6 @@ CREATE OR ALTER VIEW [dbo].[vd_Model] AS
 SELECT
 	CO.CID AS project_id,
 	O.OID AS model_id,
-	toApp.OID1 AS app_id,
-	(
-		SELECT
-			[Key]
-		FROM
-			App_Prediction
-		WHERE
-			APID = toApp.OID1
-	) AS api_key,
 	O.CName AS name,
 	O.CDes AS description,
 	M.OutputFeatures AS output_features,
@@ -160,17 +151,6 @@ FROM
 			OID = toEngine.OID2
 			AND
 		TYPE = 111
-	)
-	LEFT JOIN ORel toApp ON toApp.OID2 = O.OID
-	AND EXISTS (
-		SELECT
-		TYPE
-		FROM
-			Object
-		WHERE
-			OID = toApp.OID1
-			AND
-		TYPE = 113
 	)
 WHERE
 	O.Type = 112;

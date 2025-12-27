@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 
 from pydantic import BaseModel, ConfigDict
 
@@ -21,7 +21,13 @@ class ModelDeleteRequest(BaseModel):
     model_id: int
 
 
-InputFeatures = list[Dict[str, float] | Dict[str, str]]
+InputFeatures = List[Dict[str, float] | Dict[str, str] | Dict[str, int]]
+
+
+class ModelPredictionServiceBody(BaseModel):
+    input: InputFeatures
+    model_id: str
+    limit: int = -1
 
 
 class ModelPredictionBody(BaseModel):

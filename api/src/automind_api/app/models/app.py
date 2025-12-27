@@ -1,15 +1,20 @@
 from datetime import date
 from typing import TypedDict
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 
-class AddAppBody(BaseModel):
+class CreateAppBody(BaseModel):
     project_id: int
-    model_id: int
     name: str
     des: str
-    model_config = ConfigDict(protected_namespaces=())
+
+
+class CreateAppParameter(TypedDict):
+    user_id: int
+    project_id: int
+    name: str
+    des: str
 
 
 class DeleteAppBody(BaseModel):
