@@ -77,28 +77,6 @@ GO
 -------------------------------------------------------------------------------
 DECLARE @newOID int;
 
-
-IF NOT EXISTS (
-	SELECT
-		*
-	FROM
-		Object O
-		INNER JOIN ML_Engine E ON O.OID = E.MLEID
-	WHERE
-		O.Type = 111
-		AND E.Handler = 'lightwood'
-) BEGIN EXEC [dbo].[xp_add_ml_engine] 1,
-'lightwood',
-'Lightwood is the default AI engine used in MindsDB. It deals mainly with classification, regression, and time-series problems in machine learning.',
-'lightwood',
-'{}',
-@newOID OUTPUT;
-
-
-END;
-
----
-
 IF NOT EXISTS (
 	SELECT
 		*
