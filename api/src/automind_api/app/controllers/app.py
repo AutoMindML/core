@@ -103,7 +103,7 @@ def app_prediction(
             result_df = result_df.iloc[: body.limit]
 
         # return generate_file_response(result_df, res)
-        return ORJSONResponse(result_df.to_json())
+        return ORJSONResponse(result_df.to_dict(orient="records"))
 
     return None
 
