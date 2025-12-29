@@ -47,8 +47,8 @@ async def get_session_id_by_user_id(user_id: int) -> Optional[int]:
 
 def verify_deployment_and_api_key(api_key: str, deployment_id: str):
     view_app_prediction: ViewAppPrediction = get_view_by_id(
-        AvailableView.model,
-        {"id": api_key, "id_col_name": "api_key"},
+        AvailableView.app_prediction,
+        {"id": f"'{api_key}'", "id_col_name": "api_key"},
         ViewAppPrediction,
     )
 
