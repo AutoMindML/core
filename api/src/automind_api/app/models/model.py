@@ -21,7 +21,7 @@ class ModelDeleteRequest(BaseModel):
     model_id: int
 
 
-InputFeatures = List[Dict[str, float] | Dict[str, str] | Dict[str, int]]
+InputFeatures = List[Dict[str, float | str | int]]
 
 
 class ModelPredictionServiceBody(BaseModel):
