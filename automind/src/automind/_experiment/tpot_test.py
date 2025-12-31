@@ -1,8 +1,3 @@
-import pickle
-
-from sklearn.metrics import accuracy_score
-
-from automind import rc
 from automind._experiment.core import apply_data_preprocessing_workflow
 from automind._experiment.shared import (
     df_conditions,
@@ -11,6 +6,7 @@ from automind._experiment.shared import (
     llm_response_dir,
     target_column,
 )
+from automind.engine.tpot_engine import TPOTEngine
 
 model_path = "tpot_best_pipeline.pkl"
 
@@ -25,8 +21,7 @@ if __name__ == "__main__":
         target_column,
     )
 
-    with open(model_path, "rb") as f:
-        model = pickle.load(f)
+    model = TPOTEngine()
 
     if df is not None:
         y = df[target_column]
@@ -34,6 +29,4 @@ if __name__ == "__main__":
         for col in X.select_dtypes(include=["object", "category"]).columns:
             X[col] = X[col].astype("category").cat.codes
         pred = model.predict(X)
-
-        rc.print(pred)
-        rc.print(accuracy_score(y, pred))
+        print(pred.iloc[:2].to_dict(orient='records'))
