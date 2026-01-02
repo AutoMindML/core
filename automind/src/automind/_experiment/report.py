@@ -22,7 +22,8 @@ def visualize_report_comparison(
     gemini_report: ExperimentReport, automind_report: ExperimentReport
 ):
     # 1. Average Model Performance
-    perf_metrics = ["accuracy", "f1_score", "auroc", "rmse"]
+    # perf_metrics = ["accuracy", "f1_score", "auroc", "rmse"]
+    perf_metrics = ["accuracy", "f1_score", "auroc"]
     gemini_perf = [
         gemini_report["average_model_performance"][m] for m in perf_metrics
     ]
@@ -77,7 +78,7 @@ def visualize_report_comparison(
     )
     axes[0, 0].set_ylabel("Score / Value")
     axes[0, 0].set_title(
-        "Average Model Performance (Accuracy, F1, AUROC, RMSE)"
+        "Average Model Performance (Accuracy, F1, AUROC)"
     )
     axes[0, 0].set_xticks(x)
     axes[0, 0].set_xticklabels(perf_metrics)
