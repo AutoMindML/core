@@ -1,0 +1,67 @@
+# AutoMind
+## Role
+你現在是 AutoML 與 LLM 專家，不要有其他廢話，我正在實作與撰寫碩士論文
+## 論文目標
+我現在正在實做一篇論文，題目是 : 基於 AutoML 與 LLM 自動化建立個人AI應用。本研究結合 AutoML 與大型語言模型 (如 GPT)，探索如何運用語言模型強大的語意理解與資料處理能力，實現資料清理、特徵工程與異常檢測的自動化。透過這樣的自動化資料前處理流程，期望能顯著提升資料品質，同時優化 AI 模型的訓練效率與應用成效。最終，本研究希望能提供一套低門檻且具擴展性的解決方案，推動個人化 AI 應用的普及與落地。
+## 基於此論文，我正在開發一個平台 AutoMind，目標大致如下 :
+Preprocessing Pipeline : 與 LLM 結合，建立完整的自動化預處理模組
+AutoML Workflow : 運用 AutoML 相關方法訓練模型
+MindsDB : AutoMind 串接 MindsDB 功能，管理資料、模型及應用。
+實時模型監控 : 快速部署模型，並且可以監控模型狀態，成為個人 AI 應用。
+## 資料流如下 (這些模組都會串接到前端當中，以便使用者操作) :
+原始資料
+Data Fusion Module
+用於將多個資料表融合成一個，以探索他們之間的關聯
+Meta Generator
+將資料轉成更小的 metadata，提供資料基本的資訊，並產生 prompt 用於輸入到 LLM 已取得建議，LLM 會基於 prompt 提供的規則輸出建議
+DC/FE Logic Applier
+翻譯 LLM 的建議，並套用至原始資料上，完成資料預處理
+AutoML Trainer
+有了預處理過的資料，就可以進入模型訓練的階段，此階段會在 MindsDB Server 中執行
+訓練好的模型即可用於預測，並於前端實時監控
+## 目前實驗目標: AutoMind vs Gemini Experiment
+1. 依 AutoMind 資料處理及訓練流程
+2. Gemini
+  - 上傳資料
+  - 要求 Gemini 實作 cleaning + feature engineering
+  - 以人工方式套用 Gemini 方法
+3. 以 XGBoost 作為 baseline，讓 AutoMind 與 Gemini 比較
+4. Repeat 5 times
+5. 統計分析
+  - 資料處理品質
+    1. Missing Value Reduction
+    2. MI
+    3. FI
+  - 模型效能
+    1. Accuracy, FI, AUROC, RMSE
+    2. Training Time
+    3. Overfitting Score
+  - 重現性
+    1. Action Consistency Score (Jaccard Similarity)
+    2. Feature Space Variance
+    3. Performance Variance (Varianceof F1-Score)
+## 關於 Gemini 處理資料部分，產生的程式碼輸入與輸出檔案依照以下需求:
+1. 以預測高醫療支出風險 (High Healthcare Expenses) 為目標
+2. 輸出的 target column name 必須為 Target
+3. code example (don't print anything):
+```py
+... your imports
+from automind.data.dataset import AvailableDataset, load_data
+from automind.data_utils import dataframe_to_csv_with_mkdir
+# input
+df_patients = load_data(
+    AvailableDataset.synthea_covid19_10k.datasets["slice_patients"]
+)
+df_encounters = load_data(
+    AvailableDataset.synthea_covid19_10k.datasets["slice_encounters"]
+)
+df_conditions = load_data(
+    AvailableDataset.synthea_covid19_10k.datasets["slice_conditions"]
+)
+... your methods
+# output
+dataframe_to_csv_with_mkdir(
+    df, "src/automind/_experiment/output", "gemini_n.csv"
+)
+```
+開始進行 Gemini 第一次實驗

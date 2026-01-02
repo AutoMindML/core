@@ -7,6 +7,7 @@ from automind.data.dataset import AvailableDataset, load_data
 target_column = "HEALTHCARE_EXPENSES"
 iterations = 5
 gemini_code_dir = Path(__file__).parent.absolute() / "gemini_code"
+io_dir = Path(__file__).parent.absolute() / "io"
 output_dir = Path(__file__).parent.absolute() / "output"
 gemini_report_path = (
     Path(__file__).parent.absolute() / "report/gemini_report.txt"

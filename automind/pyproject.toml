@@ -22,6 +22,7 @@ dependencies = [
   "scipy",
   "featuretools[dask]",
   "featuretools[premium]",
+  "tiktoken",
 
 
   # issue solution: https://github.com/huggingface/datasets/issues/7693#issuecomment-3103380232
