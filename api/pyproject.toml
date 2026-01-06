@@ -1,3 +1,4 @@
+#:tombi schema.strict = false
 [project]
 name = "automind-api"
 version = "0.1.0"
@@ -55,10 +56,8 @@ requires = ["setuptools"]
 # more setting refer to: https://microsoft.github.io/pyright/#/configuration?id=sample-pyprojecttoml-file
 [tool.pyright]
 include = ["src"]
+disableOrganizeImports = true
 reportMissingTypeStubs = false
-useLibraryCodeForTypes = false
-extraPaths = ["typings"]
-typeCheckingMode = "standard"
 
 [tool.ruff]
 line-length = 80
