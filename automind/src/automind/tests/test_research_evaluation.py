@@ -35,9 +35,23 @@ def test_repair_metrics_separate_correct_and_harmful_changes():
         {("1", "age"), ("2", "age")},
         {("1", "age"), ("9", "age")},
         {("1", "age"), ("9", "age")},
+        {("1", "age")},
     )
 
     assert result["detection_precision"] == 0.5
     assert result["detection_recall"] == 0.5
     assert result["correct_repair_rate"] == 0.5
     assert result["harmful_change_rate"] == 0.5
+
+
+def test_changed_corruption_is_not_correct_without_value_restoration():
+    result = repair_metrics(
+        {("1", "age")},
+        {("1", "age")},
+        {("1", "age")},
+        set(),
+    )
+
+    assert result["changed"] == 1
+    assert result["correctly_repaired"] == 0
+    assert result["correct_repair_rate"] == 0.0

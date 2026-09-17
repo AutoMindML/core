@@ -61,14 +61,16 @@ def repair_metrics(
     corruption_keys: set[tuple[str, str]],
     detected_keys: set[tuple[str, str]],
     changed_keys: set[tuple[str, str]],
+    restored_keys: set[tuple[str, str]],
 ) -> dict[str, float | int]:
     true_detected = corruption_keys & detected_keys
-    correct_repairs = corruption_keys & changed_keys
+    correct_repairs = corruption_keys & changed_keys & restored_keys
     harmful = changed_keys - corruption_keys
     return {
         "corruptions": len(corruption_keys),
         "detected": len(detected_keys),
         "changed": len(changed_keys),
+        "correctly_repaired": len(correct_repairs),
         "detection_precision": _ratio(len(true_detected), len(detected_keys)),
         "detection_recall": _ratio(len(true_detected), len(corruption_keys)),
         "correct_repair_rate": _ratio(
