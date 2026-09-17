@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,6 +9,7 @@ import seaborn as sns
 from automind.data_utils.measure import compute_all_measures
 from automind.data_utils.parser import ColumnType, DataParser
 from automind.data_utils.template import (
+    get_compact_llm_prompt,
     get_llm_prompt_template,
 )
 from automind.models.preprocessing import (
@@ -25,8 +26,8 @@ class MetaGenerator:
 
     def __init__(
         self,
-        df: Optional[pd.DataFrame] = None,
-        target_column: Optional[str] = None,
+        df: pd.DataFrame | None = None,
+        target_column: str | None = None,
     ):
         """
         Initialize the MetaGenerator with a DataFrame and optional target column.
@@ -36,17 +37,17 @@ class MetaGenerator:
             target_column: Optional target column for supervised learning tasks
         """
         self.df = df.copy() if df is not None else pd.DataFrame()
-        self.df_optimized: Optional[pd.DataFrame] = None
+        self.df_optimized: pd.DataFrame | None = None
         self.target_column = target_column
         self.metadata = {}
         self.parser = DataParser(self.df)
 
         # Column type lists populated during metadata extraction
-        self.numeric_columns: List[str] = []
-        self.categorical_columns: List[str] = []
-        self.datetime_columns: List[str] = []
+        self.numeric_columns: list[str] = []
+        self.categorical_columns: list[str] = []
+        self.datetime_columns: list[str] = []
 
-    def extract_metadata(self) -> Dict[str, Any]:
+    def extract_metadata(self) -> dict[str, Any]:
         """Extract comprehensive metadata from the DataFrame."""
         self._extract_basic_info()
         self._classify_columns()
@@ -117,7 +118,7 @@ class MetaGenerator:
 
         self.metadata["target_analysis"] = target_info
 
-    def _analyze_categorical_target(self, target_data: pd.Series) -> Dict:
+    def _analyze_categorical_target(self, target_data: pd.Series) -> dict:
         """Analyze categorical target variable and compute mutual information."""
         target_info = {
             "column_type": ColumnType.CATEGORICAL.name.lower(),
@@ -129,15 +130,15 @@ class MetaGenerator:
 
         return target_info
 
-    def _analyze_numeric_target(self, target_data: pd.Series) -> Dict:
+    def _analyze_numeric_target(self, target_data: pd.Series) -> dict:
         """Analyze numeric target variable and compute correlations."""
         target_info = {"column_type": ColumnType.NUMERIC.name.lower()}
 
         return target_info
 
     def generate_visualization(
-        self, output_file: Optional[str] = None
-    ) -> Optional[str]:
+        self, output_file: str | None = None
+    ) -> str | None:
         """
         Generate visualizations of key data characteristics.
 
@@ -222,7 +223,11 @@ class MetaGenerator:
                 except (ValueError, TypeError):
                     pass
 
-    def generate_llm_query(self, task_type: Optional[TaskType] = None) -> str:
+    def generate_llm_query(
+        self,
+        task_type: TaskType | None = None,
+        modeling_approach_limit: int = 3,
+    ) -> str:
         """
         Generate a comprehensive LLM query based on the metadata for data analysis
         recommendations.
@@ -239,10 +244,31 @@ class MetaGenerator:
         metadata = self._prepare_llm_metadata()
 
         return get_llm_prompt_template(
-            metadata, self.get_json_metadata(), task_type=task_type
+            metadata,
+            self.get_json_metadata(),
+            modeling_approach_limit=modeling_approach_limit,
+            task_type=task_type,
         )
 
-    def _prepare_llm_metadata(self) -> Dict:
+    def generate_compact_llm_query(self, task_type: TaskType) -> str:
+        column_types = self.parser.identify_column_types()
+        metadata = {
+            "rows": len(self.df),
+            "columns": [
+                {
+                    "name": column,
+                    "type": column_types[column].name,
+                    "missing_rate": round(float(self.df[column].isna().mean()), 6),
+                }
+                for column in self.df.columns
+            ],
+            "target": self.target_column,
+        }
+        return get_compact_llm_prompt(
+            metadata, self.target_column or "", task_type
+        )
+
+    def _prepare_llm_metadata(self) -> dict:
         """Prepare metadata for LLM query generation."""
         llm_metadata = {
             "basic_info": self.metadata["basic_info"],

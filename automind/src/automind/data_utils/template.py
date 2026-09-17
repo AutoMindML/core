@@ -2,7 +2,7 @@
 # Zhang, H., Dong, Y., Xiao, C., & Oyamada, M. (2023).
 # Large language models as data preprocessors. arXiv preprint arXiv:2308.16361.
 
-from typing import Dict, Optional
+import json
 
 from automind.models.preprocessing import (
     DC,
@@ -149,7 +149,7 @@ Required JSON Schema:
 
 
 def get_batch_prompt(
-    metadata: Dict, json_metadata: str, task_type: Optional[TaskType]
+    metadata: dict, json_metadata: str, task_type: TaskType | None
 ):
     """
     Implements batch prompting by presenting multiple data instances in a single prompt to the LLM.
@@ -171,13 +171,98 @@ Dataset Metadata:
 
 
 def get_llm_prompt_template(
-    metadata: Dict,
+    metadata: dict,
     json_metadata: str,
     modeling_approach_limit: int = 3,
-    task_type: Optional[TaskType] = None,
+    task_type: TaskType | None = None,
 ):
     return (
         get_zero_shot_prompt(modeling_approach_limit)
         + get_few_shot_prompt()
         + get_batch_prompt(metadata, json_metadata, task_type)
+    )
+
+
+def get_compact_llm_prompt(
+    metadata: dict, target_column: str, task_type: TaskType
+) -> str:
+    supported_missing = [
+        "MEAN",
+        "MEDIAN",
+        "MODE",
+        "ZERO_AS_MISSING_VALUE",
+        "NEGATIVE_AS_MISSING_VALUE",
+    ]
+    supported_transformations = ["STANDARDIZE", "MIN_MAX_SCALE", "BINARIZE"]
+    schema = {
+        "data_quality_report": {
+            "overall_quality": "GOOD|MODERATE|POOR",
+            "summary": "short string",
+            "issues": [
+                {
+                    "type": "MISSING_VALUES|IMBALANCE|INCONSISTENT_TYPES",
+                    "columns": ["column"],
+                    "description": "short string",
+                }
+            ],
+            "strengths": [
+                {
+                    "type": "HIGH_COMPLETENESS|CONSISTENT_SCHEMA",
+                    "description": "short string",
+                }
+            ],
+        },
+        "modeling_approaches": [
+            {
+                "task_type": task_type.name,
+                "target": target_column,
+                "recommended_algorithm": {
+                    "name": "algorithm",
+                    "reason": "short string",
+                    "params": {},
+                },
+                "data_cleaning": {
+                    "missing_values": [
+                        {
+                            "column": "column",
+                            "methods": supported_missing,
+                        }
+                    ],
+                    "sampling": [
+                        {"column": target_column, "methods": DC.Sampling._member_names_}
+                    ],
+                },
+                "feature_engineering": {
+                    "encoding": [
+                        {
+                            "column": "column",
+                            "methods": FE.IndexingOrEncoding._member_names_,
+                        }
+                    ],
+                    "transformation": [
+                        {
+                            "column": "column",
+                            "methods": supported_transformations,
+                        }
+                    ],
+                    "extraction": [],
+                },
+                "evaluation_metrics": EvaluationMetric._member_names_,
+                "cross_validation": {
+                    "method": "K_FOLD",
+                    "folds": 5,
+                    "stratified": task_type != TaskType.REGRESSION,
+                },
+                "test_size": 0.2,
+                "validation_size": 0.1,
+            }
+        ],
+    }
+    return (
+        "Return only one valid JSON object. "
+        "Use exactly one modeling approach. Use only listed columns and method "
+        "names. Use empty arrays when no operation is needed. Keep descriptions "
+        "brief (at most 12 words per description). Do not output code or reasoning.\n"
+        f"Dataset metadata: {json.dumps(metadata, default=str)}\n"
+        f"Required shape and allowed values: {json.dumps(schema)}"
     )

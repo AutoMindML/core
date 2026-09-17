@@ -2,14 +2,10 @@ from enum import Enum, auto
 from typing import (
     Annotated,
     Any,
-    Dict,
-    List,
-    Optional,
     Protocol,
-    Union,
 )
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from automind.models.shared import (
     EnumByName,
@@ -198,7 +194,7 @@ class EvaluationMetric(Enum):
 
 class Issue(BaseModel):
     type: Annotated[DataQualityType, EnumByName()]
-    columns: List[str]
+    columns: list[str]
     description: str
 
 
@@ -210,45 +206,45 @@ class Strength(BaseModel):
 class DataQualityReport(BaseModel):
     overall_quality: Annotated[OverallQuality, EnumByName()]
     summary: str
-    issues: List[Issue]
-    strengths: List[Strength]
+    issues: list[Issue]
+    strengths: list[Strength]
 
 
 # -------------------- recommendation --------------------
 class MissingValueRecommendation(BaseModel):
     column: str
-    methods: List[Annotated[DC.MissingValuesImputation, EnumByName()]]
+    methods: list[Annotated[DC.MissingValuesImputation, EnumByName()]]
 
 
 class SamplingRecommendation(BaseModel):
     column: str
-    methods: List[Annotated[DC.Sampling, EnumByName()]]
+    methods: list[Annotated[DC.Sampling, EnumByName()]]
 
 
 class IndexingOrEncodingRecommendation(BaseModel):
     column: str
-    methods: List[Annotated[FE.IndexingOrEncoding, EnumByName()]]
+    methods: list[Annotated[FE.IndexingOrEncoding, EnumByName()]]
 
 
 class TransformationRecommendation(BaseModel):
     column: str
-    methods: List[Annotated[FE.Transformation, EnumByName()]]
+    methods: list[Annotated[FE.Transformation, EnumByName()]]
 
 
 class FeatureExtractionRecommendation(BaseModel):
     column: str
-    methods: List[Annotated[FE.Extraction, EnumByName()]]
+    methods: list[Annotated[FE.Extraction, EnumByName()]]
 
 
 class DataCleaningRecommendations(BaseModel):
-    missing_values: List[MissingValueRecommendation]
-    sampling: List[SamplingRecommendation]
+    missing_values: list[MissingValueRecommendation]
+    sampling: list[SamplingRecommendation]
 
 
 class FeatureEngineeringRecommendations(BaseModel):
-    encoding: List[IndexingOrEncodingRecommendation]
-    transformation: List[TransformationRecommendation]
-    extraction: List[FeatureExtractionRecommendation]
+    encoding: list[IndexingOrEncodingRecommendation]
+    transformation: list[TransformationRecommendation]
+    extraction: list[FeatureExtractionRecommendation]
 
 
 # -------------------- modeling --------------------
@@ -268,7 +264,7 @@ class ModelingApproach(BaseModel):
     task_type: Annotated[TaskType, EnumByName()]
     target: str
     recommended_algorithm: RecommendedAlgorithm
-    evaluation_metrics: List[Annotated[EvaluationMetric, EnumByName()]]
+    evaluation_metrics: list[Annotated[EvaluationMetric, EnumByName()]]
     cross_validation: CrossValidation
     data_cleaning: DataCleaningRecommendations
     feature_engineering: FeatureEngineeringRecommendations
@@ -278,7 +274,7 @@ class ModelingApproach(BaseModel):
 
 class LLMResponseSchema(BaseModel):
     data_quality_report: DataQualityReport
-    modeling_approaches: List[ModelingApproach]
+    modeling_approaches: list[ModelingApproach]
 
 
 DATETIME_FORMATS = [
@@ -299,36 +295,36 @@ DATETIME_FORMATS = [
 ]
 
 
-ALL_PROCESSING_METHOD = Union[
-    DC.MissingValuesImputation,
-    DC.Sampling,
+ALL_PROCESSING_METHOD = (
+    DC.MissingValuesImputation
+    | DC.Sampling
     # DC.NoiseTreatment,
-    FE.Transformation,
-    FE.IndexingOrEncoding,
-    FE.Extraction,
+    | FE.Transformation
+    | FE.IndexingOrEncoding
+    | FE.Extraction
     # FE.Selection,
-]
+)
 
-ChoosedMethods = Dict[str, List[bool]]
+ChoosedMethods = dict[str, list[bool]]
 
 
 class DataCleaningOptions(BaseModel):
     # {[missing value recommendation index]: [choosed methods(boolean)]}
-    missing_values: ChoosedMethods = {}
-    sampling: ChoosedMethods = {}
+    missing_values: ChoosedMethods = Field(default_factory=dict)
+    sampling: ChoosedMethods = Field(default_factory=dict)
 
 
 class FeatureEngineeringOptions(BaseModel):
-    transformation: ChoosedMethods = {}
-    encoding: ChoosedMethods = {}
-    extraction: ChoosedMethods = {}
+    transformation: ChoosedMethods = Field(default_factory=dict)
+    encoding: ChoosedMethods = Field(default_factory=dict)
+    extraction: ChoosedMethods = Field(default_factory=dict)
 
 
 class TaskOptions(BaseModel):
     type: Annotated[TaskType, EnumByName()]
     discretize: bool
-    bins_or_quantiles: List = [0, 0.75, 1]
-    labels: Optional[List] = None
+    bins_or_quantiles: list = Field(default_factory=lambda: [0, 0.75, 1])
+    labels: list | None = None
 
 
 class LLMResponseUtilProtocol(Protocol):
@@ -337,85 +333,76 @@ class LLMResponseUtilProtocol(Protocol):
     def filter_methods(
         self,
         modeling_approach: ModelingApproach,
-        data_cleaning_options: Optional[DataCleaningOptions],
-        feature_engineering_options: Optional[FeatureEngineeringOptions],
+        data_cleaning_options: DataCleaningOptions | None,
+        feature_engineering_options: FeatureEngineeringOptions | None,
     ) -> ModelingApproach: ...
 
 
 class LLMResponseUtil:
     model_validate = LLMResponseSchema.model_validate
 
+    @staticmethod
+    def _filter_recommendations(
+        recommendations: list,
+        selections: ChoosedMethods,
+        selection_name: str,
+    ) -> None:
+        for recommendation_index, recommendation in enumerate(recommendations):
+            selected = selections.get(str(recommendation_index))
+            if selected is None:
+                continue
+
+            if len(selected) != len(recommendation.methods):
+                raise ValueError(
+                    f"{selection_name}[{recommendation_index}] has "
+                    f"{len(selected)} selections for "
+                    f"{len(recommendation.methods)} methods"
+                )
+
+            recommendation.methods = [
+                method
+                for method, is_selected in zip(
+                    recommendation.methods, selected, strict=True
+                )
+                if is_selected
+            ]
+
     def filter_methods(
         self,
         modeling_approach: ModelingApproach,
-        data_cleaning_options: Optional[DataCleaningOptions] = None,
-        feature_engineering_options: Optional[FeatureEngineeringOptions] = None,
+        data_cleaning_options: DataCleaningOptions | None = None,
+        feature_engineering_options: FeatureEngineeringOptions | None = None,
     ):
-        copied_modeling_approach = modeling_approach.model_copy()
+        copied_modeling_approach = modeling_approach.model_copy(deep=True)
 
         if data_cleaning_options is not None:
-            for value_idx in range(
-                len(copied_modeling_approach.data_cleaning.missing_values)
-            ):
-                if (
-                    data_cleaning_options.missing_values.get(str(value_idx))
-                    is None
-                ):
-                    continue
-
-                copied_methods = (
-                    copied_modeling_approach.data_cleaning.missing_values[
-                        value_idx
-                    ].methods.copy()
-                )
-
-                copied_modeling_approach.data_cleaning.missing_values[
-                    value_idx
-                ].methods = [
-                    method
-                    for method, choose in zip(
-                        copied_methods,
-                        data_cleaning_options.missing_values[str(value_idx)],
-                    )
-                    if choose
-                ]
-
-            for value_idx in range(
-                len(copied_modeling_approach.data_cleaning.sampling)
-            ):
-                if data_cleaning_options.sampling.get(str(value_idx)) is None:
-                    continue
-
-                copied_methods = (
-                    copied_modeling_approach.data_cleaning.sampling[
-                        value_idx
-                    ].methods.copy()
-                )
-
-                copied_modeling_approach.data_cleaning.sampling[
-                    value_idx
-                ].methods = [
-                    method
-                    for method, choose in zip(
-                        copied_methods,
-                        data_cleaning_options.missing_values[str(value_idx)],
-                    )
-                    if choose
-                ]
+            self._filter_recommendations(
+                copied_modeling_approach.data_cleaning.missing_values,
+                data_cleaning_options.missing_values,
+                "missing_values",
+            )
+            self._filter_recommendations(
+                copied_modeling_approach.data_cleaning.sampling,
+                data_cleaning_options.sampling,
+                "sampling",
+            )
 
         if feature_engineering_options is not None:
-            ...
-
-        # for rec in copied_modeling_approach.feature_engineering.transformation:
-        #     copied_methods = rec.methods.copy()
-        #     ...
-        #
-        # for rec in copied_modeling_approach.feature_engineering.extraction:
-        #     copied_methods = rec.methods.copy()
-        #     ...
-        #
-        # for rec in copied_modeling_approach.feature_engineering.encoding:
-        #     copied_methods = rec.methods.copy()
-        #     ...
+            feature_engineering = copied_modeling_approach.feature_engineering
+            self._filter_recommendations(
+                feature_engineering.transformation,
+                feature_engineering_options.transformation,
+                "transformation",
+            )
+            self._filter_recommendations(
+                feature_engineering.encoding,
+                feature_engineering_options.encoding,
+                "encoding",
+            )
+            self._filter_recommendations(
+                feature_engineering.extraction,
+                feature_engineering_options.extraction,
+                "extraction",
+            )
 
         return copied_modeling_approach
