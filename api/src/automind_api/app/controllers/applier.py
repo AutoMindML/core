@@ -1,3 +1,5 @@
+from automind.models.preprocessing import TaskType
+from automind.pipeline import PreprocessingPipeline
 from fastapi import APIRouter, Request, Response
 from sklearn.model_selection import train_test_split
 
@@ -84,17 +86,39 @@ def applier_save_processing_result(
         AvailableSP.update_metadata_status, update_metadata_status_opt
     )
 
-    applier.apply_llm_recommendations(
-        body.data_cleaning_options,
-        body.feature_engineering_options,
-        body.task_options,
-    )
-
-    train_df, val_df = train_test_split(
-        applier.get_processed_df(), test_size=0.25, random_state=42
-    )
-
     try:
+        source = applier.get_origin_df()
+        target_column = applier.target_column
+        if target_column is None or target_column not in source.columns:
+            raise ValueError("target column is unavailable")
+
+        task_type = applier.logic_actions[0].modeling_approaches[0].task_type
+        stratify = (
+            source[target_column] if task_type != TaskType.REGRESSION else None
+        )
+        train_source, val_source = train_test_split(
+            source,
+            test_size=0.25,
+            random_state=42,
+            stratify=stratify,
+        )
+        fitted = PreprocessingPipeline(strict=True).fit(
+            train_source,
+            target_column,
+            applier.llm_response,
+            body.data_cleaning_options,
+            body.feature_engineering_options,
+            body.task_options,
+        )
+        prepared_train = fitted.fit_resample_training(train_source)
+        prepared_val = fitted.transform(val_source)
+        train_df = prepared_train.X.assign(
+            **{target_column: prepared_train.y.values}
+        )
+        val_df = prepared_val.X.assign(
+            **{target_column: prepared_val.y.values}
+        )
+
         generate_new_dataset_from_df(
             train_df,
             dataset_id,
@@ -114,5 +138,5 @@ def applier_save_processing_result(
 
         return {"state": 0, "message": "generate new dataset successfully"}
 
-    except Exception as e:
-        return {"state": 1, "message": e}
+    except Exception as error:  # noqa: BLE001 - preserve API failure envelope
+        return {"state": 1, "message": str(error)}
