@@ -18,6 +18,14 @@ error, timing and token usage, per-run model metrics, sample standard deviations
 and preprocessing-operation Jaccard stability. A saved run can be replayed
 without another LLM call.
 
+For the paper's novice-user comparison, `PlanSelector` rejects semantically
+unsafe recommendations, scores the remaining bounded candidate set with fixed
+inner folds on the outer training partition, and keeps the deterministic
+baseline unless a candidate exceeds the configured minimum gain. The direct
+LLM-code arm can run only through an injected external sandbox executor. Its
+boundary withholds holdout labels, disables network access by policy, and
+rejects changed targets, row identities, or train/holdout feature schemas.
+
 The supported fitted operations are:
 
 - Missing values: mean, median, mode, zero-as-missing, negative-as-missing
@@ -85,6 +93,15 @@ expense threshold on training data only and use a chronological Bank Marketing
 split that excludes the post-call `duration` field. Corruption operators refuse
 entity keys and targets and emit a row-level ledger. Research artifacts enforce
 the protocol fingerprint on resume.
+
+The v2 novice-comparison protocol describes the primary deterministic,
+direct-code, and guarded arms plus semantic-validation, inner-CV, and fallback
+ablations. Its dry run reports the bounded call budget and currently reports
+`direct_code_ready: false` because no disposable sandbox backend is configured:
+
+```powershell
+uv run -m automind.experiments dry-run src/automind/configs/research/novice-comparison-v2.protocol.json
+```
 
 ## Adding preprocessing methods
 
