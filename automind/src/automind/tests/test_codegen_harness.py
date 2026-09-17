@@ -14,7 +14,7 @@ from automind.experiments.codegen import (
 
 class CopyingExecutor:
     def __init__(self, mutate=None) -> None:
-        self.request: CodeExecutionRequest | None = None
+        self.requests: list[CodeExecutionRequest] = []
         self.mutate = mutate
 
     def preflight(self, policy: SandboxPolicy) -> None:
@@ -22,13 +22,11 @@ class CopyingExecutor:
         assert policy.read_only_inputs is True
 
     def execute(self, request: CodeExecutionRequest) -> CodeExecutionResult:
-        self.request = request
-        train = pd.read_csv(request.input_root / "train.csv")
-        holdout = pd.read_csv(request.input_root / "holdout.csv")
+        self.requests.append(request)
+        frame = pd.read_csv(request.input_path)
         if self.mutate is not None:
-            train, holdout = self.mutate(train, holdout)
-        train.to_csv(request.output_root / "train.csv", index=False)
-        holdout.to_csv(request.output_root / "holdout.csv", index=False)
+            frame = self.mutate(request.phase, frame)
+        frame.to_csv(request.output_path, index=False)
         return CodeExecutionResult("succeeded", 0.01)
 
 
@@ -53,9 +51,13 @@ def test_fake_executor_never_receives_holdout_labels(tmp_path):
 
     assert outcome.train.index.tolist() == train.index.tolist()
     assert outcome.holdout.index.tolist() == holdout.index.tolist()
-    assert "target" not in pd.read_csv(
-        executor.request.input_root / "holdout.csv"
-    )
+    assert executor.requests[0].phase == "fit"
+    assert all(request.phase == "transform" for request in executor.requests[1:])
+    assert all(request.state_read_only for request in executor.requests[1:])
+    assert len(executor.requests) == 1 + len(holdout)
+    for request in executor.requests[1:]:
+        assert "target" not in pd.read_csv(request.input_path)
+        assert len(pd.read_csv(request.input_path)) == 1
 
 
 def test_missing_sandbox_fails_before_materializing_inputs(tmp_path):
@@ -73,16 +75,18 @@ def test_missing_sandbox_fails_before_materializing_inputs(tmp_path):
     ("mutate", "message"),
     [
         (
-            lambda train, holdout: (
-                train.assign(target=1 - train["target"]),
-                holdout,
+            lambda phase, frame: (
+                frame.assign(target=1 - frame["target"])
+                if phase == "fit"
+                else frame
             ),
             "changed training target",
         ),
         (
-            lambda train, holdout: (
-                train,
-                holdout.iloc[::-1].reset_index(drop=True),
+            lambda phase, frame: (
+                frame.assign(__automind_row_id="wrong")
+                if phase == "transform"
+                else frame
             ),
             "changed row identity",
         ),

@@ -25,6 +25,11 @@ baseline unless a candidate exceeds the configured minimum gain. The direct
 LLM-code arm can run only through an injected external sandbox executor. Its
 boundary withholds holdout labels, disables network access by policy, and
 rejects changed targets, row identities, or train/holdout feature schemas.
+Fit receives training data only; transform runs each holdout row in a fresh
+request against read-only fitted state, preventing access to holdout-distribution
+statistics. `ComparisonExperiment` generates the bounded candidate set and
+direct-code response through the shared provider, persists every attempt, and
+then invokes the comparison runner.
 
 The supported fitted operations are:
 

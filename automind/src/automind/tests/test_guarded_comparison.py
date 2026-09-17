@@ -145,3 +145,25 @@ def test_no_fallback_reports_failure_without_suppressing_baseline(tmp_path):
     assert result["conditions"]["deterministic"]["status"] == "succeeded"
     assert result["conditions"]["guarded"]["used_fallback"] is True
     assert result["conditions"]["without_fallback"]["status"] == "failed"
+
+
+def test_without_cv_uses_first_semantically_valid_candidate(tmp_path):
+    train, holdout = _split()
+    unsafe = json.loads(_candidate().response)
+    unsafe["modeling_approaches"][0]["feature_engineering"][
+        "transformation"
+    ] = [{"column": "target", "methods": ["STANDARDIZE"]}]
+
+    result = _runner().run(
+        train,
+        holdout,
+        [CandidatePlan("unsafe", json.dumps(unsafe)), _candidate()],
+        ComparisonConfig(
+            "target", (ComparisonCondition.WITHOUT_CV,), SelectionConfig(folds=2)
+        ),
+        tmp_path,
+    )
+
+    outcome = result["conditions"]["without_cv"]
+    assert outcome["status"] == "succeeded"
+    assert outcome["selected_id"] == "candidate-0"

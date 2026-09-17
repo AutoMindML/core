@@ -145,19 +145,26 @@ class GuardedComparisonRunner:
                 self.estimator_factory,
                 validation_context=self.validation_context,
             )
-            reasons = selector.validate_candidate(
-                train, target, candidates[0].response
+            selected = next(
+                (
+                    candidate
+                    for candidate in candidates
+                    if not selector.validate_candidate(
+                        train, target, candidate.response
+                    )
+                ),
+                None,
             )
-            if reasons:
-                raise ValueError(f"first candidate was rejected: {reasons}")
+            if selected is None:
+                raise ValueError("all candidates were rejected")
             fitted = PreprocessingPipeline(strict=True).fit(
-                train, target, candidates[0].response
+                train, target, selected.response
             )
             return {
                 **self._score(
                     fitted, train, holdout, config.selection.random_seed
                 ),
-                "selected_id": candidates[0].candidate_id,
+                "selected_id": selected.candidate_id,
                 "used_fallback": False,
                 "selection": "first_validated_candidate",
             }

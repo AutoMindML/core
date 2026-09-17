@@ -2,7 +2,7 @@ import hashlib
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
 import pandas as pd
 from pandas import DataFrame, Series
@@ -22,9 +22,12 @@ class SandboxPolicy:
 
 @dataclass(frozen=True)
 class CodeExecutionRequest:
+    phase: Literal["fit", "transform"]
     code_path: Path
-    input_root: Path
-    output_root: Path
+    input_path: Path
+    output_path: Path
+    state_root: Path
+    state_read_only: bool
     policy: SandboxPolicy
 
 
@@ -92,10 +95,12 @@ class DirectCodeHarness:
         if ROW_ID in train or ROW_ID in holdout:
             raise ValueError(f"reserved column is present: {ROW_ID}")
 
-        input_root = run_root / "input"
-        output_root = run_root / "output"
-        input_root.mkdir(parents=True, exist_ok=True)
-        output_root.mkdir(parents=True, exist_ok=True)
+        fit_root = run_root / "fit"
+        transform_root = run_root / "transform"
+        state_root = run_root / "state"
+        fit_root.mkdir(parents=True, exist_ok=True)
+        transform_root.mkdir(parents=True, exist_ok=True)
+        state_root.mkdir(parents=True, exist_ok=True)
         code_path = run_root / "generated.py"
         code_path.write_text(code, encoding="utf-8")
 
@@ -103,31 +108,66 @@ class DirectCodeHarness:
         holdout_input = holdout.copy()
         train_input.insert(0, ROW_ID, train.index.astype(str))
         holdout_input.insert(0, ROW_ID, holdout.index.astype(str))
-        train_input.to_csv(input_root / "train.csv", index=False)
-        holdout_input.to_csv(input_root / "holdout.csv", index=False)
+        train_path = fit_root / "input.csv"
+        train_output_path = fit_root / "output.csv"
+        train_input.to_csv(train_path, index=False)
 
         started = time.perf_counter()
-        execution = self.executor.execute(
+        fit_execution = self.executor.execute(
             CodeExecutionRequest(
+                phase="fit",
                 code_path=code_path,
-                input_root=input_root,
-                output_root=output_root,
+                input_path=train_path,
+                output_path=train_output_path,
+                state_root=state_root,
+                state_read_only=False,
                 policy=self.policy,
             )
         )
-        measured_elapsed = time.perf_counter() - started
-        if execution.status != "succeeded":
+        if fit_execution.status != "succeeded":
             raise RuntimeError(
-                f"generated code execution failed: {execution.status}"
+                f"generated code fit failed: {fit_execution.status}"
             )
-        if execution.elapsed_seconds < 0:
+        if fit_execution.elapsed_seconds < 0:
             raise ValueError("executor returned a negative elapsed time")
 
-        transformed_train = self._read_output(
-            output_root / "train.csv", "training"
-        )
-        transformed_holdout = self._read_output(
-            output_root / "holdout.csv", "holdout"
+        # The holdout is materialized only after fitting has completed. The
+        # executor must start a fresh isolated process for each request and may
+        # carry forward only artifacts in state_root.
+        transformed_rows = []
+        transform_executions = []
+        for position in range(len(holdout_input)):
+            row_root = transform_root / f"row_{position:08d}"
+            row_root.mkdir()
+            holdout_path = row_root / "input.csv"
+            holdout_output_path = row_root / "output.csv"
+            holdout_input.iloc[[position]].to_csv(holdout_path, index=False)
+            execution = self.executor.execute(
+                CodeExecutionRequest(
+                    phase="transform",
+                    code_path=code_path,
+                    input_path=holdout_path,
+                    output_path=holdout_output_path,
+                    state_root=state_root,
+                    state_read_only=True,
+                    policy=self.policy,
+                )
+            )
+            if execution.status != "succeeded":
+                raise RuntimeError(
+                    f"generated code transform failed: {execution.status}"
+                )
+            if execution.elapsed_seconds < 0:
+                raise ValueError("executor returned a negative elapsed time")
+            transform_executions.append(execution)
+            transformed_rows.append(
+                self._read_output(holdout_output_path, "holdout")
+            )
+        measured_elapsed = time.perf_counter() - started
+
+        transformed_train = self._read_output(train_output_path, "training")
+        transformed_holdout = pd.concat(
+            transformed_rows, ignore_index=True
         )
         self._validate_outputs(
             transformed_train,
@@ -141,12 +181,16 @@ class DirectCodeHarness:
         transformed_train.index = train.index
         transformed_holdout.index = holdout.index
         normalized_execution = CodeExecutionResult(
-            status=execution.status,
+            status="succeeded",
             elapsed_seconds=(
-                execution.elapsed_seconds or measured_elapsed
+                fit_execution.elapsed_seconds
+                + sum(item.elapsed_seconds for item in transform_executions)
+                or measured_elapsed
             ),
-            stdout=execution.stdout,
-            stderr=execution.stderr,
+            stdout=fit_execution.stdout
+            + "".join(item.stdout for item in transform_executions),
+            stderr=fit_execution.stderr
+            + "".join(item.stderr for item in transform_executions),
         )
         return DirectCodeOutcome(
             train=transformed_train,
