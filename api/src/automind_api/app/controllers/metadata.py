@@ -1,6 +1,7 @@
-import json
+from typing import Literal
 
 from automind.data_utils.meta_generator import MetaGenerator
+from automind.models.preprocessing import TaskType
 from fastapi import APIRouter, Request, Response
 
 from automind_api.app.models.metadata import (
@@ -11,8 +12,8 @@ from automind_api.app.models.view_sp import (
     AvailableSP,
 )
 from automind_api.app.repositories.i3s import exec_mutation_sp
-from automind_api.app.services.azure import query_azure_openai
 from automind_api.app.services.dataset import verify_dataset
+from automind_api.app.services.llm import query_llm, serialize_llm_response
 from automind_api.app.services.metadata import (
     get_metadata_view,
     verify_metadata,
@@ -28,6 +29,9 @@ def generate_metadata_prompt(
     req: Request,
     res: Response,
     target_column: str = "",
+    task_type: Literal[
+        "CLASSIFICATION", "MULTICLASS_CLASSIFICATION", "REGRESSION"
+    ] = "CLASSIFICATION",
     force: bool = False,
 ):
     if target_column == "":
@@ -55,15 +59,15 @@ def generate_metadata_prompt(
         ret.get("table"), target_column=target_column
     )
     meta_generator.extract_metadata()
-    prompt = meta_generator.generate_llm_query()
+    prompt = meta_generator.generate_compact_llm_query(TaskType[task_type])
 
-    llm_response = query_azure_openai([prompt])
+    llm_response = query_llm(prompt)
 
     add_or_update_metadata_opt: AddMetaDataParameter = {
         "dataset_id": dataset_id,
         "user_id": req.state.user_id,
         "prompt": prompt,
-        "llm_response": json.dumps(llm_response.model_dump()),
+        "llm_response": serialize_llm_response(llm_response),
         "target_column_name": target_column,
         "logic_action": "[]",
         "processing_history": "[]",

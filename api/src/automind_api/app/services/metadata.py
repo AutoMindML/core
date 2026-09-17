@@ -1,14 +1,12 @@
-import json
-
 from automind.data_utils import LogicApplier
 from fastapi import HTTPException
-from openai.types.chat import ChatCompletion
 from starlette import status
 
 from automind_api.app.models.dataset import ViewDataSource
 from automind_api.app.models.view_sp import AvailableView, ViewMetaData
 from automind_api.app.repositories.dataset import get_dataset
 from automind_api.app.repositories.i3s import get_view_by_id
+from automind_api.app.services.llm import extract_llm_content
 
 
 def verify_metadata(dataset_id: int, target_column: str) -> bool:
@@ -30,12 +28,9 @@ def verify_metadata(dataset_id: int, target_column: str) -> bool:
     if metadata_view.get("source_updated") is None:
         return True
 
-    if metadata_view.get("source_updated") >= data_source_view.get(
+    return metadata_view.get("source_updated") < data_source_view.get(
         "updated_at"
-    ):
-        return False
-
-    return True
+    )
 
 
 def verify_metadata_target_column(dataset_id: int):
@@ -77,16 +72,12 @@ def get_logic_applier_by_dataset_id(
     ):
         return None
 
-    llm_response = json.loads(metadata_view.get("llm_response"))
-    completion = ChatCompletion.model_validate(llm_response)
-    content = completion.choices[0].message.content or ""
+    content = extract_llm_content(metadata_view.get("llm_response", ""))
 
     applier = LogicApplier(
         dataset.get("table"), metadata_view.get("target_column_name"), content
     )
 
-    logic_action = json.loads(metadata_view.get("logic_action", "[]"))
-    applier.logic_actions = logic_action
     applier.parse_llm_response()
 
     return applier
