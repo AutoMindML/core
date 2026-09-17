@@ -1,0 +1,26 @@
+{
+  "dataset_id": "synthea-covid19-expense",
+  "version": "local-slice-2026-09-15",
+  "source": "Synthea COVID-19 synthetic dataset",
+  "license_or_access": "public synthetic data; verify upstream notice on release",
+  "access_class": "public",
+  "files": [
+    {
+      "logical_name": "slice_patients.csv",
+      "sha256": "ea8c90fc83634adb20165aa60a7f93f0c04bd34aa4a86f2671d65f6334d0d738"
+    },
+    {
+      "logical_name": "slice_conditions.csv",
+      "sha256": "ebde1e304c74de3ab7b51d9ef660045d3e4f65e865532fe667a3c0bdaa75b988"
+    },
+    {
+      "logical_name": "slice_encounters.csv",
+      "sha256": "947ac3ca2c8869406df26ece9eab44d3a1bed047e832e30cad7cbb58f996d6b0"
+    }
+  ],
+  "entity_key": "Id",
+  "target": "HEALTHCARE_EXPENSES",
+  "task": "binary_classification",
+  "index_time": null,
+  "protected_columns": ["Id", "HEALTHCARE_EXPENSES"]
+}

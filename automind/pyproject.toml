@@ -83,6 +83,20 @@ line-length = 80
 ignore = ["F403", "E402"]
 exclude = ["**/__init__.py"]
 
+[tool.pytest.ini_options]
+markers = [
+  "live_llm: calls an explicitly configured live LLM service",
+  "tpot_smoke: runs a bounded real TPOT search",
+  "research_data: uses the local Synthea research fixtures",
+]
+
 # define package entry
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"automind.configs.llm" = ["*.json"]
+"automind.configs.research" = ["*.json"]
+
+[project.scripts]
+automind-experiment = "automind.experiments.cli:main"

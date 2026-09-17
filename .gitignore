@@ -3,6 +3,9 @@
 **/.pytest_cache
 **/__pycache__
 **/*.egg-info
+**/.env
+**/.env.*
+!**/.env.example
 
 # input, output
 automind/csv
