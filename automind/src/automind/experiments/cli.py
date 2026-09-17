@@ -5,6 +5,7 @@ from pathlib import Path
 
 from automind.experiments.protocol import (
     DatasetManifest,
+    NoviceComparisonProtocol,
     ResearchProtocol,
     validate_dataset_files,
 )
@@ -37,7 +38,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         )
         return 0
-    protocol = ResearchProtocol.load(args.protocol)
+    raw_protocol = json.loads(args.protocol.read_text(encoding="utf-8"))
+    protocol = (
+        NoviceComparisonProtocol.model_validate(raw_protocol)
+        if raw_protocol.get("schema_version") == 2
+        else ResearchProtocol.model_validate(raw_protocol)
+    )
     protocol_root = args.protocol.parent
     manifest_path = (protocol_root / protocol.dataset_manifest).resolve()
     manifest = DatasetManifest.model_validate_json(
@@ -55,6 +61,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif args.command == "dry-run":
         payload = {**protocol.dry_run(), "dataset": manifest.dataset_id}
     else:
+        if isinstance(protocol, NoviceComparisonProtocol):
+            raise ValueError(
+                "schema_version 2 execution requires the guarded comparison "
+                "orchestrator and an external sandbox backend"
+            )
         if args.dataset_root is None:
             raise ValueError("run/resume requires --dataset-root")
         from automind.experiments.synthea_pilot import SyntheaPilotRunner

@@ -9,6 +9,7 @@ from automind.experiments.conditions import condition_spec
 from automind.experiments.protocol import (
     Condition,
     DatasetManifest,
+    NoviceComparisonProtocol,
     ResearchProtocol,
     validate_dataset_files,
 )
@@ -47,6 +48,25 @@ def test_protocol_dry_run_counts_runs_and_bounded_llm_attempts():
     assert result["total_runs"] == 20
     assert result["maximum_llm_calls"] == 20
     assert len(result["fingerprint"]) == 64
+
+
+def test_novice_protocol_counts_candidates_and_reports_missing_sandbox():
+    protocol = NoviceComparisonProtocol(
+        name="comparison",
+        dataset_manifest="dataset.json",
+        conditions=["deterministic", "direct_code", "guarded"],
+        repetitions=2,
+        split_seeds=[1, 2],
+        candidate_count=3,
+        output_root="output",
+    )
+
+    result = protocol.dry_run()
+
+    assert result["total_runs"] == 12
+    assert result["maximum_llm_calls"] == 16
+    assert result["maximum_code_executions"] == 4
+    assert result["direct_code_ready"] is False
 
 
 def test_manifest_requires_target_and_entity_protection():

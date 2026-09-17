@@ -108,6 +108,75 @@ class ResearchProtocol(BaseModel):
         }
 
 
+class NoviceComparisonProtocol(BaseModel):
+    """Versioned contract for the direct-LLM versus guarded comparison."""
+
+    schema_version: Literal[2] = 2
+    name: str
+    dataset_manifest: str
+    conditions: list[
+        Literal[
+            "deterministic",
+            "direct_code",
+            "guarded",
+            "without_semantic",
+            "without_cv",
+            "without_fallback",
+        ]
+    ]
+    repetitions: int = Field(ge=1)
+    split_seeds: list[int]
+    candidate_count: int = Field(default=3, ge=1, le=10)
+    selection_folds: int = Field(default=5, ge=2)
+    minimum_gain: float = Field(default=0.0, ge=0.0)
+    llm_profile: str = "local-qwen"
+    output_root: str
+    retry_limit: int = Field(default=0, ge=0, le=2)
+    serial_concurrency: Literal[1] = 1
+    sandbox_backend: str | None = None
+
+    @model_validator(mode="after")
+    def validate_matrix(self):
+        if not self.conditions or len(set(self.conditions)) != len(self.conditions):
+            raise ValueError("conditions must be non-empty and unique")
+        if not self.split_seeds or len(set(self.split_seeds)) != len(
+            self.split_seeds
+        ):
+            raise ValueError("split_seeds must be non-empty and unique")
+        return self
+
+    @classmethod
+    def load(cls, path: Path) -> "NoviceComparisonProtocol":
+        return cls.model_validate_json(path.read_text(encoding="utf-8"))
+
+    def fingerprint(self) -> str:
+        canonical = json.dumps(
+            self.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+        )
+        return hashlib.sha256(canonical.encode()).hexdigest()
+
+    def dry_run(self) -> dict[str, object]:
+        units = len(self.split_seeds) * self.repetitions
+        needs_candidates = any(
+            condition
+            in {"guarded", "without_semantic", "without_cv", "without_fallback"}
+            for condition in self.conditions
+        )
+        generated_candidates = self.candidate_count if needs_candidates else 0
+        direct_calls = 1 if "direct_code" in self.conditions else 0
+        calls = units * (generated_candidates + direct_calls)
+        return {
+            "protocol": self.name,
+            "fingerprint": self.fingerprint(),
+            "conditions": self.conditions,
+            "total_runs": units * len(self.conditions),
+            "maximum_llm_calls": calls * (1 + self.retry_limit),
+            "maximum_code_executions": units * direct_calls,
+            "direct_code_ready": not direct_calls or self.sandbox_backend is not None,
+            "serial_concurrency": self.serial_concurrency,
+        }
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as source:

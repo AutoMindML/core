@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "name": "automind-novice-comparison-v2",
+  "dataset_manifest": "synthea-covid19-pilot.dataset.json",
+  "conditions": ["deterministic", "direct_code", "guarded", "without_semantic", "without_cv", "without_fallback"],
+  "repetitions": 5,
+  "split_seeds": [42, 137, 314],
+  "candidate_count": 3,
+  "selection_folds": 5,
+  "minimum_gain": 0.0,
+  "llm_profile": "local-qwen",
+  "output_root": "output/research/automind-novice-comparison-v2",
+  "retry_limit": 0,
+  "serial_concurrency": 1,
+  "sandbox_backend": null
+}
