@@ -183,6 +183,10 @@ class DirectCodeHarness:
             raise ValueError("training output removed the target column")
         original_target = original_train[target_column].reset_index(drop=True)
         output_target = train[target_column].reset_index(drop=True)
+        if not isinstance(original_target, Series) or not isinstance(
+            output_target, Series
+        ):
+            raise TypeError("training target must identify exactly one column")
         if not _series_equal(original_target, output_target):
             raise ValueError("generated code changed training target values")
         if target_column in holdout:

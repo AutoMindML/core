@@ -319,7 +319,7 @@ class DeterministicPreparation:
         transformed = pd.DataFrame(
             values,
             index=frame.index,
-            columns=self.output_columns,
+            columns=pd.Index(self.output_columns),
         )
         target = frame.get(self.target_column)
         return PreparedDataset(transformed, target)

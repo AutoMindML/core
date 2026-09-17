@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from pandas import Series
@@ -22,9 +22,13 @@ def classification_metrics(
     result: dict[str, Any] = {
         "accuracy": float(accuracy_score(truth, prediction)),
         "balanced_accuracy": float(balanced_accuracy_score(truth, prediction)),
-        "f1": float(f1_score(truth, prediction, zero_division=0)),
-        "precision": float(precision_score(truth, prediction, zero_division=0)),
-        "recall": float(recall_score(truth, prediction, zero_division=0)),
+        "f1": float(f1_score(truth, prediction, zero_division=cast(Any, 0))),
+        "precision": float(
+            precision_score(truth, prediction, zero_division=cast(Any, 0))
+        ),
+        "recall": float(
+            recall_score(truth, prediction, zero_division=cast(Any, 0))
+        ),
         "specificity": _specificity(truth, prediction),
     }
     if probability is None:
