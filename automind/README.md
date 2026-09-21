@@ -31,6 +31,9 @@ statistics. `ComparisonExperiment` generates the bounded candidate set and
 direct-code response through the shared provider, persists every attempt, and
 then invokes the comparison runner.
 
+Podman setup, the pinned research image, and required host isolation checks are
+documented in [the direct-code sandbox guide](docs/direct-code-sandbox.md).
+
 The supported fitted operations are:
 
 - Missing values: mean, median, mode, zero-as-missing, negative-as-missing
@@ -101,8 +104,8 @@ the protocol fingerprint on resume.
 
 The v2 novice-comparison protocol describes the primary deterministic,
 direct-code, and guarded arms plus semantic-validation, inner-CV, and fallback
-ablations. Its dry run reports the bounded call budget and currently reports
-`direct_code_ready: false` because no disposable sandbox backend is configured:
+ablations. Its dry run reports the bounded call budget and the configured Podman
+profile; readiness still requires a successful preflight on the experiment host:
 
 ```powershell
 uv run -m automind.experiments dry-run src/automind/configs/research/novice-comparison-v2.protocol.json
@@ -114,10 +117,10 @@ After reviewing the dry run, the same protocol can execute the Synthea study:
 uv run -m automind.experiments run src/automind/configs/research/novice-comparison-v2.protocol.json --dataset-root src/automind/data/csv/synthea_covid19_10k
 ```
 
-Without an injected external executor, the run records `direct_code` as failed
-while retaining deterministic, guarded, and ablation outcomes. Programmatic
-studies can inject a conforming executor into `DirectCodeHarness`; generated
-code is never executed by the host process.
+The study resolves the frozen Podman profile and refuses to run direct code when
+the engine, isolation controls, or image digest fail preflight. Programmatic
+tests may inject another conforming executor into `DirectCodeHarness`; generated
+code is never executed directly by the host Python process.
 
 ## Adding preprocessing methods
 
