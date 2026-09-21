@@ -1,5 +1,7 @@
 """LLM generation orchestration for the novice comparison experiment."""
 
+import hashlib
+import inspect
 import json
 import re
 from dataclasses import asdict, dataclass, replace
@@ -23,6 +25,7 @@ from automind.experiments.protocol import (
     Condition,
     NoviceComparisonProtocol,
     ResearchProtocol,
+    sha256_file,
 )
 from automind.experiments.synthea_pilot import SyntheaPilotRunner
 from automind.models.preprocessing import TaskType
@@ -70,6 +73,7 @@ class ComparisonExperiment:
         run_root: Path,
         *,
         metadata_prompt: str,
+        direct_metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         run_root.mkdir(parents=True, exist_ok=True)
         attempts: list[dict[str, Any]] = []
@@ -90,8 +94,10 @@ class ComparisonExperiment:
         )
         direct_code = None
         if ComparisonCondition.DIRECT_CODE in comparison.conditions:
+            if direct_metadata is None:
+                raise ValueError("direct-code condition requires metadata")
             direct_code = self._generate_code(
-                metadata_prompt, generation.retry_limit, attempts
+                direct_metadata, generation.retry_limit, attempts
             )
         (run_root / "generation_attempts.json").write_text(
             json.dumps(attempts, indent=2, sort_keys=True), encoding="utf-8"
@@ -136,17 +142,20 @@ class ComparisonExperiment:
 
     def _generate_code(
         self,
-        metadata_prompt: str,
+        metadata: dict[str, Any],
         retry_limit: int,
         attempts: list[dict[str, Any]],
     ) -> str | None:
         prompt = (
             "You are the unassisted general-LLM baseline. Write Python code "
-            "for a two-phase preprocessing program. The sandbox supplies phase "
-            "('fit' or 'transform'), one input CSV, one output CSV, and a state "
-            "directory. Fit may learn and persist state from training data; "
+            "for a two-phase preprocessing program. Accept command-line options "
+            "--phase (fit or transform), --input, --output, and --state-dir. "
+            "Read one input CSV and write one output CSV. Fit may learn and "
+            "persist state from training data; "
             "transform must only load that state. Preserve row identity, row "
-            "order, and the training target. Return code only.\n\n" + metadata_prompt
+            "order, and the training target. Return Python code only; do not "
+            "return JSON or prose. Dataset metadata: "
+            + json.dumps(metadata, sort_keys=True, default=str)
         )
         response = self._attempt(
             "direct_code", 0, prompt, retry_limit, attempts, json_mode=False
@@ -238,6 +247,7 @@ class NoviceComparisonStudy:
             provider=self.provider,
         )
         frames = adapter._load_frames()
+        run_identity = self._run_identity()
         summaries = []
         for split_seed in self.protocol.split_seeds:
             train, holdout, audit = adapter._prepare_partitions(
@@ -254,9 +264,14 @@ class NoviceComparisonStudy:
                 )
                 result_path = run_root / "result.json"
                 if resume and result_path.is_file():
-                    summaries.append(
-                        json.loads(result_path.read_text(encoding="utf-8"))
+                    previous = json.loads(
+                        result_path.read_text(encoding="utf-8")
                     )
+                    if previous.get("run_identity") != run_identity:
+                        raise ValueError(
+                            f"resume identity mismatch: {result_path}"
+                        )
+                    summaries.append(previous)
                     continue
                 run_root.mkdir(parents=True, exist_ok=True)
                 (run_root / "dataset_audit.json").write_text(
@@ -299,9 +314,11 @@ class NoviceComparisonStudy:
                     ),
                     run_root,
                     metadata_prompt=prompt,
+                    direct_metadata=_frame_metadata(train, "target"),
                 )
                 result["split_seed"] = split_seed
                 result["repetition"] = repetition
+                result["run_identity"] = run_identity
                 result_path.write_text(
                     json.dumps(result, indent=2, sort_keys=True),
                     encoding="utf-8",
@@ -312,6 +329,35 @@ class NoviceComparisonStudy:
             "fingerprint": self.protocol.fingerprint(),
             "runs": summaries,
         }
+
+    def _run_identity(self) -> str:
+        dataset_hashes = {
+            name: sha256_file(path)
+            for name in (
+                "slice_patients.csv",
+                "slice_conditions.csv",
+                "slice_encounters.csv",
+            )
+            if (path := self.dataset_root / name).is_file()
+        }
+        implementation = hashlib.sha256(
+            "\n".join(
+                inspect.getsource(item)
+                for item in (
+                    ComparisonExperiment,
+                    GuardedComparisonRunner,
+                    DirectCodeHarness,
+                )
+            ).encode()
+        ).hexdigest()
+        payload = {
+            "protocol": self.protocol.fingerprint(),
+            "dataset_hashes": dataset_hashes,
+            "implementation": implementation,
+            "llm": self.settings.public_manifest(),
+        }
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def _synthea_adapter_protocol(
@@ -336,3 +382,18 @@ def _extract_code(content: str) -> str:
     if not code.strip():
         raise ValueError("direct-code response was empty")
     return code.strip() + "\n"
+
+
+def _frame_metadata(frame: DataFrame, target_column: str) -> dict[str, Any]:
+    return {
+        "rows": len(frame),
+        "target": target_column,
+        "columns": [
+            {
+                "name": column,
+                "dtype": str(frame[column].dtype),
+                "missing_rate": round(float(frame[column].isna().mean()), 6),
+            }
+            for column in frame.columns
+        ],
+    }
