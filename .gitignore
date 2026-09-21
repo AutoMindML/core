@@ -7,7 +7,7 @@
 **/.env.*
 !**/.env.example
 
-# input, output
+typings
 automind/csv
 automind/output
 automind/.files
