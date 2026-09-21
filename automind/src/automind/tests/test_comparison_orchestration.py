@@ -2,6 +2,10 @@ import json
 
 from sklearn.linear_model import LogisticRegression
 
+from automind.experiments.codegen import (
+    DirectCodeHarness,
+    UnavailableSandboxExecutor,
+)
 from automind.experiments.comparison import (
     ComparisonCondition,
     ComparisonConfig,
@@ -10,7 +14,10 @@ from automind.experiments.comparison import (
 from automind.experiments.orchestration import (
     ComparisonExperiment,
     GenerationConfig,
+    NoviceComparisonStudy,
 )
+from automind.experiments.protocol import NoviceComparisonProtocol
+from automind.experiments.synthea_pilot import SyntheaPilotRunner
 from automind.models.preprocessing import TaskType
 from automind.pipeline.validation import ValidationContext
 from automind.service.config import LLMSettings
@@ -73,3 +80,74 @@ def test_orchestrator_generates_candidates_persists_attempts_and_runs(tmp_path):
     assert len(attempts) == 2
     assert all(item["status"] == "succeeded" for item in attempts)
     assert (tmp_path / "result.json").is_file()
+
+
+def test_direct_only_budget_skips_candidates_and_persists_parse_failure(tmp_path):
+    train, holdout = _split()
+    provider = StaticLLMProvider(LLMResponse("   ", "fixture", "stop", {}, 0.01))
+    runner = GuardedComparisonRunner(
+        lambda seed: LogisticRegression(max_iter=1000, random_state=seed),
+        ValidationContext("target", TaskType.CLASSIFICATION),
+        code_harness=DirectCodeHarness(UnavailableSandboxExecutor()),
+    )
+
+    result = ComparisonExperiment(provider, _settings(), runner).run(
+        train,
+        holdout,
+        ComparisonConfig(
+            "target",
+            (
+                ComparisonCondition.DETERMINISTIC,
+                ComparisonCondition.DIRECT_CODE,
+            ),
+        ),
+        GenerationConfig(candidate_count=3),
+        tmp_path,
+        metadata_prompt="metadata fixture",
+    )
+
+    assert provider.call_count == 1
+    assert result["generation"]["candidate_succeeded"] == 0
+    attempts = json.loads(
+        (tmp_path / "generation_attempts.json").read_text(encoding="utf-8")
+    )
+    assert [item["kind"] for item in attempts] == [
+        "direct_code",
+        "direct_code_parse",
+    ]
+
+
+def test_v2_study_executes_protocol_with_injected_provider(tmp_path, monkeypatch):
+    train, holdout = _split()
+    monkeypatch.setattr(SyntheaPilotRunner, "_load_frames", lambda self: {})
+    monkeypatch.setattr(
+        SyntheaPilotRunner,
+        "_prepare_partitions",
+        lambda self, frames, seed: (train, holdout, {"seed": seed}),
+    )
+    protocol = NoviceComparisonProtocol(
+        name="comparison",
+        dataset_manifest="dataset.json",
+        conditions=["deterministic", "direct_code", "guarded"],
+        repetitions=1,
+        split_seeds=[7],
+        candidate_count=1,
+        selection_folds=2,
+        output_root=str(tmp_path / "output"),
+    )
+    provider = StaticLLMProvider(
+        LLMResponse(_candidate().response, "fixture", "stop", {}, 0.01)
+    )
+
+    result = NoviceComparisonStudy(
+        protocol,
+        tmp_path,
+        settings=_settings(),
+        provider=provider,
+    ).run(resume=False)
+
+    assert len(result["runs"]) == 1
+    outcomes = result["runs"][0]["conditions"]
+    assert outcomes["deterministic"]["status"] == "succeeded"
+    assert outcomes["guarded"]["status"] == "succeeded"
+    assert outcomes["direct_code"]["status"] == "failed"

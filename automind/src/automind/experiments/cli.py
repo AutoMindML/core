@@ -61,17 +61,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif args.command == "dry-run":
         payload = {**protocol.dry_run(), "dataset": manifest.dataset_id}
     else:
-        if isinstance(protocol, NoviceComparisonProtocol):
-            raise ValueError(
-                "schema_version 2 execution requires the guarded comparison "
-                "orchestrator and an external sandbox backend"
-            )
         if args.dataset_root is None:
             raise ValueError("run/resume requires --dataset-root")
-        from automind.experiments.synthea_pilot import SyntheaPilotRunner
+        if isinstance(protocol, NoviceComparisonProtocol):
+            from automind.experiments.orchestration import (
+                NoviceComparisonStudy,
+            )
 
-        payload = SyntheaPilotRunner(protocol, args.dataset_root).run(
-            resume=args.command == "resume"
-        )
+            payload = NoviceComparisonStudy(protocol, args.dataset_root).run(
+                resume=args.command == "resume"
+            )
+        else:
+            from automind.experiments.synthea_pilot import SyntheaPilotRunner
+
+            payload = SyntheaPilotRunner(protocol, args.dataset_root).run(
+                resume=args.command == "resume"
+            )
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0

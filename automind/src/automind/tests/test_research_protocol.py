@@ -99,3 +99,34 @@ def test_dataset_hash_validation_and_cli(tmp_path, capsys):
 def test_flat_dataset_rejects_dfm_ablation():
     with pytest.raises(ValueError, match="not applicable"):
         condition_spec(Condition.C4_WITHOUT_DFM, relational=False)
+
+
+def test_cli_dispatches_v2_run_to_comparison_study(tmp_path, monkeypatch, capsys):
+    from automind.experiments.orchestration import NoviceComparisonStudy
+    from automind.experiments.protocol import NoviceComparisonProtocol
+
+    data = tmp_path / "data.csv"
+    data.write_text("id,x,target\n1,2,0\n", encoding="utf-8")
+    digest = hashlib.sha256(data.read_bytes()).hexdigest()
+    (tmp_path / "dataset.json").write_text(
+        json.dumps(_manifest(digest)), encoding="utf-8"
+    )
+    protocol = NoviceComparisonProtocol(
+        name="comparison",
+        dataset_manifest="dataset.json",
+        conditions=["deterministic"],
+        repetitions=1,
+        split_seeds=[1],
+        output_root=str(tmp_path / "output"),
+    )
+    protocol_path = tmp_path / "comparison.json"
+    protocol_path.write_text(protocol.model_dump_json(), encoding="utf-8")
+    monkeypatch.setattr(
+        NoviceComparisonStudy,
+        "run",
+        lambda self, resume: {"protocol": "comparison", "runs": []},
+    )
+    monkeypatch.setenv("AUTOMIND_LLM_BASE_URL", "http://invalid.test/v1")
+
+    assert main(["run", str(protocol_path), "--dataset-root", str(tmp_path)]) == 0
+    assert json.loads(capsys.readouterr().out)["protocol"] == "comparison"
