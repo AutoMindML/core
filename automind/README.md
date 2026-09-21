@@ -108,6 +108,17 @@ ablations. Its dry run reports the bounded call budget and currently reports
 uv run -m automind.experiments dry-run src/automind/configs/research/novice-comparison-v2.protocol.json
 ```
 
+After reviewing the dry run, the same protocol can execute the Synthea study:
+
+```powershell
+uv run -m automind.experiments run src/automind/configs/research/novice-comparison-v2.protocol.json --dataset-root src/automind/data/csv/synthea_covid19_10k
+```
+
+Without an injected external executor, the run records `direct_code` as failed
+while retaining deterministic, guarded, and ablation outcomes. Programmatic
+studies can inject a conforming executor into `DirectCodeHarness`; generated
+code is never executed by the host process.
+
 ## Adding preprocessing methods
 
 Add the enum and Pydantic schema entry in `models/preprocessing.py`, include only
