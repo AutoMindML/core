@@ -88,6 +88,7 @@ markers = [
   "live_llm: calls an explicitly configured live LLM service",
   "tpot_smoke: runs a bounded real TPOT search",
   "research_data: uses the local Synthea research fixtures",
+  "podman_sandbox: requires the pinned local Podman sandbox image",
 ]
 
 # define package entry

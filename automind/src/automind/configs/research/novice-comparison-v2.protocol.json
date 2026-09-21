@@ -12,5 +12,6 @@
   "output_root": "output/research/automind-novice-comparison-v2",
   "retry_limit": 0,
   "serial_concurrency": 1,
-  "sandbox_backend": null
+  "sandbox_backend": "podman",
+  "sandbox_profile": "podman-automind-py310-v1"
 }

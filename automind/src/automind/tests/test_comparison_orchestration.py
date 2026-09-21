@@ -1,11 +1,14 @@
 import json
+from dataclasses import replace
 
 import pytest
 from sklearn.linear_model import LogisticRegression
 
+from automind.experiments import orchestration
 from automind.experiments.codegen import (
     DirectCodeHarness,
     UnavailableSandboxExecutor,
+    default_sandbox_profile,
 )
 from automind.experiments.comparison import (
     ComparisonCondition,
@@ -18,7 +21,7 @@ from automind.experiments.orchestration import (
     NoviceComparisonStudy,
 )
 from automind.experiments.protocol import NoviceComparisonProtocol
-from automind.experiments.synthea_pilot import SyntheaPilotRunner
+from automind.experiments.synthea_adapter import SyntheaDatasetAdapter
 from automind.models.preprocessing import TaskType
 from automind.pipeline.validation import ValidationContext
 from automind.service.config import LLMSettings
@@ -83,9 +86,13 @@ def test_orchestrator_generates_candidates_persists_attempts_and_runs(tmp_path):
     assert (tmp_path / "result.json").is_file()
 
 
-def test_direct_only_budget_skips_candidates_and_persists_parse_failure(tmp_path):
+def test_direct_only_budget_skips_candidates_and_persists_parse_failure(
+    tmp_path,
+):
     train, holdout = _split()
-    provider = StaticLLMProvider(LLMResponse("   ", "fixture", "stop", {}, 0.01))
+    provider = StaticLLMProvider(
+        LLMResponse("   ", "fixture", "stop", {}, 0.01)
+    )
     runner = GuardedComparisonRunner(
         lambda seed: LogisticRegression(max_iter=1000, random_state=seed),
         ValidationContext("target", TaskType.CLASSIFICATION),
@@ -122,12 +129,14 @@ def test_direct_only_budget_skips_candidates_and_persists_parse_failure(tmp_path
     assert "Do not output code" not in direct_prompt
 
 
-def test_v2_study_executes_protocol_with_injected_provider(tmp_path, monkeypatch):
+def test_v2_study_executes_protocol_with_injected_provider(
+    tmp_path, monkeypatch
+):
     train, holdout = _split()
-    monkeypatch.setattr(SyntheaPilotRunner, "_load_frames", lambda self: {})
+    monkeypatch.setattr(SyntheaDatasetAdapter, "load_frames", lambda self: {})
     monkeypatch.setattr(
-        SyntheaPilotRunner,
-        "_prepare_partitions",
+        SyntheaDatasetAdapter,
+        "prepare_partitions",
         lambda self, frames, seed: (train, holdout, {"seed": seed}),
     )
     protocol = NoviceComparisonProtocol(
@@ -160,10 +169,10 @@ def test_v2_study_executes_protocol_with_injected_provider(tmp_path, monkeypatch
 
 def test_v2_resume_rejects_changed_protocol_identity(tmp_path, monkeypatch):
     train, holdout = _split()
-    monkeypatch.setattr(SyntheaPilotRunner, "_load_frames", lambda self: {})
+    monkeypatch.setattr(SyntheaDatasetAdapter, "load_frames", lambda self: {})
     monkeypatch.setattr(
-        SyntheaPilotRunner,
-        "_prepare_partitions",
+        SyntheaDatasetAdapter,
+        "prepare_partitions",
         lambda self, frames, seed: (train, holdout, {"seed": seed}),
     )
     output_root = tmp_path / "output"
@@ -194,3 +203,29 @@ def test_v2_resume_rejects_changed_protocol_identity(tmp_path, monkeypatch):
             settings=_settings(),
             provider=provider,
         ).run(resume=True)
+
+
+def test_v2_identity_includes_effective_sandbox_profile(tmp_path, monkeypatch):
+    protocol = NoviceComparisonProtocol(
+        name="comparison",
+        dataset_manifest="dataset.json",
+        conditions=["deterministic"],
+        repetitions=1,
+        split_seeds=[7],
+        selection_folds=2,
+        output_root=str(tmp_path / "output"),
+    )
+    study = NoviceComparisonStudy(
+        protocol, tmp_path, settings=_settings(), provider=StaticLLMProvider([])
+    )
+    original = study._run_identity()
+    profile = default_sandbox_profile()
+    changed = replace(
+        profile,
+        policy=replace(profile.policy, timeout_seconds=121),
+    )
+    monkeypatch.setattr(
+        orchestration, "default_sandbox_profile", lambda: changed
+    )
+
+    assert study._run_identity() != original

@@ -134,15 +134,20 @@ class NoviceComparisonProtocol(BaseModel):
     retry_limit: int = Field(default=0, ge=0, le=2)
     serial_concurrency: Literal[1] = 1
     sandbox_backend: str | None = None
+    sandbox_profile: str | None = None
 
     @model_validator(mode="after")
     def validate_matrix(self):
-        if not self.conditions or len(set(self.conditions)) != len(self.conditions):
+        if not self.conditions or len(set(self.conditions)) != len(
+            self.conditions
+        ):
             raise ValueError("conditions must be non-empty and unique")
         if not self.split_seeds or len(set(self.split_seeds)) != len(
             self.split_seeds
         ):
             raise ValueError("split_seeds must be non-empty and unique")
+        if self.sandbox_profile not in (None, "podman-automind-py310-v1"):
+            raise ValueError("unknown sandbox profile")
         return self
 
     @classmethod
@@ -171,8 +176,20 @@ class NoviceComparisonProtocol(BaseModel):
             "conditions": self.conditions,
             "total_runs": units * len(self.conditions),
             "maximum_llm_calls": calls * (1 + self.retry_limit),
-            "maximum_code_executions": units * direct_calls,
-            "direct_code_ready": not direct_calls or self.sandbox_backend is not None,
+            "minimum_code_executions": units * direct_calls,
+            "maximum_code_executions": None if direct_calls else 0,
+            "code_execution_budget": (
+                f"{units * direct_calls} fit + "
+                f"{units * direct_calls} * holdout_rows transforms"
+            ),
+            "direct_code_ready": not direct_calls
+            or (
+                self.sandbox_backend == "podman"
+                and self.sandbox_profile == "podman-automind-py310-v1"
+            ),
+            "sandbox_readiness": "requires_preflight"
+            if direct_calls
+            else "not_needed",
             "serial_concurrency": self.serial_concurrency,
         }
 

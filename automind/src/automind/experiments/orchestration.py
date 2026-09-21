@@ -14,7 +14,10 @@ from sklearn.linear_model import LogisticRegression
 from automind.data_utils import MetaGenerator
 from automind.experiments.codegen import (
     DirectCodeHarness,
+    PodmanSandboxExecutor,
+    SandboxPolicy,
     UnavailableSandboxExecutor,
+    default_sandbox_profile,
 )
 from automind.experiments.comparison import (
     ComparisonCondition,
@@ -22,12 +25,10 @@ from automind.experiments.comparison import (
     GuardedComparisonRunner,
 )
 from automind.experiments.protocol import (
-    Condition,
     NoviceComparisonProtocol,
-    ResearchProtocol,
     sha256_file,
 )
-from automind.experiments.synthea_pilot import SyntheaPilotRunner
+from automind.experiments.synthea_adapter import SyntheaDatasetAdapter
 from automind.models.preprocessing import TaskType
 from automind.pipeline.selection import CandidatePlan, SelectionConfig
 from automind.pipeline.validation import ValidationContext
@@ -137,7 +138,9 @@ class ComparisonExperiment:
                 attempts,
             )
             if response is not None:
-                candidates.append(CandidatePlan(f"candidate-{index}", response.content))
+                candidates.append(
+                    CandidatePlan(f"candidate-{index}", response.content)
+                )
         return candidates
 
     def _generate_code(
@@ -203,7 +206,9 @@ class ComparisonExperiment:
             }
             try:
                 response = self.provider.complete(request)
-                record.update({"status": "succeeded", "response": asdict(response)})
+                record.update(
+                    {"status": "succeeded", "response": asdict(response)}
+                )
                 attempts.append(record)
                 return response
             except Exception as error:  # noqa: BLE001
@@ -228,9 +233,11 @@ class NoviceComparisonStudy:
         *,
         settings: LLMSettings | None = None,
         provider: LLMProvider | None = None,
+        adapter: SyntheaDatasetAdapter | None = None,
     ) -> None:
         self.protocol = protocol
         self.dataset_root = dataset_root
+        self.adapter = adapter or SyntheaDatasetAdapter(dataset_root)
         self.settings = settings or load_llm_settings(protocol.llm_profile)
         self.provider = provider or OpenAICompatibleProvider.from_url(
             self.settings.base_url,
@@ -239,18 +246,11 @@ class NoviceComparisonStudy:
         )
 
     def run(self, *, resume: bool = True) -> dict[str, Any]:
-        adapter_protocol = _synthea_adapter_protocol(self.protocol)
-        adapter = SyntheaPilotRunner(
-            adapter_protocol,
-            self.dataset_root,
-            settings=self.settings,
-            provider=self.provider,
-        )
-        frames = adapter._load_frames()
+        frames = self.adapter.load_frames()
         run_identity = self._run_identity()
         summaries = []
         for split_seed in self.protocol.split_seeds:
-            train, holdout, audit = adapter._prepare_partitions(
+            train, holdout, audit = self.adapter.prepare_partitions(
                 frames, split_seed
             )
             prompt = MetaGenerator(
@@ -275,7 +275,8 @@ class NoviceComparisonStudy:
                     continue
                 run_root.mkdir(parents=True, exist_ok=True)
                 (run_root / "dataset_audit.json").write_text(
-                    json.dumps(audit, indent=2, sort_keys=True), encoding="utf-8"
+                    json.dumps(audit, indent=2, sort_keys=True),
+                    encoding="utf-8",
                 )
                 comparison = ComparisonConfig(
                     target_column="target",
@@ -289,6 +290,15 @@ class NoviceComparisonStudy:
                         minimum_gain=self.protocol.minimum_gain,
                     ),
                 )
+                sandbox = (
+                    PodmanSandboxExecutor(default_sandbox_profile())
+                    if self.protocol.sandbox_backend == "podman"
+                    and self.protocol.sandbox_profile
+                    == "podman-automind-py310-v1"
+                    else UnavailableSandboxExecutor()
+                )
+                if self.protocol.sandbox_backend == "podman":
+                    sandbox.preflight(SandboxPolicy())
                 runner = GuardedComparisonRunner(
                     lambda seed: LogisticRegression(
                         max_iter=1000, random_state=seed
@@ -298,9 +308,7 @@ class NoviceComparisonStudy:
                         TaskType.CLASSIFICATION,
                         protected_columns=frozenset({"target"}),
                     ),
-                    code_harness=DirectCodeHarness(
-                        UnavailableSandboxExecutor()
-                    ),
+                    code_harness=DirectCodeHarness(sandbox),
                 )
                 result = ComparisonExperiment(
                     self.provider, self.settings, runner
@@ -347,6 +355,9 @@ class NoviceComparisonStudy:
                     ComparisonExperiment,
                     GuardedComparisonRunner,
                     DirectCodeHarness,
+                    PodmanSandboxExecutor,
+                    SyntheaDatasetAdapter,
+                    default_sandbox_profile,
                 )
             ).encode()
         ).hexdigest()
@@ -355,25 +366,13 @@ class NoviceComparisonStudy:
             "dataset_hashes": dataset_hashes,
             "implementation": implementation,
             "llm": self.settings.public_manifest(),
+            "sandbox_backend": self.protocol.sandbox_backend,
+            "sandbox_profile_name": self.protocol.sandbox_profile,
+            "sandbox_profile": default_sandbox_profile().effective(),
+            "sandbox_profile_digest": default_sandbox_profile().digest(),
         }
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode()).hexdigest()
-
-
-def _synthea_adapter_protocol(
-    protocol: NoviceComparisonProtocol,
-) -> ResearchProtocol:
-    return ResearchProtocol(
-        name=f"{protocol.name}-dataset-adapter",
-        dataset_manifest=protocol.dataset_manifest,
-        conditions=[Condition.C0_DETERMINISTIC],
-        repetitions=1,
-        split_seeds=protocol.split_seeds,
-        llm_profile=protocol.llm_profile,
-        output_root=protocol.output_root,
-        primary_metric="f1",
-        retry_limit=protocol.retry_limit,
-    )
 
 
 def _extract_code(content: str) -> str:

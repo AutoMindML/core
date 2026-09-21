@@ -65,7 +65,8 @@ def test_novice_protocol_counts_candidates_and_reports_missing_sandbox():
 
     assert result["total_runs"] == 12
     assert result["maximum_llm_calls"] == 16
-    assert result["maximum_code_executions"] == 4
+    assert result["minimum_code_executions"] == 4
+    assert result["maximum_code_executions"] is None
     assert result["direct_code_ready"] is False
 
 
@@ -101,7 +102,9 @@ def test_flat_dataset_rejects_dfm_ablation():
         condition_spec(Condition.C4_WITHOUT_DFM, relational=False)
 
 
-def test_cli_dispatches_v2_run_to_comparison_study(tmp_path, monkeypatch, capsys):
+def test_cli_dispatches_v2_run_to_comparison_study(
+    tmp_path, monkeypatch, capsys
+):
     from automind.experiments.orchestration import NoviceComparisonStudy
     from automind.experiments.protocol import NoviceComparisonProtocol
 
@@ -128,5 +131,7 @@ def test_cli_dispatches_v2_run_to_comparison_study(tmp_path, monkeypatch, capsys
     )
     monkeypatch.setenv("AUTOMIND_LLM_BASE_URL", "http://invalid.test/v1")
 
-    assert main(["run", str(protocol_path), "--dataset-root", str(tmp_path)]) == 0
+    assert (
+        main(["run", str(protocol_path), "--dataset-root", str(tmp_path)]) == 0
+    )
     assert json.loads(capsys.readouterr().out)["protocol"] == "comparison"

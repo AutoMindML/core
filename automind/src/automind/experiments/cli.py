@@ -60,6 +60,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         }
     elif args.command == "dry-run":
         payload = {**protocol.dry_run(), "dataset": manifest.dataset_id}
+        if (
+            isinstance(protocol, NoviceComparisonProtocol)
+            and "direct_code" in protocol.conditions
+        ):
+            from automind.experiments.codegen import (
+                PodmanSandboxExecutor,
+                default_sandbox_profile,
+            )
+
+            if (
+                protocol.sandbox_backend != "podman"
+                or protocol.sandbox_profile != "podman-automind-py310-v1"
+            ):
+                payload["direct_code_ready"] = False
+                payload["sandbox_readiness"] = (
+                    "a supported sandbox backend and profile are required"
+                )
+            else:
+                try:
+                    profile = default_sandbox_profile()
+                    PodmanSandboxExecutor(profile).preflight(profile.policy)
+                except RuntimeError as error:
+                    payload["direct_code_ready"] = False
+                    payload["sandbox_readiness"] = str(error)
+                else:
+                    payload["direct_code_ready"] = True
+                    payload["sandbox_readiness"] = "ready"
     else:
         if args.dataset_root is None:
             raise ValueError("run/resume requires --dataset-root")

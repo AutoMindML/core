@@ -1,0 +1,4 @@
+FROM docker.io/library/python:3.10-slim@sha256:179cecec99c29e6f1e97caa424514599267f7dd836696dd673ea5587eefc65fa
+COPY sandbox/requirements.lock /tmp/requirements.lock
+RUN python -m pip install --no-cache-dir \
+    -r /tmp/requirements.lock

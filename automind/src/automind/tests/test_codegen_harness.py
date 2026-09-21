@@ -9,6 +9,7 @@ from automind.experiments.codegen import (
     DirectCodeHarness,
     SandboxPolicy,
     UnavailableSandboxExecutor,
+    default_sandbox_profile,
 )
 
 
@@ -35,9 +36,7 @@ def _frames():
         {"feature": [1, 2, 3, 4], "target": [0, 0, 1, 1]},
         index=["p1", "p2", "p3", "p4"],
     )
-    holdout = pd.DataFrame(
-        {"feature": [5, 6]}, index=["p5", "p6"]
-    )
+    holdout = pd.DataFrame({"feature": [5, 6]}, index=["p5", "p6"])
     return train, holdout
 
 
@@ -52,7 +51,9 @@ def test_fake_executor_never_receives_holdout_labels(tmp_path):
     assert outcome.train.index.tolist() == train.index.tolist()
     assert outcome.holdout.index.tolist() == holdout.index.tolist()
     assert executor.requests[0].phase == "fit"
-    assert all(request.phase == "transform" for request in executor.requests[1:])
+    assert all(
+        request.phase == "transform" for request in executor.requests[1:]
+    )
     assert all(request.state_read_only for request in executor.requests[1:])
     assert len(executor.requests) == 1 + len(holdout)
     for request in executor.requests[1:]:
@@ -101,3 +102,20 @@ def test_output_contract_rejects_protected_mutations(
         DirectCodeHarness(CopyingExecutor(mutate)).run(
             "# generated fixture", train, holdout, "target", tmp_path
         )
+
+
+def test_profile_is_digest_pinned_and_policy_rejects_network():
+    profile = default_sandbox_profile()
+
+    assert profile.image.endswith(profile.image_digest)
+    assert profile.backend == "podman"
+    with pytest.raises(ValueError, match="network"):
+        SandboxPolicy(network_enabled=True)
+
+
+def test_duplicate_output_headers_are_rejected(tmp_path):
+    output = tmp_path / "output.csv"
+    output.write_text("a,a\n1,2\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="duplicate columns"):
+        DirectCodeHarness._read_output(output, "training")
