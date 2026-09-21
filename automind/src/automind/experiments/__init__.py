@@ -5,6 +5,7 @@ from automind.experiments.protocol import (
     ResearchProtocol,
 )
 from automind.experiments.runner import ExperimentProtocol, ExperimentRunner
+from automind.experiments.synthea_adapter import SyntheaDatasetAdapter
 
 __all__ = [
     "Condition",
@@ -13,4 +14,5 @@ __all__ = [
     "ExperimentRunner",
     "NoviceComparisonProtocol",
     "ResearchProtocol",
+    "SyntheaDatasetAdapter",
 ]

@@ -11,12 +11,12 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from automind.data_utils import DataFusionModule, MetaGenerator
+from automind.data_utils import MetaGenerator
 from automind.engine.tpot_engine import TPOTEngine
 from automind.experiments.artifacts import RunArtifactStore
-from automind.experiments.datasets import build_synthea_expense_partitions
 from automind.experiments.evaluation import classification_metrics
 from automind.experiments.protocol import Condition, ResearchProtocol
+from automind.experiments.synthea_adapter import SyntheaDatasetAdapter
 from automind.models.preprocessing import TaskType
 from automind.pipeline import PreprocessingPipeline
 from automind.service.config import LLMSettings, load_llm_settings
@@ -38,6 +38,7 @@ class SyntheaPilotRunner:
     ) -> None:
         self.protocol = protocol
         self.dataset_root = dataset_root
+        self.adapter = SyntheaDatasetAdapter(dataset_root)
         self.output_root = Path(protocol.output_root)
         self.settings = settings or load_llm_settings(protocol.llm_profile)
         self.provider = provider or OpenAICompatibleProvider.from_url(
@@ -221,9 +222,7 @@ class SyntheaPilotRunner:
         repetition: int,
         resume: bool,
     ) -> LLMResponse:
-        request_path = (
-            run_root / "requests" / f"attempt_{repetition:03d}.json"
-        )
+        request_path = run_root / "requests" / f"attempt_{repetition:03d}.json"
         if resume and request_path.is_file():
             saved = json.loads(request_path.read_text(encoding="utf-8"))
             store.event(
@@ -306,56 +305,12 @@ class SyntheaPilotRunner:
         return {"total_paired_runs": len(runs), "conditions": conditions}
 
     def _load_frames(self) -> dict[str, DataFrame]:
-        return {
-            "patients": pd.read_csv(self.dataset_root / "slice_patients.csv"),
-            "conditions": pd.read_csv(
-                self.dataset_root / "slice_conditions.csv"
-            ),
-            "encounters": pd.read_csv(
-                self.dataset_root / "slice_encounters.csv"
-            ),
-        }
+        return self.adapter.load_frames()
 
     def _prepare_partitions(
         self, frames: dict[str, DataFrame], seed: int
     ) -> tuple[DataFrame, DataFrame, dict[str, Any]]:
-        split = build_synthea_expense_partitions(frames["patients"], seed=seed)
-        train_ids, test_ids = set(split.train["Id"]), set(split.test["Id"])
-        train_children = {
-            name: frame[frame["PATIENT"].isin(train_ids)].copy()
-            for name, frame in frames.items()
-            if name != "patients"
-        }
-        test_children = {
-            name: frame[frame["PATIENT"].isin(test_ids)].copy()
-            for name, frame in frames.items()
-            if name != "patients"
-        }
-        train_dfm = self._dfm(split.train, train_children)
-        train = train_dfm.apply_dfs()
-        test_dfm = self._dfm(split.test, test_children)
-        test = test_dfm.apply_feature_definitions(
-            train_dfm.get_feature_definitions()
-        )
-        test = test.reindex(columns=train.columns)
-        return train, test, split.audit
-
-    @staticmethod
-    def _dfm(
-        patients: DataFrame, children: dict[str, DataFrame]
-    ) -> DataFusionModule:
-        dfm = DataFusionModule(target_entity_name="patients")
-        dfm.set_primitives(
-            agg=["count", "sum", "mean", "max", "min", "mode"],
-            transform=["year", "month", "day"],
-        )
-        dfm.add_entity(patients, "patients", "Id")
-        dfm.add_entity(children["conditions"], "conditions", "Id")
-        dfm.add_entity(children["encounters"], "encounters", "Id")
-        dfm.add_relationship("patients", "Id", "conditions", "PATIENT")
-        dfm.add_relationship("patients", "Id", "encounters", "PATIENT")
-        dfm.add_relationship("encounters", "Id", "conditions", "ENCOUNTER")
-        return dfm
+        return self.adapter.prepare_partitions(frames, seed)
 
     @staticmethod
     def _fixed_model(train: DataFrame, test: DataFrame) -> dict[str, Any]:
