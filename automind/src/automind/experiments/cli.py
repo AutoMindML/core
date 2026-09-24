@@ -20,13 +20,92 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument("--dataset-root", type=Path)
     summarize = commands.add_parser("summarize")
     summarize.add_argument("output_root", type=Path)
+    replay = commands.add_parser("replay-v2")
+    replay.add_argument("completion", type=Path)
+    replay.add_argument("output_root", type=Path)
+    replay.add_argument("--metadata", type=Path)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "replay-v2":
+        if args.output_root.exists() and any(args.output_root.iterdir()):
+            raise ValueError("replay destination must be empty")
+        raw = json.loads(args.completion.read_text(encoding="utf-8"))
+        items = raw if isinstance(raw, list) else [raw]
+        matches = [
+            item for item in items
+            if item.get("kind") == "direct_code"
+            and item.get("status") == "succeeded"
+        ]
+        if not matches:
+            raise ValueError("saved artifact has no direct-code completion")
+        from automind.experiments.codegen import (
+            DirectCodeHarness,
+            PodmanSandboxExecutor,
+            default_sandbox_profile,
+            syntax_check,
+        )
+        from automind.experiments.orchestration import _extract_code
+
+        code = _extract_code(matches[-1]["response"]["content"])
+        syntax_check(code)
+        metadata = {}
+        if args.metadata is not None:
+            metadata = json.loads(args.metadata.read_text(encoding="utf-8"))
+        profile = default_sandbox_profile()
+        probe = DirectCodeHarness(
+            PodmanSandboxExecutor(profile), policy=profile.policy
+        ).probe(
+            code,
+            args.output_root / "direct_code_probe",
+            metadata,
+            str(metadata.get("target", "target")),
+        )
+        args.output_root.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "status": probe.status,
+            "probe": probe.as_dict(),
+            "provider_calls": 0,
+            "completion_sha256": matches[-1].get("completion_sha256"),
+        }
+        (args.output_root / "replay.json").write_text(
+            json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
+        )
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
     if args.command == "summarize":
         from automind.experiments.synthea_pilot import SyntheaPilotRunner
+
+        v2 = list(args.output_root.glob("seed_*/run_*/result.json"))
+        if v2:
+            dimensions: dict[str, int] = {}
+            for path in v2:
+                result = json.loads(path.read_text(encoding="utf-8"))
+                for name, condition in result.get("conditions", {}).items():
+                    fields = {
+                        "condition": name,
+                        "status": condition.get("status", "unknown"),
+                        "stage": condition.get("stage", "none"),
+                        "reason": condition.get("reason", "none"),
+                        "phase": condition.get("phase", "none"),
+                    }
+                    for key, value in fields.items():
+                        dimension = f"{key}={value}"
+                        dimensions[dimension] = dimensions.get(dimension, 0) + 1
+            payload = {
+                "protocol_version": 2,
+                "runs": len(v2),
+                "condition_status_stage_reason_phase_counts": dimensions,
+                "failure_stage_counts": {
+                    key.split("=", 1)[1]: value
+                    for key, value in dimensions.items()
+                    if key.startswith("stage=") and not key.endswith("=none")
+                },
+            }
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
 
         runs = [
             json.loads(path.read_text(encoding="utf-8"))
