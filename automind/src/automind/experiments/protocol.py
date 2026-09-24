@@ -130,6 +130,7 @@ class NoviceComparisonProtocol(BaseModel):
     selection_folds: int = Field(default=5, ge=2)
     minimum_gain: float = Field(default=0.0, ge=0.0)
     llm_profile: str = "local-qwen"
+    llm_timeout_seconds: float | None = Field(default=None, gt=0)
     output_root: str
     retry_limit: int = Field(default=0, ge=0, le=2)
     serial_concurrency: Literal[1] = 1
@@ -176,9 +177,23 @@ class NoviceComparisonProtocol(BaseModel):
             "conditions": self.conditions,
             "total_runs": units * len(self.conditions),
             "maximum_llm_calls": calls * (1 + self.retry_limit),
-            "minimum_code_executions": units * direct_calls,
+            "minimum_code_executions": 0,
             "maximum_code_executions": None if direct_calls else 0,
+            "maximum_physical_code_executions": (
+                f"{units * direct_calls} * (3 probe + 1 fit + "
+                "holdout_rows transforms)"
+                if direct_calls
+                else 0
+            ),
+            "minimum_probe_executions": 0,
+            "maximum_probe_executions": units * direct_calls * 3,
+            "logical_llm_calls": calls,
+            "physical_llm_calls_min": calls,
+            "physical_llm_calls_max": calls * (1 + self.retry_limit),
+            "llm_timeout_seconds": self.llm_timeout_seconds,
             "code_execution_budget": (
+                f"0..{units * direct_calls * 3} probe executions (1 fit + "
+                "2 transforms each), then "
                 f"{units * direct_calls} fit + "
                 f"{units * direct_calls} * holdout_rows transforms"
             ),

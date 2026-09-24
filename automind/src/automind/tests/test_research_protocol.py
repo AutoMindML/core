@@ -65,7 +65,8 @@ def test_novice_protocol_counts_candidates_and_reports_missing_sandbox():
 
     assert result["total_runs"] == 12
     assert result["maximum_llm_calls"] == 16
-    assert result["minimum_code_executions"] == 4
+    assert result["minimum_code_executions"] == 0
+    assert "3 probe + 1 fit" in result["maximum_physical_code_executions"]
     assert result["maximum_code_executions"] is None
     assert result["direct_code_ready"] is False
 
@@ -135,3 +136,51 @@ def test_cli_dispatches_v2_run_to_comparison_study(
         main(["run", str(protocol_path), "--dataset-root", str(tmp_path)]) == 0
     )
     assert json.loads(capsys.readouterr().out)["protocol"] == "comparison"
+
+
+def test_v2_summarize_reports_failure_stages(tmp_path, capsys):
+    result_root = tmp_path / "seed_1" / "run_000"
+    result_root.mkdir(parents=True)
+    (result_root / "result.json").write_text(
+        json.dumps(
+            {
+                "conditions": {
+                    "direct_code": {
+                        "status": "failed",
+                        "stage": "probe",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    from automind.experiments.cli import main
+
+    assert main(["summarize", str(tmp_path)]) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["protocol_version"] == 2
+    assert summary["failure_stage_counts"] == {"probe": 1}
+
+
+def test_replay_v2_attempt_artifact_rejects_bad_code_without_provider(
+    tmp_path, capsys
+):
+    completion = tmp_path / "attempts.json"
+    completion.write_text(
+        json.dumps(
+            [
+                {
+                    "kind": "direct_code",
+                    "status": "succeeded",
+                    "completion_sha256": "abc",
+                    "response": {"content": "def broken(:"},
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    from automind.experiments.cli import main
+
+    with pytest.raises(ValueError, match="syntax failure"):
+        main(["replay-v2", str(completion), str(tmp_path / "out")])
+    assert "provider" not in capsys.readouterr().out.lower()

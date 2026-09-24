@@ -122,6 +122,16 @@ the engine, isolation controls, or image digest fail preflight. Programmatic
 tests may inject another conforming executor into `DirectCodeHarness`; generated
 code is never executed directly by the host Python process.
 
+Recovery work uses the separate `novice-comparison-v2-recovery-pilot.protocol.json`
+with one seed, one repetition, one candidate, and the three core conditions.
+Generated programs are first syntax-checked and validated against the versioned
+`direct-code-v2` contract (including opaque `__automind_row_id`, unlabeled
+transform input, and read-only fit state) before real dataset execution.
+The 2026-09-24 bounded pilot completed deterministic and guarded conditions but
+rejected direct code during the Podman fit probe, before real-data execution.
+That failure is retained as reliability evidence; no confirmatory protocol has
+been created or run.
+
 ## Adding preprocessing methods
 
 Add the enum and Pydantic schema entry in `models/preprocessing.py`, include only
