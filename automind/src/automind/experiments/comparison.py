@@ -64,6 +64,7 @@ class GuardedComparisonRunner:
         run_root: Path,
         *,
         direct_code: str | None = None,
+        direct_code_failure: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         target = config.target_column
         if target not in train or target not in holdout:
@@ -74,6 +75,16 @@ class GuardedComparisonRunner:
             "conditions": {},
         }
         for condition in config.conditions:
+            if (
+                condition == ComparisonCondition.DIRECT_CODE
+                and direct_code is None
+                and direct_code_failure is not None
+            ):
+                results["conditions"][condition.value] = {
+                    "status": "failed",
+                    **direct_code_failure,
+                }
+                continue
             try:
                 result = self._run_condition(
                     condition,
@@ -83,6 +94,7 @@ class GuardedComparisonRunner:
                     config,
                     run_root / condition.value,
                     direct_code,
+                    direct_code_failure,
                 )
                 results["conditions"][condition.value] = {
                     "status": "succeeded",
@@ -105,6 +117,7 @@ class GuardedComparisonRunner:
         config: ComparisonConfig,
         condition_root: Path,
         direct_code: str | None,
+        direct_code_failure: dict[str, Any] | None,
     ) -> dict[str, Any]:
         target = config.target_column
         if condition == ComparisonCondition.DETERMINISTIC:

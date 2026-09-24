@@ -45,6 +45,68 @@ def _settings() -> LLMSettings:
     )
 
 
+class _FailingProvider:
+    def __init__(self, message: str) -> None:
+        self.message = message
+        self.call_count = 0
+
+    def complete(self, request):
+        self.call_count += 1
+        raise RuntimeError(self.message)
+
+
+@pytest.mark.parametrize(
+    ("message", "reason"),
+    [("Request timed out", "timeout"), ("HTTP 502 Bad Gateway", "http_502")],
+)
+def test_direct_generation_failure_is_structured(message, reason, tmp_path):
+    train, holdout = _split()
+    provider = _FailingProvider(message)
+    runner = GuardedComparisonRunner(
+        lambda seed: LogisticRegression(max_iter=1000, random_state=seed),
+        ValidationContext("target", TaskType.CLASSIFICATION),
+        code_harness=DirectCodeHarness(UnavailableSandboxExecutor()),
+    )
+
+    result = ComparisonExperiment(provider, _settings(), runner).run(
+        train,
+        holdout,
+        ComparisonConfig("target", (ComparisonCondition.DIRECT_CODE,)),
+        GenerationConfig(candidate_count=1),
+        tmp_path,
+        metadata_prompt="metadata fixture",
+        direct_metadata={"target": "target", "columns": []},
+    )
+
+    condition = result["conditions"]["direct_code"]
+    assert condition["status"] == "failed"
+    assert condition["stage"] == "generation"
+    assert condition["reason"] == reason
+
+
+def test_occupied_incomplete_run_root_is_rejected(tmp_path):
+    root = tmp_path / "occupied"
+    root.mkdir()
+    (root / "generation_attempts.json").write_text("[]", encoding="utf-8")
+    train, holdout = _split()
+    runner = GuardedComparisonRunner(
+        lambda seed: LogisticRegression(max_iter=1000, random_state=seed),
+        ValidationContext("target", TaskType.CLASSIFICATION),
+    )
+
+    with pytest.raises(RuntimeError, match="indeterminate"):
+        ComparisonExperiment(
+            StaticLLMProvider([]), _settings(), runner
+        ).run(
+            train,
+            holdout,
+            ComparisonConfig("target", (ComparisonCondition.DETERMINISTIC,)),
+            GenerationConfig(candidate_count=1),
+            root,
+            metadata_prompt="metadata fixture",
+        )
+
+
 def test_orchestrator_generates_candidates_persists_attempts_and_runs(tmp_path):
     train, holdout = _split()
     provider = StaticLLMProvider(
