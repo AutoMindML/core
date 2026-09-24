@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -6,10 +7,14 @@ import pytest
 from automind.experiments.codegen import (
     CodeExecutionRequest,
     CodeExecutionResult,
+    DirectCodeContract,
     DirectCodeHarness,
+    PodmanSandboxExecutor,
     SandboxPolicy,
     UnavailableSandboxExecutor,
+    classify_contract_failure,
     default_sandbox_profile,
+    syntax_check,
 )
 
 
@@ -119,3 +124,116 @@ def test_duplicate_output_headers_are_rejected(tmp_path):
 
     with pytest.raises(ValueError, match="duplicate columns"):
         DirectCodeHarness._read_output(output, "training")
+
+
+def test_direct_code_contract_is_versioned_and_names_reserved_identity():
+    contract = DirectCodeContract()
+    prompt = contract.prompt({"target": "target"})
+    assert contract.version == "direct-code-v2"
+    assert "__automind_row_id" in prompt
+    assert "transform input never includes the target" in prompt
+    assert contract.digest()
+
+
+def test_syntax_gate_rejects_malformed_generated_code():
+    with pytest.raises(ValueError, match="syntax failure"):
+        syntax_check("def broken(:\n    pass")
+
+
+def test_contract_probe_uses_two_transforms_and_separate_artifacts(tmp_path):
+    executor = CopyingExecutor()
+    harness = DirectCodeHarness(executor)
+
+    result = harness.probe("# known-good fixture", tmp_path / "probe")
+
+    assert result.status == "succeeded"
+    assert len(executor.requests) == 3
+    assert (tmp_path / "probe" / "fit").is_dir()
+
+
+def test_contract_probe_failure_is_structured(tmp_path):
+    executor = CopyingExecutor(
+        lambda phase, frame: frame.assign(
+            __automind_row_id="wrong"
+        )
+        if phase == "fit"
+        else frame
+    )
+    result = DirectCodeHarness(executor).probe("# bad fixture", tmp_path)
+
+    assert result.status == "failed"
+    assert result.stage == "protected_column"
+    assert "row identity" in (result.details or "")
+
+
+def test_contract_probe_uses_metadata_feature_names_and_type_families(tmp_path):
+    executor = CopyingExecutor()
+    harness = DirectCodeHarness(executor)
+
+    result = harness.probe(
+        "# metadata fixture",
+        tmp_path,
+        {
+            "target": "label",
+            "columns": [
+                {"name": "amount_original", "dtype": "float64"},
+                {"name": "status_original", "dtype": "object"},
+                {"name": "label", "dtype": "int64"},
+            ],
+        },
+        "label",
+    )
+
+    assert result.status == "succeeded"
+    fit_input = pd.read_csv(executor.requests[0].input_path)
+    assert list(fit_input.columns) == [
+        "__automind_row_id",
+        "amount_original",
+        "status_original",
+        "label",
+    ]
+
+
+@pytest.mark.podman_sandbox
+def test_podman_known_good_contract_probe(tmp_path):
+    if os.environ.get("RUN_PODMAN_SANDBOX") != "1":
+        pytest.skip("requires explicitly enabled pinned Podman sandbox")
+    harness = DirectCodeHarness(
+        PodmanSandboxExecutor(default_sandbox_profile())
+    )
+    result = harness.probe(
+        """
+import argparse
+import pandas as pd
+parser = argparse.ArgumentParser()
+parser.add_argument('--phase')
+parser.add_argument('--input')
+parser.add_argument('--output')
+parser.add_argument('--state-dir')
+args = parser.parse_args()
+frame = pd.read_csv(args.input, dtype={'__automind_row_id': 'string'})
+frame.to_csv(args.output, index=False)
+""",
+        tmp_path,
+        {"target": "target", "columns": []},
+    )
+    assert result.status == "succeeded"
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        (
+            "generated code fit failed: KeyError: target",
+            ("fit_execution", "process_failure", "fit"),
+        ),
+        (
+            "generated code transform failed: target is absent",
+            ("transform_execution", "process_failure", "transform"),
+        ),
+    ],
+)
+def test_process_failure_classification_precedes_stderr_keywords(
+    message, expected
+):
+    assert classify_contract_failure(RuntimeError(message)) == expected

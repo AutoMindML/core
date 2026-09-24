@@ -1,3 +1,4 @@
+import ast
 import csv
 import hashlib
 import json
@@ -13,6 +14,69 @@ import pandas as pd
 from pandas import DataFrame, Series
 
 ROW_ID = "__automind_row_id"
+DIRECT_CODE_CONTRACT_VERSION = "direct-code-v2"
+
+
+@dataclass(frozen=True)
+class DirectCodeContract:
+    """Single source of truth for the generated program boundary."""
+
+    version: str = DIRECT_CODE_CONTRACT_VERSION
+    row_id: str = ROW_ID
+    phases: tuple[str, str] = ("fit", "transform")
+
+    def prompt(self, metadata: dict[str, object]) -> str:
+        return (
+            "You are the unassisted general-LLM baseline. Return Python code "
+            "only (no JSON or prose) for a two-phase preprocessing program. "
+            "Accept --phase (fit or transform), --input, --output, and "
+            "--state-dir. Fit may learn and persist state; transform must "
+            "only load state and must never refit. The reserved column "
+            f"{self.row_id!r} is an opaque row identity: copy its values "
+            "byte-for-byte and preserve order. Never drop, sort, cast, "
+            "impute, encode, or use it as a predictor. Fit input includes "
+            "the target; transform input never includes the target. Preserve "
+            "the target unchanged in fit output. Fit and transform must emit "
+            "the same feature columns. Contract version: "
+            f"{self.version}. Dataset metadata: "
+            + json.dumps(metadata, sort_keys=True, default=str)
+        )
+
+    def metadata_envelope(
+        self, metadata: dict[str, object], target_column: str
+    ) -> dict[str, object]:
+        """Return machine-readable boundary metadata for prompts and probes."""
+        return {
+            "contract_version": self.version,
+            "reserved_columns": [self.row_id],
+            "fit_input": {"includes_target": True, "target": target_column},
+            "transform_input": {
+                "includes_target": False,
+                "target": target_column,
+            },
+            "output_schema": {
+                "row_identity": self.row_id,
+                "fit_target_preserved": True,
+                "transform_features_match_fit": True,
+            },
+            "state_policy": {
+                "fit": "writable",
+                "transform": "read_only",
+            },
+            "dataset": metadata,
+        }
+
+    def digest(self) -> str:
+        payload = json.dumps(self.__dict__, sort_keys=True)
+        return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def syntax_check(code: str) -> None:
+    """Reject malformed generated Python before any sandbox/data execution."""
+    try:
+        ast.parse(code, filename="generated.py", mode="exec")
+    except SyntaxError as error:
+        raise ValueError(f"generated code syntax failure: {error.msg}") from error
 
 
 @dataclass(frozen=True)
@@ -425,6 +489,41 @@ class DirectCodeOutcome:
     code_sha256: str
 
 
+@dataclass(frozen=True)
+class ContractProbeResult:
+    status: str
+    stage: str
+    reason: str | None = None
+    details: str | None = None
+    phase: str | None = None
+
+    def as_dict(self) -> dict[str, str | None]:
+        return {
+            "status": self.status,
+            "stage": self.stage,
+            "reason": self.reason,
+            "phase": self.phase,
+            "details": self.details,
+        }
+
+
+def classify_contract_failure(error: BaseException) -> tuple[str, str, str]:
+    message = str(error).lower()
+    if "syntax" in message:
+        return "syntax", "invalid_python", "generation"
+    if "fit failed" in message:
+        return "fit_execution", "process_failure", "fit"
+    if "transform failed" in message:
+        return "transform_execution", "process_failure", "transform"
+    if "row identity" in message or "target" in message:
+        return "protected_column", "protected_column_mutation", "validation"
+    if "state" in message:
+        return "state_violation", "state_mutation", "transform"
+    if "schema" in message or "output" in message:
+        return "output_schema", "invalid_output_schema", "validation"
+    return "probe", type(error).__name__, "probe"
+
+
 class DirectCodeHarness:
     """Materialize and validate a generated-code experiment boundary.
 
@@ -437,9 +536,11 @@ class DirectCodeHarness:
         executor: CodeExecutor,
         *,
         policy: SandboxPolicy | None = None,
+        contract: DirectCodeContract | None = None,
     ) -> None:
         self.executor = executor
         self.policy = policy or SandboxPolicy()
+        self.contract = contract or DirectCodeContract()
 
     def run(
         self,
@@ -449,6 +550,7 @@ class DirectCodeHarness:
         target_column: str,
         run_root: Path,
     ) -> DirectCodeOutcome:
+        syntax_check(code)
         self.executor.preflight(self.policy)
         if target_column not in train:
             raise ValueError("training frame must contain the target column")
@@ -537,6 +639,14 @@ class DirectCodeHarness:
             )
         if fit_execution.elapsed_seconds < 0:
             raise ValueError("executor returned a negative elapsed time")
+        transformed_train = self._read_output(train_output_path, "training")
+        self._validate_fit_output(transformed_train, train_input, target_column)
+        fit_feature_schema = tuple(
+            column
+            for column in transformed_train.columns
+            if column not in {ROW_ID, target_column}
+        )
+        fit_state_digest = self._state_digest(state_root)
 
         # The holdout is materialized only after fitting has completed. The
         # executor must start a fresh isolated process for each request and may
@@ -590,12 +700,18 @@ class DirectCodeHarness:
             if execution.elapsed_seconds < 0:
                 raise ValueError("executor returned a negative elapsed time")
             transform_executions.append(execution)
-            transformed_rows.append(
-                self._read_output(holdout_output_path, "holdout")
+            transformed = self._read_output(holdout_output_path, "holdout")
+            if self._state_digest(state_root) != fit_state_digest:
+                raise ValueError("transform modified read-only fit state")
+            self._validate_transform_row(
+                transformed,
+                holdout_input.iloc[[position]],
+                target_column,
+                fit_feature_schema,
             )
+            transformed_rows.append(transformed)
         measured_elapsed = time.perf_counter() - started
 
-        transformed_train = self._read_output(train_output_path, "training")
         transformed_holdout = pd.concat(transformed_rows, ignore_index=True)
         self._validate_outputs(
             transformed_train,
@@ -626,6 +742,68 @@ class DirectCodeHarness:
             execution=normalized_execution,
             code_sha256=hashlib.sha256(code.encode()).hexdigest(),
         )
+
+    def probe(
+        self,
+        code: str,
+        run_root: Path,
+        metadata: dict[str, object] | None = None,
+        target_column: str = "target",
+    ) -> ContractProbeResult:
+        """Run the fixed two-row contract fixture before real data access."""
+        source_metadata = metadata or {}
+        nested_metadata = source_metadata.get("dataset")
+        if isinstance(nested_metadata, dict):
+            source_metadata = nested_metadata
+        raw_columns = source_metadata.get("columns", [])
+        columns = raw_columns if isinstance(raw_columns, list) else []
+        values: dict[str, list[object]] = {}
+        for item in columns:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "feature"))
+            dtype = str(item.get("dtype", "object"))
+            if name == target_column:
+                continue
+            if any(token in dtype for token in ("int", "float", "bool")):
+                values[name] = [1.0, None]
+            else:
+                values[name] = ["known", None]
+        if not values:
+            values = {"numeric": [1.0, None], "category": ["known", None]}
+        train = pd.DataFrame(values)
+        train[target_column] = [0, 1]
+        holdout_values = {
+            name: [3.0, 4.0]
+            if train[name].dtype.kind in "if"
+            else ["unseen", "known"]
+            for name in values
+        }
+        holdout = pd.DataFrame(holdout_values)
+        train.index = pd.Index(
+            [
+                "00000000-0000-4000-8000-000000000001",
+                "00000000-0000-4000-8000-000000000002",
+            ]
+        )
+        holdout.index = pd.Index(
+            [
+                "00000000-0000-4000-8000-000000000003",
+                "00000000-0000-4000-8000-000000000004",
+            ]
+        )
+        try:
+            self.run(code, train, holdout, target_column, run_root)
+        except Exception as error:  # noqa: BLE001
+            stage, reason, phase = classify_contract_failure(error)
+            return ContractProbeResult(
+                "failed",
+                stage,
+                reason,
+                str(error),
+                phase,
+            )
+        return ContractProbeResult("succeeded", "probe")
 
     @staticmethod
     def _write_request_manifest(
@@ -677,7 +855,50 @@ class DirectCodeHarness:
             header = next(csv.reader(source), [])
         if len(header) != len(set(header)):
             raise ValueError(f"generated {name} output has duplicate columns")
-        return pd.read_csv(path)
+        return pd.read_csv(path, dtype={ROW_ID: "string"})
+
+    @staticmethod
+    def _state_digest(root: Path) -> str:
+        digest = hashlib.sha256()
+        for item in sorted(path for path in root.rglob("*") if path.is_file()):
+            digest.update(str(item.relative_to(root)).encode())
+            digest.update(item.read_bytes())
+        return digest.hexdigest()
+
+    @staticmethod
+    def _validate_transform_row(
+        output: DataFrame,
+        original: DataFrame,
+        target_column: str,
+        fit_feature_schema: tuple[str, ...],
+    ) -> None:
+        if ROW_ID not in output:
+            raise ValueError("transform output removed row identity")
+        if output[ROW_ID].astype(str).tolist() != original[ROW_ID].astype(str).tolist():
+            raise ValueError("transform output changed row identity or order")
+        if target_column in output:
+            raise ValueError("transform output contains the protected target")
+        actual = [column for column in output if column != ROW_ID]
+        if tuple(actual) != fit_feature_schema:
+            raise ValueError("transform output feature schema differs")
+
+    @staticmethod
+    def _validate_fit_output(
+        output: DataFrame,
+        original: DataFrame,
+        target_column: str,
+    ) -> None:
+        if ROW_ID not in output:
+            raise ValueError("training output removed row identity")
+        if output[ROW_ID].astype(str).tolist() != original[ROW_ID].astype(str).tolist():
+            raise ValueError("training output changed row identity or order")
+        if target_column not in output:
+            raise ValueError("training output removed the target column")
+        if not _series_equal(
+            original[target_column].reset_index(drop=True),
+            output[target_column].reset_index(drop=True),
+        ):
+            raise ValueError("generated code changed training target values")
 
     @staticmethod
     def _validate_outputs(
