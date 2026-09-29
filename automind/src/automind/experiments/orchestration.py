@@ -83,6 +83,7 @@ class GenerationOutcome:
             "attempt_id": self.attempt_id,
             "attempt_index": self.attempt_index,
             "context": self.context,
+            "root_exception": self.context,
         }
 
 
@@ -139,6 +140,10 @@ class ComparisonExperiment:
                 raise ValueError("generation identity mismatch")
         else:
             _atomic_write_json(identity_path, identity)
+        if direct_metadata is not None:
+            _atomic_write_json(
+                run_root / "direct_code_metadata.json", direct_metadata
+            )
         state_path.write_text("pending\n", encoding="utf-8")
         attempts: list[dict[str, Any]] = []
         self._attempt_journal_path = run_root / "generation_attempts.json"
@@ -180,7 +185,11 @@ class ComparisonExperiment:
                     "stage": probe_result.stage,
                     "reason": probe_result.reason,
                     "phase": probe_result.phase,
+                    "root_exception": probe_result.details,
                     "context": probe_result.details,
+                    "artifact_path": str(
+                        (run_root / "direct_code_probe").resolve()
+                    ),
                 }
                 direct_code = None
         _atomic_write_json(run_root / "generation_attempts.json", attempts)
@@ -240,6 +249,7 @@ class ComparisonExperiment:
         run_root: Path,
         *,
         target_column: str,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Replay a saved direct-code completion without calling its provider."""
         if run_root.exists() and any(run_root.iterdir()):
@@ -262,13 +272,35 @@ class ComparisonExperiment:
         syntax_check(code)
         if self.runner.code_harness is None:
             raise RuntimeError("replay requires a contract harness")
+        if metadata is None:
+            raise ValueError(
+                "replay requires the original direct-code metadata; "
+                "pass metadata or restore direct_code_metadata.json"
+            )
+        declared_target = _metadata_target(metadata)
+        if declared_target is None:
+            raise ValueError(
+                "replay metadata is missing its target column; "
+                "provide the original direct-code metadata"
+            )
+        if declared_target != target_column:
+            raise ValueError(
+                "replay target does not match metadata: "
+                f"requested {target_column!r}, metadata declares "
+                f"{declared_target!r}"
+            )
         probe = self.runner.code_harness.probe(
             code,
             run_root / "direct_code_probe",
+            metadata,
             target_column=target_column,
         )
         if probe.status != "succeeded":
-            raise RuntimeError(f"saved completion probe failed: {probe.details}")
+            raise RuntimeError(
+                "saved completion probe failed: "
+                f"{probe.details}; artifacts: "
+                f"{(run_root / 'direct_code_probe').resolve()}"
+            )
         run_root.mkdir(parents=True, exist_ok=True)
         _atomic_write_json(
             run_root / "replay_identity.json",
@@ -277,6 +309,9 @@ class ComparisonExperiment:
                 "completion_sha256": source_hash
                 or hashlib.sha256(code.encode()).hexdigest(),
                 "contract_digest": self.direct_code_contract.digest(),
+                "metadata_sha256": hashlib.sha256(
+                    json.dumps(metadata, sort_keys=True, default=str).encode()
+                ).hexdigest(),
             },
         )
         result = self.runner.run(
@@ -293,6 +328,9 @@ class ComparisonExperiment:
             or hashlib.sha256(code.encode()).hexdigest(),
             "provider_calls": 0,
             "target_column": target_column,
+            "metadata_sha256": hashlib.sha256(
+                json.dumps(metadata, sort_keys=True, default=str).encode()
+            ).hexdigest(),
         }
         _atomic_write_json(run_root / "result.json", result)
         return result
@@ -323,6 +361,8 @@ class ComparisonExperiment:
                 reason = "timeout"
             elif "502" in lowered or "bad gateway" in lowered:
                 reason = "http_502"
+            elif "finish_reason='length'" in lowered:
+                reason = "output_limit"
             else:
                 reason = "provider_failure"
             return GenerationOutcome(
@@ -671,3 +711,12 @@ def _frame_metadata(frame: DataFrame, target_column: str) -> dict[str, Any]:
         ],
     }
     return DirectCodeContract().metadata_envelope(dataset, target_column)
+
+
+def _metadata_target(metadata: dict[str, Any]) -> str | None:
+    """Read the target from either the envelope or its legacy flat shape."""
+    dataset = metadata.get("dataset")
+    if isinstance(dataset, dict) and isinstance(dataset.get("target"), str):
+        return dataset["target"]
+    target = metadata.get("target")
+    return target if isinstance(target, str) else None

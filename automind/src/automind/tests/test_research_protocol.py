@@ -103,8 +103,12 @@ def test_flat_dataset_rejects_dfm_ablation():
         condition_spec(Condition.C4_WITHOUT_DFM, relational=False)
 
 
+@pytest.mark.parametrize(
+    ("condition_status", "exit_code"),
+    [("succeeded", 0), ("failed", 1)],
+)
 def test_cli_dispatches_v2_run_to_comparison_study(
-    tmp_path, monkeypatch, capsys
+    tmp_path, monkeypatch, capsys, condition_status, exit_code
 ):
     from automind.experiments.orchestration import NoviceComparisonStudy
     from automind.experiments.protocol import NoviceComparisonProtocol
@@ -128,12 +132,16 @@ def test_cli_dispatches_v2_run_to_comparison_study(
     monkeypatch.setattr(
         NoviceComparisonStudy,
         "run",
-        lambda self, resume: {"protocol": "comparison", "runs": []},
+        lambda self, resume: {
+            "protocol": "comparison",
+            "runs": [{"conditions": {"deterministic": {"status": condition_status}}}],
+        },
     )
     monkeypatch.setenv("AUTOMIND_LLM_BASE_URL", "http://invalid.test/v1")
 
     assert (
-        main(["run", str(protocol_path), "--dataset-root", str(tmp_path)]) == 0
+        main(["run", str(protocol_path), "--dataset-root", str(tmp_path)])
+        == exit_code
     )
     assert json.loads(capsys.readouterr().out)["protocol"] == "comparison"
 
@@ -184,3 +192,85 @@ def test_replay_v2_attempt_artifact_rejects_bad_code_without_provider(
     with pytest.raises(ValueError, match="syntax failure"):
         main(["replay-v2", str(completion), str(tmp_path / "out")])
     assert "provider" not in capsys.readouterr().out.lower()
+
+
+def test_replay_v2_discovers_nested_target_metadata_and_returns_success(
+    tmp_path, monkeypatch
+):
+    completion = tmp_path / "attempts.json"
+    completion.write_text(
+        json.dumps([{
+            "kind": "direct_code",
+            "status": "succeeded",
+            "response": {"content": "print('fixture')"},
+        }]), encoding="utf-8"
+    )
+    (tmp_path / "direct_code_metadata.json").write_text(
+        json.dumps({"dataset": {"target": "label", "columns": []}}),
+        encoding="utf-8",
+    )
+    from automind.experiments import codegen
+    from automind.experiments.cli import main
+
+    class FakeProfile:
+        policy = object()
+
+    class FakeExecutor:
+        def __init__(self, profile): pass
+
+    class FakeHarness:
+        def __init__(self, executor, *, policy): pass
+        def probe(self, code, root, metadata, target):
+            assert metadata["dataset"]["target"] == "label"
+            assert target == "label"
+            return codegen.ContractProbeResult("succeeded", "probe")
+
+    monkeypatch.setattr(codegen, "default_sandbox_profile", lambda: FakeProfile())
+    monkeypatch.setattr(codegen, "PodmanSandboxExecutor", FakeExecutor)
+    monkeypatch.setattr(codegen, "DirectCodeHarness", FakeHarness)
+
+    assert main(["replay-v2", str(completion), str(tmp_path / "out")]) == 0
+    payload = json.loads((tmp_path / "out" / "replay.json").read_text())
+    assert payload["status"] == "succeeded"
+
+
+def test_replay_v2_missing_metadata_is_actionable(tmp_path):
+    completion = tmp_path / "attempts.json"
+    completion.write_text(json.dumps([{
+        "kind": "direct_code", "status": "succeeded",
+        "response": {"content": "print('fixture')"},
+    }]), encoding="utf-8")
+    from automind.experiments.cli import main
+
+    with pytest.raises(ValueError, match="original metadata"):
+        main(["replay-v2", str(completion), str(tmp_path / "out")])
+
+
+def test_replay_v2_failed_probe_returns_nonzero(tmp_path, monkeypatch):
+    completion = tmp_path / "attempts.json"
+    completion.write_text(json.dumps([{
+        "kind": "direct_code", "status": "succeeded",
+        "response": {"content": "print('fixture')"},
+    }]), encoding="utf-8")
+    metadata = tmp_path / "metadata.json"
+    metadata.write_text(json.dumps({"target": "target", "columns": []}))
+    from automind.experiments import codegen
+    from automind.experiments.cli import main
+
+    class FakeProfile: policy = object()
+    class FakeExecutor:
+        def __init__(self, profile): pass
+    class FakeHarness:
+        def __init__(self, executor, *, policy): pass
+        def probe(self, *args, **kwargs):
+            return codegen.ContractProbeResult(
+                "failed", "fit", "process_failure", "KeyError: nope", "fit"
+            )
+    monkeypatch.setattr(codegen, "default_sandbox_profile", lambda: FakeProfile())
+    monkeypatch.setattr(codegen, "PodmanSandboxExecutor", FakeExecutor)
+    monkeypatch.setattr(codegen, "DirectCodeHarness", FakeHarness)
+
+    assert main([
+        "replay-v2", str(completion), str(tmp_path / "out"),
+        "--metadata", str(metadata)
+    ]) == 1

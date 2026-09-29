@@ -194,6 +194,67 @@ def test_contract_probe_uses_metadata_feature_names_and_type_families(tmp_path):
     ]
 
 
+def test_contract_probe_treats_nullable_integer_as_numeric(tmp_path):
+    executor = CopyingExecutor()
+    result = DirectCodeHarness(executor).probe(
+        "# metadata fixture",
+        tmp_path,
+        {
+            "target": "label",
+            "columns": [
+                {"name": "nullable_count", "dtype": "Int64"},
+                {"name": "label", "dtype": "Int64"},
+            ],
+        },
+        "label",
+    )
+
+    assert result.status == "succeeded"
+    fit_input = pd.read_csv(executor.requests[0].input_path)
+    assert fit_input["nullable_count"].iloc[0] == 1.0
+    assert pd.isna(fit_input["nullable_count"].iloc[1])
+
+
+def test_contract_probe_keeps_boolean_holdout_values_boolean_like(tmp_path):
+    executor = CopyingExecutor()
+    result = DirectCodeHarness(executor).probe(
+        "# metadata fixture",
+        tmp_path,
+        {
+            "target": "label",
+            "columns": [
+                {"name": "enabled", "dtype": "boolean"},
+                {"name": "label", "dtype": "int64"},
+            ],
+        },
+        "label",
+    )
+
+    assert result.status == "succeeded"
+    first_holdout = pd.read_csv(executor.requests[1].input_path)
+    second_holdout = pd.read_csv(executor.requests[2].input_path)
+    assert first_holdout["enabled"].tolist() == [True]
+    assert second_holdout["enabled"].tolist() == [False]
+
+
+def test_failure_summary_keeps_causal_and_terminal_exceptions():
+    from automind.experiments.codegen import _last_exception_line
+
+    summary = _last_exception_line(
+        "Traceback (most recent call last):\n"
+        '  File "generated.py", line 1, in <module>\n'
+        "KeyError: missing_name\n"
+        "The above exception was the direct cause of the following exception:\n"
+        "Traceback (most recent call last):\n"
+        '  File "generated.py", line 20, in <module>\n'
+        '  File "site-packages/sklearn/compose.py", line 500, in fit\n'
+        '  File "site-packages/sklearn/utils.py", line 300, in get_column\n'
+        "ValueError: generated output is invalid\n"
+    )
+    assert "KeyError: missing_name" in summary
+    assert "ValueError: generated output is invalid" in summary
+
+
 @pytest.mark.podman_sandbox
 def test_podman_known_good_contract_probe(tmp_path):
     if os.environ.get("RUN_PODMAN_SANDBOX") != "1":

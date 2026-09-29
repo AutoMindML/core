@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 from collections.abc import Sequence
 from pathlib import Path
@@ -51,9 +52,28 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         code = _extract_code(matches[-1]["response"]["content"])
         syntax_check(code)
-        metadata = {}
+        metadata = None
         if args.metadata is not None:
             metadata = json.loads(args.metadata.read_text(encoding="utf-8"))
+        else:
+            adjacent = args.completion.parent / "direct_code_metadata.json"
+            if adjacent.is_file():
+                metadata = json.loads(adjacent.read_text(encoding="utf-8"))
+        if not isinstance(metadata, dict):
+            raise ValueError(
+                "replay requires original metadata: pass --metadata or place "
+                "direct_code_metadata.json beside the completion artifact"
+            )
+        dataset = metadata.get("dataset")
+        target = (
+            dataset.get("target")
+            if isinstance(dataset, dict)
+            else metadata.get("target")
+        )
+        if not isinstance(target, str) or not target:
+            raise ValueError(
+                "replay metadata must declare a non-empty target column"
+            )
         profile = default_sandbox_profile()
         probe = DirectCodeHarness(
             PodmanSandboxExecutor(profile), policy=profile.policy
@@ -61,7 +81,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             code,
             args.output_root / "direct_code_probe",
             metadata,
-            str(metadata.get("target", "target")),
+            target,
         )
         args.output_root.mkdir(parents=True, exist_ok=True)
         payload = {
@@ -69,12 +89,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             "probe": probe.as_dict(),
             "provider_calls": 0,
             "completion_sha256": matches[-1].get("completion_sha256"),
+            "metadata_sha256": hashlib.sha256(
+                json.dumps(metadata, sort_keys=True, default=str).encode()
+            ).hexdigest(),
         }
         (args.output_root / "replay.json").write_text(
             json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
         )
         print(json.dumps(payload, indent=2, sort_keys=True))
-        return 0
+        return 0 if probe.status == "succeeded" else 1
     if args.command == "summarize":
         from automind.experiments.synthea_pilot import SyntheaPilotRunner
 
@@ -184,4 +207,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 resume=args.command == "resume"
             )
     print(json.dumps(payload, indent=2, sort_keys=True))
+    if args.command in {"run", "resume"} and isinstance(
+        protocol, NoviceComparisonProtocol
+    ):
+        if any(
+            condition.get("status") == "failed"
+            for run in payload["runs"]
+            for condition in run["conditions"].values()
+        ):
+            return 1
     return 0

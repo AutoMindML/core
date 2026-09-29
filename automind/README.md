@@ -122,15 +122,29 @@ the engine, isolation controls, or image digest fail preflight. Programmatic
 tests may inject another conforming executor into `DirectCodeHarness`; generated
 code is never executed directly by the host Python process.
 
-Recovery work uses the separate `novice-comparison-v2-recovery-pilot.protocol.json`
-with one seed, one repetition, one candidate, and the three core conditions.
+Recovery work uses separate protocols with one seed, one repetition, one
+candidate, and the three core conditions. Each has a distinct output root so
+earlier artifacts remain unchanged. The
+`novice-comparison-v2-recovery-pilot-32k.protocol.json` protocol selects
+`local-qwen-32k` (32,768 output tokens, `think=true`) and a 1,800-second
+request timeout; the default `local-qwen` profile remains at 8,192 tokens.
 Generated programs are first syntax-checked and validated against the versioned
 `direct-code-v2` contract (including opaque `__automind_row_id`, unlabeled
 transform input, and read-only fit state) before real dataset execution.
+Each run stores the exact direct-code metadata in `direct_code_metadata.json`;
+replay requires that artifact (or an explicit `--metadata` file) so the probe
+uses the original target and column schema rather than a guessed fixture.
 The 2026-09-24 bounded pilot completed deterministic and guarded conditions but
 rejected direct code during the Podman fit probe, before real-data execution.
-That failure is retained as reliability evidence; no confirmatory protocol has
-been created or run.
+The separate 2026-09-29 recovery pilot again completed deterministic and
+guarded conditions. Its direct-code request returned empty content after
+reaching the model output limit (`finish_reason='length'`), so no generated
+program reached the probe. Both failures remain in their original output
+directories as reliability evidence. The later 32k recovery pilot generated
+direct code, passed the probe, transformed all 742 holdout rows in the pinned
+Podman sandbox, and completed all three conditions. Its direct-code F1 was
+0.795 versus 0.760 for deterministic and guarded in this single pilot. The
+completion used 10,837 tokens; no confirmatory matrix has been run.
 
 ## Adding preprocessing methods
 

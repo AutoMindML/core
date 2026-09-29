@@ -27,6 +27,7 @@ from automind.pipeline.validation import ValidationContext
 from automind.service.config import LLMSettings
 from automind.service.llm import LLMResponse, StaticLLMProvider
 from automind.tests.test_guarded_comparison import _candidate, _split
+from automind.tests.test_codegen_harness import CopyingExecutor
 
 
 def _settings() -> LLMSettings:
@@ -57,7 +58,11 @@ class _FailingProvider:
 
 @pytest.mark.parametrize(
     ("message", "reason"),
-    [("Request timed out", "timeout"), ("HTTP 502 Bad Gateway", "http_502")],
+    [
+        ("Request timed out", "timeout"),
+        ("HTTP 502 Bad Gateway", "http_502"),
+        ("LLM returned empty content (finish_reason='length')", "output_limit"),
+    ],
 )
 def test_direct_generation_failure_is_structured(message, reason, tmp_path):
     train, holdout = _split()
@@ -82,6 +87,7 @@ def test_direct_generation_failure_is_structured(message, reason, tmp_path):
     assert condition["status"] == "failed"
     assert condition["stage"] == "generation"
     assert condition["reason"] == reason
+    assert (tmp_path / "direct_code_metadata.json").is_file()
 
 
 def test_occupied_incomplete_run_root_is_rejected(tmp_path):
@@ -189,6 +195,32 @@ def test_direct_only_budget_skips_candidates_and_persists_parse_failure(
     direct_prompt = attempts[0]["request"]["prompt"]
     assert "Return Python code only" in direct_prompt
     assert "Do not output code" not in direct_prompt
+
+
+def test_programmatic_replay_uses_metadata_without_provider_calls(tmp_path):
+    train, holdout = _split()
+    completion = tmp_path / "completion.json"
+    completion.write_text(json.dumps({"content": "# fixture"}))
+    harness = DirectCodeHarness(CopyingExecutor())
+    runner = GuardedComparisonRunner(
+        lambda seed: LogisticRegression(max_iter=1000, random_state=seed),
+        ValidationContext("target", TaskType.CLASSIFICATION),
+        code_harness=harness,
+    )
+    experiment = ComparisonExperiment(StaticLLMProvider([]), _settings(), runner)
+    metadata = {"target": "target", "columns": []}
+    result = experiment.replay_saved_completion(
+        completion, train, holdout,
+        ComparisonConfig("target", (ComparisonCondition.DIRECT_CODE,)),
+        tmp_path / "replay", target_column="target", metadata=metadata,
+    )
+    assert result["replay"]["provider_calls"] == 0
+    with pytest.raises(ValueError, match="does not match metadata"):
+        experiment.replay_saved_completion(
+            completion, train, holdout,
+            ComparisonConfig("target", (ComparisonCondition.DIRECT_CODE,)),
+            tmp_path / "mismatch", target_column="other", metadata=metadata,
+        )
 
 
 def test_v2_study_executes_protocol_with_injected_provider(

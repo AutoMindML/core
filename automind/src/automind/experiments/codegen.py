@@ -2,6 +2,7 @@ import ast
 import csv
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import threading
@@ -12,6 +13,7 @@ from typing import Literal, Protocol
 
 import pandas as pd
 from pandas import DataFrame, Series
+from pandas.api import types as ptypes
 
 ROW_ID = "__automind_row_id"
 DIRECT_CODE_CONTRACT_VERSION = "direct-code-v2"
@@ -35,9 +37,11 @@ class DirectCodeContract:
             f"{self.row_id!r} is an opaque row identity: copy its values "
             "byte-for-byte and preserve order. Never drop, sort, cast, "
             "impute, encode, or use it as a predictor. Fit input includes "
-            "the target; transform input never includes the target. Preserve "
+            "the target; transform input never includes the target. The "
+            "declared column order and names are exact: do not add, remove, "
+            "rename, reorder, or infer columns. Preserve "
             "the target unchanged in fit output. Fit and transform must emit "
-            "the same feature columns. Contract version: "
+            "the same feature columns in the exact fit order. Contract version: "
             f"{self.version}. Dataset metadata: "
             + json.dumps(metadata, sort_keys=True, default=str)
         )
@@ -59,6 +63,10 @@ class DirectCodeContract:
                 "fit_target_preserved": True,
                 "transform_features_match_fit": True,
             },
+            "schema_policy": {
+                "column_names_and_order": "exact",
+                "identity": "opaque string values copied byte-for-byte",
+            },
             "state_policy": {
                 "fit": "writable",
                 "transform": "read_only",
@@ -67,7 +75,17 @@ class DirectCodeContract:
         }
 
     def digest(self) -> str:
-        payload = json.dumps(self.__dict__, sort_keys=True)
+        # Hash the executable prompt contract as well as its structural fields;
+        # otherwise wording/schema changes could silently reuse a run identity.
+        payload = json.dumps(
+            {
+                **self.__dict__,
+                "prompt_template": self.prompt(
+                    {"__metadata__": "<dataset metadata>"}
+                ),
+            },
+            sort_keys=True,
+        )
         return hashlib.sha256(payload.encode()).hexdigest()
 
 
@@ -635,7 +653,7 @@ class DirectCodeHarness:
         if fit_execution.status != "succeeded":
             raise RuntimeError(
                 f"generated code fit failed: {fit_execution.status}; "
-                f"{fit_execution.stderr[:500]}"
+                f"{_last_exception_line(fit_execution.stderr)}"
             )
         if fit_execution.elapsed_seconds < 0:
             raise ValueError("executor returned a negative elapsed time")
@@ -695,7 +713,7 @@ class DirectCodeHarness:
             if execution.status != "succeeded":
                 raise RuntimeError(
                     f"generated code transform failed: {execution.status}; "
-                    f"{execution.stderr[:500]}"
+                    f"{_last_exception_line(execution.stderr)}"
                 )
             if execution.elapsed_seconds < 0:
                 raise ValueError("executor returned a negative elapsed time")
@@ -765,7 +783,19 @@ class DirectCodeHarness:
             dtype = str(item.get("dtype", "object"))
             if name == target_column:
                 continue
-            if any(token in dtype for token in ("int", "float", "bool")):
+            # Use pandas' dtype predicates rather than substring matching. In
+            # particular, nullable Int64/UInt64 and boolean extension dtypes
+            # must be probed as numeric/bool columns, not categorical text.
+            if "bool" in dtype.lower():
+                values[name] = [True, False]
+            elif any(
+                predicate(dtype)
+                for predicate in (
+                    ptypes.is_numeric_dtype,
+                    ptypes.is_integer_dtype,
+                    ptypes.is_float_dtype,
+                )
+            ):
                 values[name] = [1.0, None]
             else:
                 values[name] = ["known", None]
@@ -776,6 +806,8 @@ class DirectCodeHarness:
         holdout_values = {
             name: [3.0, 4.0]
             if train[name].dtype.kind in "if"
+            else [True, False]
+            if train[name].dtype.kind == "b"
             else ["unseen", "known"]
             for name in values
         }
@@ -950,3 +982,16 @@ def _series_equal(left: Series, right: Series) -> bool:
     except AssertionError:
         return False
     return True
+
+
+def _last_exception_line(stderr: str) -> str:
+    """Keep causal and terminal exceptions without duplicating full stderr."""
+    lines = [line.strip() for line in stderr.splitlines() if line.strip()]
+    if not lines:
+        return "no stderr"
+    exceptions = [
+        line
+        for line in lines
+        if re.match(r"^[A-Za-z_][\w.]*(?:Error|Exception):\s", line)
+    ]
+    return " | ".join(line[:500] for line in (exceptions[-2:] or lines[-1:]))
