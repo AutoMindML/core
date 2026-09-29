@@ -4,6 +4,11 @@ The FastAPI service coordinates datasets in SQL Server, core preprocessing, and
 MindsDB model operations. Metadata generation uses the shared
 `OpenAICompatibleProvider`; it does not create a remote client during import.
 
+This directory is an independent uv project that installs the adjacent
+`automind` package in editable mode. The [repository guide](../README.md)
+documents root-level `just` commands. To synchronize only the API development
+environment from this directory, run `uv sync --locked --dev`.
+
 Copy `.env.example` to `.env` and set the connection values. The selected JSON
 profile supplies versioned inference parameters; environment variables may
 override them. Configuration precedence is defaults, profile, environment, then

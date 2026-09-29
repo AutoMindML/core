@@ -15,14 +15,14 @@ dependencies = [
 
   # -------------------- data processing --------------------
   "pydantic",
+  "pydantic-core",
   "lorem",
   "imbalanced-learn",
   "umap-learn",
   "pandas",
   "numpy",
   "scipy",
-  "featuretools[dask]",
-  "featuretools[premium]",
+  "featuretools[dask,premium]",
   "tiktoken",
 
 
@@ -34,19 +34,9 @@ dependencies = [
   "aiohttp",
 
 
-  # -------------------- type stubs --------------------
-  "pandas-stubs",
-  "scipy-stubs",
-  "microsoft-python-type-stubs@git+https://github.com/microsoft/python-type-stubs.git",
-
   # -------------------- visualization --------------------
   "matplotlib",
   "seaborn",
-
-  # -------------------- testing --------------------
-  "pytest",
-  "psutil",
-  "debugpy",
 
   # -------------------- util --------------------
   "setuptools",
@@ -55,15 +45,23 @@ dependencies = [
   "wcwidth",
   "rich",
   "graphviz",
-  "pdm",
+]
+
+[dependency-groups]
+dev = [
+  "debugpy",
+  "microsoft-python-type-stubs@git+https://github.com/microsoft/python-type-stubs.git",
+  "pandas-stubs",
+  "psutil",
+  "pyright",
+  "pytest",
+  "ruff",
+  "scipy-stubs",
 ]
 
 # also self install automind
 [build-system]
 requires = ["setuptools"]
-
-[tool.pdm.scripts]
-test = "uv run -m pytest ./src/automind/tests -x"
 
 # more setting refer to: https://microsoft.github.io/pyright/#/configuration?id=sample-pyprojecttoml-file
 [tool.pyright]

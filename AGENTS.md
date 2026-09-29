@@ -4,7 +4,7 @@
 
 - 本文件適用於整個 AutoMind Core 儲存庫。這是獨立 Git 儲存庫；在此使用一般 `git` 指令，上層家目錄的 dotfiles 專用 bare Git 指令不適用於本專案。
 - 修改前檢查 `git status --short`，保留使用者既有變更；未經明確授權，不使用破壞性的重設或清理指令。
-- 這裡有兩個 Python 套件，各自擁有 `pyproject.toml`、`uv.lock`，並使用各自的 `.venv`；根目錄沒有 Python 專案設定。兩個 `.python-version` 均指定 Python 3.10。
+- 這裡有兩個 Python 套件，各自擁有 `pyproject.toml`、`uv.lock`，並使用各自的 `.venv`；根目錄沒有 Python 專案設定。兩個 `.python-version` 均指定 Python 3.10。根目錄 `justfile` 僅包裝各套件指令，不合併環境或鎖檔。
 - `api/pyproject.toml` 透過 `[tool.uv.sources]` 以 editable 模式引用 `../automind/`。修改共用行為時直接修改本地核心套件，不另裝同名發布套件來取代它。
 
 ## 程式碼歸屬
@@ -49,17 +49,19 @@
 
 指令須在指定套件目錄執行。套件與鎖檔是依賴來源；保留既有版本限制，不因文件或無關變更重鎖整組依賴。
 
+根目錄 `justfile` 提供 `just sync`、`just build`、`just test`、`just lint`、`just typecheck` 與各套件的單獨 recipe。執行前先核對 recipe 的工作目錄、參數和副作用；`just api-live` 會啟動 API 與外部 MindsDB，`just experiment-run-live`／`just experiment-resume-live` 會執行研究流程。`experiment-dry-run` 遇到 v2 protocol 仍會做 Podman preflight。
+
 | 工作目錄 | 指令 | 用途與條件 |
 | --- | --- | --- |
-| `automind/` 或 `api/` | `uv sync` | 安裝／同步該套件環境，會寫入本機環境且可能存取網路；不是唯讀檢查 |
-| `automind/` | `uv run -m pytest ./src/automind/tests -x` | `pyproject.toml` 定義的核心測試指令；須先具備下節資料 |
+| `automind/` 或 `api/` | `uv sync --locked --dev` | 安裝／同步該套件環境與開發依賴，會寫入本機環境且可能存取網路；不是唯讀檢查 |
+| `automind/` | `uv run -m pytest ./src/automind/tests -x` | 核心完整測試指令；須先具備下節資料 |
 | `automind/` | `uv run -m pytest ./src/automind/tests/data_utils/test_01_parser.py -x` | 欄位解析的聚焦測試，同樣依賴 dataset fixture |
 | `api/` | `uv run start.py` | 啟動 API 與外部 MindsDB；須有設定、SQL Server、ODBC driver 與獨立 MindsDB 環境 |
 | 儲存庫根目錄 | `git diff --check` | 檢查變更中的空白問題 |
 
-- 根 README 中的 `./tests/data_utils` 不符合現有套件結構；測試採用上表的 `src/automind/tests` 路徑。
-- `setup.ps1` 會替兩個套件建立環境並安裝依賴；不要為了查證文件執行它。`uv run` 也可能自動同步環境，執行前確認依賴變更在任務範圍內。
-- 兩份 `pyproject.toml` 都有 Ruff 與 Pyright 設定。若開發環境已提供工具，在對應套件目錄執行 `ruff check src`、`pyright`；它們未列為專案依賴，不宣稱乾淨環境一定可執行。
+- 根目錄 `just test` 只選擇隔離測試；核心完整測試採用上表的 `src/automind/tests` 路徑，可能包含須明確啟用的實驗測試。
+- `setup.ps1` 會依兩份鎖檔同步環境；不要為了查證文件執行它。`uv run` 也可能自動同步環境，執行前確認依賴變更在任務範圍內。
+- 兩份 `pyproject.toml` 的開發依賴包含 pytest、Ruff、Pyright 與型別 stub；在對應套件目錄執行 `uv run --locked --group dev ruff check src`、`uv run --locked --group dev pyright`。部署環境可使用 `uv sync --locked --no-dev` 排除開發依賴。
 - Python 使用既有型別註記與命名慣例；Ruff 行長為 80，忽略 `F403`、`E402`。避免順帶重排整份檔案或批次移除既有 Pyright suppression。
 
 ## 驗證方式與限制

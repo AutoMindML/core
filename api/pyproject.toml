@@ -9,6 +9,7 @@ dependencies = [
   # -------------------- math --------------------
   "pandas",
   "numpy",
+  "scikit-learn==1.6.1",
 
 
   # -------------------- database --------------------
@@ -29,29 +30,32 @@ dependencies = [
   # -------------------- api --------------------
   "fastapi[standard]",
   "fastapi_utils",
+  "pydantic",
   "python-multipart",
   "orjson",
+  "requests",
+  "starlette",
 
   # -------------------- automind core --------------------
   "automind",
 
-  # -------------------- type stubs --------------------
-  "pandas-stubs",
-  # "scipy-stubs",
-  "microsoft-python-type-stubs@git+https://github.com/microsoft/python-type-stubs.git",
-
   # -------------------- other --------------------
   "openai",
+]
+
+[dependency-groups]
+dev = [
   "debugpy",
-  "pdm",
+  "microsoft-python-type-stubs@git+https://github.com/microsoft/python-type-stubs.git",
+  "pandas-stubs",
+  "pyright",
+  "pytest",
+  "ruff",
 ]
 
 # install self
 [build-system]
 requires = ["setuptools"]
-
-# pdm command
-[tool.pdm.scripts]
 
 # more setting refer to: https://microsoft.github.io/pyright/#/configuration?id=sample-pyprojecttoml-file
 [tool.pyright]

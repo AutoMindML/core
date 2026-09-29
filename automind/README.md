@@ -4,6 +4,10 @@ AutoMind core turns dataset metadata and an LLM recommendation into a fitted,
 replayable preprocessing pipeline. It also contains the Data Fusion Module
 (DFM), TPOT adapter, and experiment runner used to evaluate the paper's claims.
 
+This directory is an independent uv project. The [repository guide](../README.md)
+documents root-level `just` commands; from this directory, use
+`uv sync --locked --dev` to synchronize its development environment.
+
 ## Research pipeline
 
 `MetaGenerator.generate_compact_llm_query()` describes column names, types, and
