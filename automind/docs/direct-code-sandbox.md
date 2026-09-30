@@ -51,7 +51,13 @@ review the dependency change, run the isolation suite, and freeze a new profile.
 
 ## Prove the isolation boundary
 
-From `core/automind`, run:
+From `core/`, run:
+
+```powershell
+just experiment-sandbox-check
+```
+
+Or, from `core/automind`, run the underlying command directly:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest `

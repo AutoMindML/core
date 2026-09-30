@@ -66,8 +66,17 @@ just experiment-validate src/automind/configs/research/synthea-covid19-pilot.pro
 just experiment-dry-run src/automind/configs/research/synthea-covid19-pilot.protocol.json src/automind/data/csv/synthea_covid19_10k
 ```
 
-The v2 comparison protocol's dry run also performs a Podman preflight. The
-`experiment-run-live` and `experiment-resume-live` can call an LLM, train models,
-and write research output. Review the protocol and use explicit arguments when
-running them. Protocols and the research procedure are documented in the
+For the v2 comparison protocol, run the Podman isolation suite, then check
+protocol and dataset readiness with a dry run:
+
+```powershell
+just experiment-sandbox-check
+just experiment-dry-run src/automind/configs/research/novice-comparison-v2.protocol.json src/automind/data/csv/synthea_covid19_10k
+```
+
+The dry run should report `direct_code_ready: true` and
+`sandbox_readiness: ready`. The `experiment-run-live` and
+`experiment-resume-live` recipes can call an LLM, train models, and write
+research output. Review the protocol and use explicit arguments when running
+them. Protocols and the research procedure are documented in the
 [core guide](automind/README.md).

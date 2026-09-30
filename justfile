@@ -4,6 +4,7 @@ default: help
 
 help:
     @Write-Output "Core recipes: sync, build, test, lint, typecheck, api-live, experiment-*"
+    @Write-Output "experiment-sandbox-check runs the Podman isolation suite."
     @Write-Output "experiment-dry-run performs protocol and Podman preflight checks."
 
 sync: api-sync automind-sync
@@ -54,6 +55,9 @@ experiment-help:
 
 experiment-validate protocol dataset_root:
     Set-Location automind; uv run --locked --group dev --no-sync automind-experiment validate {{ quote(protocol) }} --dataset-root {{ quote(dataset_root) }}
+
+experiment-sandbox-check:
+    Set-Location automind; uv run --locked --group dev --no-sync -m pytest src/automind/tests/test_podman_sandbox.py -v
 
 experiment-dry-run protocol dataset_root="":
     Set-Location automind; uv run --locked --group dev --no-sync automind-experiment dry-run {{ quote(protocol) }} {{ if dataset_root != "" { "--dataset-root " + quote(dataset_root) } else { "" } }}
