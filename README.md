@@ -71,12 +71,22 @@ protocol and dataset readiness with a dry run:
 
 ```powershell
 just experiment-sandbox-check
-just experiment-dry-run src/automind/configs/research/novice-comparison-v2.protocol.json src/automind/data/csv/synthea_covid19_10k
+just experiment-dry-run src/automind/configs/research/novice-comparison-v2-confirmatory.protocol.json src/automind/data/csv/synthea_covid19_10k
 ```
 
 The dry run should report `direct_code_ready: true` and
 `sandbox_readiness: ready`. The `experiment-run-live` and
 `experiment-resume-live` recipes can call an LLM, train models, and write
 research output. Review the protocol and use explicit arguments when running
-them. Protocols and the research procedure are documented in the
+them. Start the confirmatory v2 protocol with `experiment-run-live`; use
+`experiment-resume-live` with the same arguments after an interrupted run:
+
+```powershell
+just experiment-run-live src/automind/configs/research/novice-comparison-v2-confirmatory.protocol.json src/automind/data/csv/synthea_covid19_10k
+just experiment-resume-live src/automind/configs/research/novice-comparison-v2-confirmatory.protocol.json src/automind/data/csv/synthea_covid19_10k
+```
+
+The confirmatory v2 protocol uses a separate output root because the earlier
+v2 root contains results with a different run identity. Protocols and the
+research procedure are documented in the
 [core guide](automind/README.md).
