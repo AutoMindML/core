@@ -1,7 +1,7 @@
 # AutoMind API
 
-[![Python 3.10](https://img.shields.io/badge/python-3.10-3776AB?logo=python&logoColor=white)](.python-version)
-[![uv](https://img.shields.io/badge/managed%20with-uv-6C8CFF?logo=uv&logoColor=white)](uv.lock)
+[![Python 3.10](https://img.shields.io/badge/python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![uv package manager](https://img.shields.io/badge/uv-package%20manager-6C8CFF.svg)](https://docs.astral.sh/uv/)
 
 `automind-api` is the FastAPI service for dataset metadata, preprocessing, and model
 operations. It uses the adjacent `automind` package in editable mode, SQL Server for

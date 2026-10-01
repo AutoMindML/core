@@ -1,8 +1,7 @@
 # AutoMind Core
 
-[![Python 3.10](https://img.shields.io/badge/python-3.10-3776AB?logo=python&logoColor=white)](automind/.python-version)
-[![uv](https://img.shields.io/badge/managed%20with-uv-6C8CFF?logo=uv&logoColor=white)](justfile)
-[![Core MIT License](https://img.shields.io/badge/license-MIT-2ea44f)](automind/LICENSE)
+[![Python 3.10](https://img.shields.io/badge/python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![uv package manager](https://img.shields.io/badge/uv-package%20manager-6C8CFF.svg)](https://docs.astral.sh/uv/)
 
 AutoMind Core is a two-package workspace for LLM-assisted preprocessing and model
 workflows. `automind` is the reusable Python package and experiment runner;

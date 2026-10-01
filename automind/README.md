@@ -1,8 +1,7 @@
 # AutoMind core
 
-[![Python 3.10](https://img.shields.io/badge/python-3.10-3776AB?logo=python&logoColor=white)](.python-version)
-[![uv](https://img.shields.io/badge/managed%20with-uv-6C8CFF?logo=uv&logoColor=white)](uv.lock)
-[![Core MIT License](https://img.shields.io/badge/license-MIT-2ea44f)](LICENSE)
+[![Python 3.10](https://img.shields.io/badge/python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![uv package manager](https://img.shields.io/badge/uv-package%20manager-6C8CFF.svg)](https://docs.astral.sh/uv/)
 
 The `automind` package turns dataset metadata and an LLM recommendation into a fitted,
 replayable preprocessing pipeline. It also provides data fusion, feature preparation, a
