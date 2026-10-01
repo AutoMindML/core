@@ -1,15 +1,18 @@
 from types import SimpleNamespace
 
-from automind.service.llm import LLMRequest, OpenAICompatibleProvider
+import pytest
+
+from automind.service.llm import (
+    LLMCompletionError,
+    LLMRequest,
+    OpenAICompatibleProvider,
+)
 
 
 class _FakeCompletions:
-    def __init__(self):
+    def __init__(self, response=None):
         self.kwargs = None
-
-    def create(self, **kwargs):
-        self.kwargs = kwargs
-        return SimpleNamespace(
+        self.response = response or SimpleNamespace(
             model="qwen3.5:9b",
             choices=[
                 SimpleNamespace(
@@ -24,10 +27,14 @@ class _FakeCompletions:
             ),
         )
 
+    def create(self, **kwargs):
+        self.kwargs = kwargs
+        return self.response
+
 
 class _FakeClient:
-    def __init__(self):
-        self.completions = _FakeCompletions()
+    def __init__(self, response=None):
+        self.completions = _FakeCompletions(response)
         self.chat = SimpleNamespace(completions=self.completions)
 
 
@@ -63,3 +70,65 @@ def test_openai_compatible_provider_returns_traceable_response():
         "seed": 42,
         "extra_body": {"think": False},
     }
+
+
+@pytest.mark.parametrize("content", ["", "partial"])
+def test_length_finish_reason_always_raises_with_diagnostics(content):
+    client = _FakeClient(
+        SimpleNamespace(
+            model="qwen3.5:9b",
+            choices=[
+                SimpleNamespace(
+                    finish_reason="length",
+                    message=SimpleNamespace(content=content),
+                )
+            ],
+            usage=SimpleNamespace(
+                prompt_tokens=12,
+                completion_tokens=256,
+                total_tokens=268,
+                completion_tokens_details=SimpleNamespace(reasoning_tokens=31),
+            ),
+        )
+    )
+
+    with pytest.raises(LLMCompletionError) as raised:
+        OpenAICompatibleProvider(client).complete(
+            LLMRequest(prompt="p", model="m", max_tokens=256)
+        )
+
+    error = raised.value
+    assert error.reason == "output_limit"
+    assert error.diagnostics["requested_max_tokens"] == 256
+    assert error.diagnostics["finish_reason"] == "length"
+    assert error.diagnostics["usage"]["reasoning_tokens"] == 31
+    assert error.diagnostics["returned_model"] == "qwen3.5:9b"
+    assert error.diagnostics["content_present"] is bool(content)
+    assert error.diagnostics["content_length"] == len(content)
+
+
+def test_empty_content_raises_structured_error():
+    client = _FakeClient(
+        SimpleNamespace(
+            model="qwen3.5:9b",
+            choices=[
+                SimpleNamespace(
+                    finish_reason="stop", message=SimpleNamespace(content=None)
+                )
+            ],
+            usage=SimpleNamespace(
+                prompt_tokens=3, completion_tokens=0, total_tokens=3
+            ),
+        )
+    )
+
+    with pytest.raises(LLMCompletionError) as raised:
+        OpenAICompatibleProvider(client).complete(
+            LLMRequest(prompt="p", model="m", max_tokens=10)
+        )
+
+    error = raised.value
+    assert error.reason == "empty_content"
+    assert error.diagnostics["finish_reason"] == "stop"
+    assert error.diagnostics["content_present"] is False
+    assert error.diagnostics["content_length"] == 0

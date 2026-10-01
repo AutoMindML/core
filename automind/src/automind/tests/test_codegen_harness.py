@@ -132,6 +132,8 @@ def test_direct_code_contract_is_versioned_and_names_reserved_identity():
     assert contract.version == "direct-code-v2"
     assert "__automind_row_id" in prompt
     assert "transform input never includes the target" in prompt
+    assert "expected_transform_columns" in prompt
+    assert "including the reserved row identity" in prompt
     assert contract.digest()
 
 

@@ -11,6 +11,7 @@ from pandas import DataFrame
 from sklearn.model_selection import train_test_split
 
 from automind.experiments.evaluation import classification_metrics
+from automind.experiments.progress import ProgressReporter
 from automind.pipeline import PreprocessingPipeline
 from automind.service.config import LLMSettings
 from automind.service.llm import LLMProvider, LLMRequest, LLMResponse
@@ -66,9 +67,11 @@ class ExperimentRunner:
         self,
         provider: LLMProvider,
         model_factory: Callable[[int], Any],
+        progress: ProgressReporter | None = None,
     ) -> None:
         self.provider = provider
         self.model_factory = model_factory
+        self.progress = progress or ProgressReporter()
 
     def run(
         self,
@@ -85,6 +88,10 @@ class ExperimentRunner:
 
         responses: list[LLMResponse | Exception] = []
         for run_index in range(protocol.repetitions):
+            self.progress.emit(
+                "task_started", scope=f"run_{run_index:03d}",
+                completed=run_index, total=protocol.repetitions,
+            )
             try:
                 response = self.provider.complete(
                     LLMRequest(
@@ -119,6 +126,10 @@ class ExperimentRunner:
                     },
                 )
                 responses.append(error)
+            self.progress.emit(
+                "task_completed", scope=f"run_{run_index:03d}",
+                completed=run_index + 1, total=protocol.repetitions,
+            )
 
         report = self._execute(frame, protocol, responses)
         self._write_json(output_dir / "metrics.json", report)

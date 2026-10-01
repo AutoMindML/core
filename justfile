@@ -63,10 +63,10 @@ experiment-dry-run protocol dataset_root="":
     Set-Location automind; uv run --locked --group dev --no-sync automind-experiment dry-run {{ quote(protocol) }} {{ if dataset_root != "" { "--dataset-root " + quote(dataset_root) } else { "" } }}
 
 experiment-run-live protocol dataset_root:
-    Set-Location automind; uv run --locked --group dev --no-sync automind-experiment run {{ quote(protocol) }} --dataset-root {{ quote(dataset_root) }}
+    Set-Location automind; uv run --locked --group dev --no-sync automind-experiment run {{ quote(protocol) }} --dataset-root {{ quote(dataset_root) }}; if ($LASTEXITCODE -eq 130) { Write-Output 'Experiment interrupted; use experiment-resume-live to continue.'; exit 0 }; exit $LASTEXITCODE
 
 experiment-resume-live protocol dataset_root:
-    Set-Location automind; uv run --locked --group dev --no-sync automind-experiment resume {{ quote(protocol) }} --dataset-root {{ quote(dataset_root) }}
+    Set-Location automind; uv run --locked --group dev --no-sync automind-experiment resume {{ quote(protocol) }} --dataset-root {{ quote(dataset_root) }}; if ($LASTEXITCODE -eq 130) { Write-Output 'Experiment interrupted; use experiment-resume-live to continue.'; exit 0 }; exit $LASTEXITCODE
 
 experiment-summarize output_root:
     Set-Location automind; uv run --locked --group dev --no-sync automind-experiment summarize {{ quote(output_root) }}

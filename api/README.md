@@ -1,34 +1,71 @@
 # AutoMind API
 
-The FastAPI service coordinates datasets in SQL Server, core preprocessing, and
-MindsDB model operations. Metadata generation uses the shared
-`OpenAICompatibleProvider`; it does not create a remote client during import.
+[![Python 3.10](https://img.shields.io/badge/python-3.10-3776AB?logo=python&logoColor=white)](.python-version)
+[![uv](https://img.shields.io/badge/managed%20with-uv-6C8CFF?logo=uv&logoColor=white)](uv.lock)
 
-This directory is an independent uv project that installs the adjacent
-`automind` package in editable mode. The [repository guide](../README.md)
-documents root-level `just` commands. To synchronize only the API development
-environment from this directory, run `uv sync --locked --dev`.
+`automind-api` is the FastAPI service for dataset metadata, preprocessing, and model
+operations. It uses the adjacent `automind` package in editable mode, SQL Server for
+application data, and MindsDB for model operations.
 
-Copy `.env.example` to `.env` and set the connection values. The selected JSON
-profile supplies versioned inference parameters; environment variables may
-override them. Configuration precedence is defaults, profile, environment, then
-explicit caller overrides. Real dotenv files are excluded from Git.
-
-`POST /metadata/{dataset_id}` accepts `target_column`, `force`, and `task_type`.
-The task type is `CLASSIFICATION`, `MULTICLASS_CLASSIFICATION`, or `REGRESSION`.
-The stored LLM envelope includes schema version, content, model, finish reason,
-token usage, and elapsed time. Existing Azure/OpenAI-style stored responses are
-still readable.
-
-Saving preprocessing results splits the source data first, fits preprocessing on
-the training partition, applies SMOTE only to training data, and transforms the
-validation partition with the frozen feature schema.
-
-Run isolated API tests from this directory:
+This directory is an independent `uv` project. From here:
 
 ```powershell
-uv run -m pytest src/automind_api/tests/test_llm_service.py src/automind_api/tests/test_metadata_controller.py -q
+uv sync --locked --dev
 ```
 
-These tests use fake LLM and persistence boundaries and do not start the API,
-connect to SQL Server, or call MindsDB.
+## Configure the service
+
+Copy `.env.example` to `.env` and set the LLM profile and provider values. Configure the
+SQL Server and MindsDB hosts, ports, credentials, and API binding in
+`src/automind_api/configs/server.json`. The application reads that file relative to the
+`api` working directory. Keep private credentials out of Git.
+
+Startup opens connections to SQL Server and MindsDB. It is a live operation with
+external side effects and requires those services, the configured ODBC driver, and the
+separate MindsDB environment:
+
+```powershell
+uv run --locked --no-sync start.py
+```
+
+From the repository root, `just api-live` runs the same orchestration.
+
+## Metadata API
+
+Metadata routes are mounted under `/api/automl/metadata/{dataset_id}`. The generation
+route is:
+
+```text
+POST /api/automl/metadata/{dataset_id}?target_column=<column>&task_type=CLASSIFICATION&force=false
+```
+
+`task_type` accepts `CLASSIFICATION`, `MULTICLASS_CLASSIFICATION`, or `REGRESSION`.
+The service uses the request's `X-User-Id` session header and returns the existing
+`state`, `message`, and `new_id` response semantics. The same route prefix provides
+`GET /{dataset_id}` for the prompt and `GET /{dataset_id}/status` for generation and
+applier status.
+
+Metadata generation reads the dataset from SQL Server and calls the configured LLM
+provider. Saving preprocessing results splits first, fits on training data, applies
+SMOTE only to training data, and transforms validation data with the frozen feature
+schema.
+
+## Isolated checks
+
+Run the API controller and service tests without starting external services:
+
+```powershell
+uv run --locked --group dev --no-sync -m pytest `
+  src/automind_api/tests/test_applier_controller.py `
+  src/automind_api/tests/test_llm_service.py `
+  src/automind_api/tests/test_metadata_controller.py -q
+uv run --locked --group dev --no-sync ruff check src
+uv run --locked --group dev --no-sync pyright
+```
+
+The tests use fake LLM and persistence boundaries. Manual integration scripts under
+`src/automind_api/tests/` require configured SQL Server and MindsDB and are not isolated
+tests.
+
+See the [repository guide](../README.md) for root commands and the
+[core guide](../automind/README.md) for preprocessing contracts and research workflows.

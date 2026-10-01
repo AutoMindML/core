@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
@@ -14,6 +15,8 @@ from typing import Literal, Protocol
 import pandas as pd
 from pandas import DataFrame, Series
 from pandas.api import types as ptypes
+
+from automind.experiments.progress import ProgressEvent
 
 ROW_ID = "__automind_row_id"
 DIRECT_CODE_CONTRACT_VERSION = "direct-code-v2"
@@ -38,6 +41,18 @@ class DirectCodeContract:
             "byte-for-byte and preserve order. Never drop, sort, cast, "
             "impute, encode, or use it as a predictor. Fit input includes "
             "the target; transform input never includes the target. The "
+            "target is not a transform feature or required transform "
+            "column. If fit state saves a column list containing the "
+            "target, keep the COMPLETE fit CSV column list as "
+            "fit_input_columns = list(fit_df.columns), including the "
+            f"reserved {self.row_id!r}. Compute expected_transform_columns "
+            "= [name for name in fit_input_columns if name != target_name]. "
+            "The complete transform CSV column list, including the reserved "
+            "row identity, must equal expected_transform_columns in order. "
+            "Compute output feature columns separately by excluding both "
+            "the target and reserved row identity. Never compare the "
+            "complete transform CSV columns with that feature-only list, "
+            "and never invent a target value for transform. The "
             "declared column order and names are exact: do not add, remove, "
             "rename, reorder, or infer columns. Preserve "
             "the target unchanged in fit output. Fit and transform must emit "
@@ -233,11 +248,16 @@ class PodmanSandboxExecutor:
     """Execute one request in a fresh, networkless Podman container."""
 
     def __init__(
-        self, profile: SandboxExecutorProfile, *, binary: str = "podman"
+        self,
+        profile: SandboxExecutorProfile,
+        *,
+        binary: str = "podman",
+        progress: Callable[[ProgressEvent], None] | None = None,
     ):
         self.profile = profile
         self.image = profile.image
         self.binary = binary
+        self.progress = progress
 
     def preflight(self, policy: SandboxPolicy) -> None:
         if policy != self.profile.policy:
@@ -377,6 +397,12 @@ class PodmanSandboxExecutor:
         started = time.perf_counter()
         container = self._container_name(request)
         category = None
+        status = "failed"
+        exit_code = None
+        stdout = ""
+        stderr = ""
+        process = None
+        readers: list[threading.Thread] = []
         cleanup = True
         stdout_buffer = bytearray()
         stderr_buffer = bytearray()
@@ -448,7 +474,7 @@ class PodmanSandboxExecutor:
                         process.kill()
                     break
                 time.sleep(0.02)
-            process.wait()
+            process.wait(timeout=5)
             for reader in readers:
                 reader.join(timeout=2)
             if overflow.is_set() or writable_bytes() > (
@@ -465,24 +491,52 @@ class PodmanSandboxExecutor:
             if status != "succeeded" and category is None:
                 category = "nonzero"
             exit_code = process.returncode
+        except KeyboardInterrupt:
+            # Reap the client promptly; the bounded finally block removes the
+            # container even when the client has stopped responding.
+            if process is not None:
+                try:
+                    process.kill()
+                    process.wait(timeout=2)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+            raise
         except OSError as error:
             status, category, exit_code = "failed", "engine", None
             stdout, stderr = "", str(error)
         finally:
+            for reader in readers:
+                reader.join(timeout=2)
+            if process is not None:
+                for stream in (process.stdout, process.stderr):
+                    if stream is not None:
+                        try:
+                            stream.close()
+                        except OSError:
+                            pass
             try:
                 removed = subprocess.run(
                     [self.binary, "rm", "-f", container],
                     capture_output=True,
                     check=False,
-                    timeout=15,
+                    timeout=5,
                 )
                 cleanup_error = removed.stderr.decode(errors="ignore").lower()
                 cleanup = (
                     removed.returncode == 0
                     or "no such container" in cleanup_error
                 )
-            except OSError:
+            except (OSError, subprocess.TimeoutExpired):
                 cleanup = False
+            if self.progress is not None and not cleanup:
+                self.progress(
+                    ProgressEvent(
+                        "cleanup_completed",
+                        scope=request.phase,
+                        message="sandbox cleanup failed",
+                        details={"succeeded": cleanup},
+                    )
+                )
         if not cleanup and status == "succeeded":
             status = "failed"
             category = "cleanup"
@@ -555,10 +609,12 @@ class DirectCodeHarness:
         *,
         policy: SandboxPolicy | None = None,
         contract: DirectCodeContract | None = None,
+        progress: Callable[[ProgressEvent], None] | None = None,
     ) -> None:
         self.executor = executor
         self.policy = policy or SandboxPolicy()
         self.contract = contract or DirectCodeContract()
+        self.progress = progress
 
     def run(
         self,
@@ -630,6 +686,7 @@ class DirectCodeHarness:
             state_root,
             None,
         )
+        self._emit("fit_started", str(run_root), 0, 1)
         fit_execution = self.executor.execute(
             CodeExecutionRequest(
                 phase="fit",
@@ -659,6 +716,7 @@ class DirectCodeHarness:
             raise ValueError("executor returned a negative elapsed time")
         transformed_train = self._read_output(train_output_path, "training")
         self._validate_fit_output(transformed_train, train_input, target_column)
+        self._emit("fit_completed", str(run_root), 1, 1)
         fit_feature_schema = tuple(
             column
             for column in transformed_train.columns
@@ -672,6 +730,9 @@ class DirectCodeHarness:
         transformed_rows = []
         transform_executions = []
         for position in range(len(holdout_input)):
+            self._emit(
+                "row_started", str(run_root), position, len(holdout_input)
+            )
             row_root = transform_root / f"row_{position:08d}"
             row_input_root = row_root / "input"
             row_output_root = row_root / "output"
@@ -728,6 +789,10 @@ class DirectCodeHarness:
                 fit_feature_schema,
             )
             transformed_rows.append(transformed)
+            self._emit(
+                "row_completed", str(run_root),
+                position + 1, len(holdout_input),
+            )
         measured_elapsed = time.perf_counter() - started
 
         transformed_holdout = pd.concat(transformed_rows, ignore_index=True)
@@ -760,6 +825,16 @@ class DirectCodeHarness:
             execution=normalized_execution,
             code_sha256=hashlib.sha256(code.encode()).hexdigest(),
         )
+
+    def _emit(
+        self, kind: str, scope: str, completed: int, total: int
+    ) -> None:
+        if self.progress is not None:
+            self.progress(
+                ProgressEvent(
+                    kind, scope=scope, completed=completed, total=total
+                )
+            )
 
     def probe(
         self,

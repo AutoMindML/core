@@ -15,6 +15,7 @@ from automind.data_utils import MetaGenerator
 from automind.engine.tpot_engine import TPOTEngine
 from automind.experiments.artifacts import RunArtifactStore
 from automind.experiments.evaluation import classification_metrics
+from automind.experiments.progress import ProgressReporter
 from automind.experiments.protocol import Condition, ResearchProtocol
 from automind.experiments.synthea_adapter import SyntheaDatasetAdapter
 from automind.models.preprocessing import TaskType
@@ -35,6 +36,7 @@ class SyntheaPilotRunner:
         *,
         settings: LLMSettings | None = None,
         provider: LLMProvider | None = None,
+        progress: ProgressReporter | None = None,
     ) -> None:
         self.protocol = protocol
         self.dataset_root = dataset_root
@@ -46,6 +48,7 @@ class SyntheaPilotRunner:
             api_key=self.settings.api_key,
             timeout_seconds=self.settings.timeout_seconds,
         )
+        self.progress = progress or ProgressReporter()
 
     def run(self, *, resume: bool = True) -> dict[str, Any]:
         requested_conditions = set(self.protocol.conditions)
@@ -67,6 +70,11 @@ class SyntheaPilotRunner:
         frames = self._load_frames()
         all_runs = []
         for split_seed in self.protocol.split_seeds:
+            self.progress.emit(
+                "split_started", scope=f"seed_{split_seed}",
+                completed=self.protocol.split_seeds.index(split_seed),
+                total=len(self.protocol.split_seeds),
+            )
             train, test, data_audit = self._prepare_partitions(
                 frames, split_seed
             )
@@ -91,6 +99,10 @@ class SyntheaPilotRunner:
                 store.write_json("prompt.json", {"prompt": prompt})
                 store.event(
                     "running", "starting paired conditions", stage="experiment"
+                )
+                self.progress.emit(
+                    "observation_started", scope=str(run_root),
+                    completed=repetition, total=self.protocol.repetitions,
                 )
                 response = None
                 llm_error = None
@@ -205,6 +217,10 @@ class SyntheaPilotRunner:
                     "succeeded",
                     "paired conditions completed",
                     stage="experiment",
+                )
+                self.progress.emit(
+                    "observation_completed", scope=str(run_root),
+                    completed=repetition + 1, total=self.protocol.repetitions,
                 )
                 all_runs.append(results)
         report = self.summarize(all_runs)

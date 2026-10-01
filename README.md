@@ -1,32 +1,44 @@
 # AutoMind Core
 
-AutoMind Core contains the reusable `automind` Python package and the FastAPI
-`automind-api` service. The API coordinates preprocessing, SQL Server data, and
-MindsDB model operations. The core package also contains the research experiment
-runner. See the [core guide](automind/README.md) and [API guide](api/README.md)
-for their respective workflows.
+[![Python 3.10](https://img.shields.io/badge/python-3.10-3776AB?logo=python&logoColor=white)](automind/.python-version)
+[![uv](https://img.shields.io/badge/managed%20with-uv-6C8CFF?logo=uv&logoColor=white)](justfile)
+[![Core MIT License](https://img.shields.io/badge/license-MIT-2ea44f)](automind/LICENSE)
 
-The two directories are **separate uv projects** with their own `pyproject.toml`,
-`uv.lock`, and `.venv`. The API installs `../automind` as an editable local
-dependency. There is no Python project at this repository root.
+AutoMind Core is a two-package workspace for LLM-assisted preprocessing and model
+workflows. `automind` is the reusable Python package and experiment runner;
+`automind-api` is the FastAPI service that connects preprocessing to SQL Server and
+MindsDB.
 
-## Get started
+The packages are separate `uv` projects. Each has its own `pyproject.toml`, `uv.lock`,
+and `.venv`. The API uses the adjacent core package as an editable dependency. There is
+no Python project at the repository root.
 
-On Windows, install Python 3.10, [uv](https://docs.astral.sh/uv/), and
-[just](https://github.com/casey/just). From this repository root, synchronize
-both locked development environments and list the available commands:
+## Choose a workflow
+
+- [Core package and research workflows](automind/README.md)
+- [API service and metadata endpoint](api/README.md)
+- [Direct-code sandbox procedure](automind/docs/direct-code-sandbox.md)
+
+## Prerequisites
+
+Install Python 3.10, [uv](https://docs.astral.sh/uv/), and
+[`just`](https://github.com/casey/just) to use the commands below. Research direct code
+additionally requires Podman and the local Synthea fixture described in the core guide.
+
+## Set up and check the workspace
+
+From this directory, synchronize both locked development environments:
 
 ```powershell
 just sync
 just --list
 ```
 
-`just sync` writes to `api/.venv` and `automind/.venv` and may download packages.
-The `justfile` runs each command in its owning project directory. To work without
-just, run `uv sync --locked --dev` separately from `automind/` and `api/`, or run
-the repository's `setup.ps1` from PowerShell.
+The command list confirms that `just` can read this workspace. Sync downloads
+dependencies and writes `automind/.venv` and `api/.venv`. Without `just`, run
+`uv sync --locked --dev` separately from each package directory.
 
-Run the isolated checks and build both package distributions:
+Run the isolated checks and builds with:
 
 ```powershell
 just test
@@ -35,58 +47,43 @@ just typecheck
 just build
 ```
 
-The core tests need the untracked Synthea CSV fixtures under
-`automind/src/automind/data/csv/synthea_covid19_10k/`. The default test recipes
-exclude live LLM, TPOT smoke, and Podman sandbox tests. API tests use fake
-external services; manual integration scripts are excluded. The build recipe
-writes package archives under the ignored `dist/` directory.
+Core research tests read the untracked Synthea CSV files under
+`automind/src/automind/data/csv/synthea_covid19_10k/`. The default recipes exclude live
+LLM, TPOT smoke, and Podman integration tests. Builds write archives under the ignored
+root `dist/` directory.
 
-## Run the service
+## Run the API locally
 
-Copy `api/.env.example` to `api/.env` and configure the local SQL Server and
-MindsDB connections before starting the service. From the repository root:
+Copy `api/.env.example` to `api/.env`, set the LLM values, and configure the SQL Server
+and MindsDB connections in `api/src/automind_api/configs/server.json`. The service
+startup connects to those systems, so starting it is a live operation with external side
+effects:
 
 ```powershell
 just api-live
 ```
 
-This calls `api/start.py`, which starts both the API and the external MindsDB
-environment. Startup can connect to SQL Server, start MindsDB jobs, and apply
-its own migrations. See the [API guide](api/README.md) for service details.
+Use the [API guide](api/README.md) for the mounted routes and request examples.
 
-## Run experiments
+## Validate or run the research protocol
 
-The `justfile` exposes experiment validation, dry run, execution, resume,
-summary, and replay recipes. Protocol and dataset paths passed to these recipes
-are relative to `automind/` unless absolute paths are supplied. For example,
-with the local Synthea files present:
+The maintained research preset is
+`automind/src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json`.
+It runs the direct-code condition using the Synthea dataset manifest. From the
+repository root:
 
 ```powershell
-just experiment-validate src/automind/configs/research/synthea-covid19-pilot.protocol.json src/automind/data/csv/synthea_covid19_10k
-just experiment-dry-run src/automind/configs/research/synthea-covid19-pilot.protocol.json src/automind/data/csv/synthea_covid19_10k
+just experiment-validate src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json src/automind/data/csv/synthea_covid19_10k
+just experiment-dry-run src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json src/automind/data/csv/synthea_covid19_10k
 ```
 
-For the v2 comparison protocol, run the Podman isolation suite, then check
-protocol and dataset readiness with a dry run:
+Validation and dry run inspect local files and sandbox readiness. Running or resuming
+the protocol calls the configured LLM, executes generated code in the Podman sandbox,
+and writes research artifacts; review the
+[sandbox guide](automind/docs/direct-code-sandbox.md) before using `experiment-run-live`
+or `experiment-resume-live`.
 
-```powershell
-just experiment-sandbox-check
-just experiment-dry-run src/automind/configs/research/novice-comparison-v2-confirmatory.protocol.json src/automind/data/csv/synthea_covid19_10k
-```
+## Development
 
-The dry run should report `direct_code_ready: true` and
-`sandbox_readiness: ready`. The `experiment-run-live` and
-`experiment-resume-live` recipes can call an LLM, train models, and write
-research output. Review the protocol and use explicit arguments when running
-them. Start the confirmatory v2 protocol with `experiment-run-live`; use
-`experiment-resume-live` with the same arguments after an interrupted run:
-
-```powershell
-just experiment-run-live src/automind/configs/research/novice-comparison-v2-confirmatory.protocol.json src/automind/data/csv/synthea_covid19_10k
-just experiment-resume-live src/automind/configs/research/novice-comparison-v2-confirmatory.protocol.json src/automind/data/csv/synthea_covid19_10k
-```
-
-The confirmatory v2 protocol uses a separate output root because the earlier
-v2 root contains results with a different run identity. Protocols and the
-research procedure are documented in the
-[core guide](automind/README.md).
+Package-specific commands, data contracts, protocol details, and contribution guidance
+are in the [core guide](automind/README.md) and [API guide](api/README.md).

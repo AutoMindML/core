@@ -4,6 +4,7 @@ import json
 from collections.abc import Sequence
 from pathlib import Path
 
+from automind.experiments.progress import ProgressReporter, stderr_renderer
 from automind.experiments.protocol import (
     DatasetManifest,
     NoviceComparisonProtocol,
@@ -30,6 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    progress = ProgressReporter(stderr_renderer())
     if args.command == "replay-v2":
         if args.output_root.exists() and any(args.output_root.iterdir()):
             raise ValueError("replay destination must be empty")
@@ -192,28 +194,42 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         if args.dataset_root is None:
             raise ValueError("run/resume requires --dataset-root")
-        if isinstance(protocol, NoviceComparisonProtocol):
-            from automind.experiments.orchestration import (
-                NoviceComparisonStudy,
-            )
+        try:
+            if isinstance(protocol, NoviceComparisonProtocol):
+                from automind.experiments.orchestration import (
+                    NoviceComparisonStudy,
+                )
 
-            payload = NoviceComparisonStudy(protocol, args.dataset_root).run(
-                resume=args.command == "resume"
-            )
-        else:
-            from automind.experiments.synthea_pilot import SyntheaPilotRunner
+                payload = NoviceComparisonStudy(
+                    protocol, args.dataset_root, progress=progress
+                ).run(resume=args.command == "resume")
+            else:
+                from automind.experiments.synthea_pilot import (
+                    SyntheaPilotRunner,
+                )
 
-            payload = SyntheaPilotRunner(protocol, args.dataset_root).run(
-                resume=args.command == "resume"
+                payload = SyntheaPilotRunner(
+                    protocol, args.dataset_root, progress=progress
+                ).run(resume=args.command == "resume")
+        except KeyboardInterrupt:
+            import sys
+
+            print(
+                "Experiment interrupted; "
+                f"current={progress.summary()}; partial artifacts were "
+                "preserved and can be resumed.",
+                file=sys.stderr,
             )
+            return 130
     print(json.dumps(payload, indent=2, sort_keys=True))
-    if args.command in {"run", "resume"} and isinstance(
-        protocol, NoviceComparisonProtocol
-    ):
-        if any(
+    if (
+        args.command in {"run", "resume"}
+        and isinstance(protocol, NoviceComparisonProtocol)
+        and any(
             condition.get("status") == "failed"
             for run in payload["runs"]
             for condition in run["conditions"].values()
-        ):
-            return 1
+        )
+    ):
+        return 1
     return 0

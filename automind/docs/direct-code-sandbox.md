@@ -1,34 +1,30 @@
 # Podman direct-code sandbox
 
-This procedure prepares the OCI sandbox used by the version-2 `direct_code`
-research condition. It was verified on Windows 11 with Podman client 5.8.3,
-Podman server 5.8.7, a rootless WSL2 machine, cgroup v2, `crun`, and seccomp.
-Other hosts must pass the same integration tests before running an experiment.
+The version 2 `direct_code` condition executes generated Python through a disposable
+Podman container. The sandbox policy disables network access, withholds host secrets and
+workspace mounts, limits resources, and separates read-only fit state from writable
+outputs. The experiment runner performs a preflight check against the pinned image and
+runtime profile before execution.
 
-## Install Podman on Windows
+## Prerequisites
 
-Install the official Red Hat package through WinGet:
-
-```powershell
-winget install --id RedHat.Podman --exact --source winget `
-  --accept-package-agreements --accept-source-agreements
-```
-
-Open a new PowerShell session, then initialize and start a rootless machine:
+Install a supported Podman release for your host and create a machine with enough CPU,
+memory, disk, cgroup v2, and seccomp support for the configured profile. Verify the host
+with:
 
 ```powershell
-podman machine init --cpus 2 --memory 4096 --disk-size 30
-podman machine start
 podman info
 ```
 
-`podman info` must report cgroup v2 with the CPU, memory, and PID controllers,
-and seccomp must be enabled. Do not continue if those controls are unavailable.
+The `podman-automind-py310-v1` sandbox profile requires the `crun` runtime and pins
+the image `localhost/automind-sandbox` by digest. The build tag below is
+`localhost/automind-sandbox:py310-v1`; do not edit a protocol to accept an unreviewed
+image.
 
-## Build and verify the research image
+## Build the pinned image
 
-Run these commands from `core/automind`. The timestamp is fixed so the local
-OCI image has the protocol-pinned digest:
+From `automind/`, build the repository's sandbox image with the reproducible timestamp
+used by the profile:
 
 ```powershell
 podman build --pull=never --timestamp 0 `
@@ -39,49 +35,47 @@ podman image inspect localhost/automind-sandbox:py310-v1 `
   --format '{{.Digest}}'
 ```
 
-The expected digest is:
+Compare the resulting digest with `default_sandbox_profile()` in
+`src/automind/experiments/codegen.py`. A mismatch requires reviewing the image inputs
+and freezing a new profile before research execution.
 
-```text
-sha256:686146376d8afa0abc8eec0f44245c0e6eab6c63f456c146b8863bc515ba73df
-```
+## Check isolation
 
-The executor fails preflight if this digest or the configured Podman major
-version differs. Do not edit the profile to accept an unreviewed image; rebuild,
-review the dependency change, run the isolation suite, and freeze a new profile.
-
-## Prove the isolation boundary
-
-From `core/`, run:
+From the repository root, run the real-container suite only when Podman is available:
 
 ```powershell
 just experiment-sandbox-check
 ```
 
-Or, from `core/automind`, run the underlying command directly:
+The suite checks the positive pandas fit/transform path, network isolation, absence of
+host secrets and workspace mounts, read-only state, cleanup, timeouts, output limits,
+target preservation, row identity, and schema rules. It makes container and temporary
+output changes on the local experiment host.
+
+## Run a direct-code protocol
+
+The retained preset is
+`../src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json`.
+Validate the protocol and inspect readiness before any live request:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest `
-  src/automind/tests/test_podman_sandbox.py -v
+uv run --locked --group dev --no-sync automind-experiment dry-run `
+  src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json `
+  --dataset-root src/automind/data/csv/synthea_covid19_10k
 ```
 
-The tests exercise a real container and verify the positive pandas fit/transform
-path, disabled network access, absent host secrets and workspace mounts,
-read-only root and transform state, fit-state persistence, timeout cleanup, and
-explicit output-overflow reporting. Unit tests separately verify row identity,
-target preservation, one-row holdout transformation, duplicate-column rejection,
-and profile validation.
+A live run calls the configured LLM and executes generated code in the sandbox, so it
+can consume model resources and write under the protocol output root. Use the root
+`just experiment-run-live` and `just experiment-resume-live` recipes or the package CLI
+after reviewing the dry-run output.
 
-The sandbox is not ready merely because `podman info` or a hello-world container
-succeeds. Do not run the pilot or confirmatory matrix unless this integration
-suite passes on the experiment host with the pinned image.
+## Interruption and cleanup
 
-## Stop and restart
+Press Ctrl-C once to request interruption. The CLI records an interruption marker,
+cleans up the active container, and leaves completed observations for a matching resume.
+Resume restarts an interrupted observation from its beginning; individual LLM requests
+and holdout rows are not checkpointed.
 
-The machine may be stopped when experiments are not running:
-
-```powershell
-podman machine stop
-```
-
-Restart it with `podman machine start` and rerun the isolation suite before the
-next frozen experiment batch.
+When no experiment is running, the Podman machine may be stopped and restarted with the
+host's normal Podman commands. Rerun the isolation suite after a runtime or image change
+and before the next live batch.

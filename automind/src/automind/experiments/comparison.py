@@ -9,6 +9,7 @@ from pandas import DataFrame
 
 from automind.experiments.codegen import DirectCodeHarness
 from automind.experiments.evaluation import classification_metrics
+from automind.experiments.progress import ProgressReporter
 from automind.pipeline import PreprocessingPipeline
 from automind.pipeline.selection import (
     CandidatePlan,
@@ -65,6 +66,7 @@ class GuardedComparisonRunner:
         *,
         direct_code: str | None = None,
         direct_code_failure: dict[str, Any] | None = None,
+        progress: ProgressReporter | None = None,
     ) -> dict[str, Any]:
         target = config.target_column
         if target not in train or target not in holdout:
@@ -74,7 +76,12 @@ class GuardedComparisonRunner:
             "target_column": target,
             "conditions": {},
         }
-        for condition in config.conditions:
+        reporter = progress or ProgressReporter()
+        for condition_index, condition in enumerate(config.conditions):
+            reporter.emit(
+                "condition_started", scope=condition.value,
+                completed=condition_index, total=len(config.conditions),
+            )
             if (
                 condition == ComparisonCondition.DIRECT_CODE
                 and direct_code is None
@@ -84,6 +91,11 @@ class GuardedComparisonRunner:
                     "status": "failed",
                     **direct_code_failure,
                 }
+                reporter.emit(
+                    "condition_completed", scope=condition.value,
+                    completed=condition_index + 1, total=len(config.conditions),
+                    details={"status": "failed", "reason": direct_code_failure.get("reason")},
+                )
                 continue
             try:
                 result = self._run_condition(
@@ -95,17 +107,28 @@ class GuardedComparisonRunner:
                     run_root / condition.value,
                     direct_code,
                     direct_code_failure,
+                    reporter,
                 )
                 results["conditions"][condition.value] = {
                     "status": "succeeded",
                     **result,
                 }
+                reporter.emit(
+                    "condition_completed", scope=condition.value,
+                    completed=condition_index + 1, total=len(config.conditions),
+                    details={"status": "succeeded"},
+                )
             except Exception as error:  # noqa: BLE001
                 results["conditions"][condition.value] = {
                     "status": "failed",
                     "error_type": type(error).__name__,
                     "error": str(error),
                 }
+                reporter.emit(
+                    "condition_completed", scope=condition.value,
+                    completed=condition_index + 1, total=len(config.conditions),
+                    details={"status": "failed", "error_type": type(error).__name__},
+                )
         return results
 
     def _run_condition(
@@ -118,6 +141,7 @@ class GuardedComparisonRunner:
         condition_root: Path,
         direct_code: str | None,
         direct_code_failure: dict[str, Any] | None,
+        reporter: ProgressReporter,
     ) -> dict[str, Any]:
         target = config.target_column
         if condition == ComparisonCondition.DETERMINISTIC:
@@ -157,6 +181,12 @@ class GuardedComparisonRunner:
             selector = PlanSelector(
                 self.estimator_factory,
                 validation_context=self.validation_context,
+                progress=lambda kind, completed, total: reporter.emit(
+                    kind.split(":", 1)[-1],
+                    scope=kind.split(":", 1)[0],
+                    completed=completed,
+                    total=total,
+                ),
             )
             selected = next(
                 (
@@ -190,6 +220,12 @@ class GuardedComparisonRunner:
         selection = PlanSelector(
             self.estimator_factory,
             validation_context=validation_context,
+            progress=lambda kind, completed, total: reporter.emit(
+                kind.split(":", 1)[-1],
+                scope=kind.split(":", 1)[0],
+                completed=completed,
+                total=total,
+            ),
         ).select(train, target, candidates, config.selection)
         if (
             condition == ComparisonCondition.WITHOUT_FALLBACK

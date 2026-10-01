@@ -81,10 +81,12 @@ class PlanSelector:
         *,
         validator: CandidateValidator | None = None,
         validation_context: ValidationContext | None = None,
+        progress: Callable[[str, int | None, int | None], None] | None = None,
     ) -> None:
         self.estimator_factory = estimator_factory
         self.validator = validator
         self.validation_context = validation_context
+        self.progress = progress
 
     def select(
         self,
@@ -119,6 +121,7 @@ class PlanSelector:
         evaluations = []
         eligible: list[CandidateEvaluation] = []
         for candidate in candidates:
+            self._emit_progress("candidate_started", len(evaluations), len(candidates), candidate.candidate_id)
             reasons = self.validate_candidate(
                 training_frame, target_column, candidate.response
             )
@@ -165,6 +168,7 @@ class PlanSelector:
                         ],
                     )
                 )
+            self._emit_progress("candidate_completed", len(evaluations), len(candidates), candidate.candidate_id)
 
         best = max(
             eligible,
@@ -215,6 +219,7 @@ class PlanSelector:
         scorer = get_scorer(config.scorer)
         scores = []
         for fold_index, (train_index, test_index) in enumerate(splits):
+            self._emit_progress("fold_started", fold_index, len(splits), "cv")
             fold_train = frame.iloc[train_index]
             fold_test = frame.iloc[test_index]
             fitted: Preparation = (
@@ -231,7 +236,14 @@ class PlanSelector:
             scores.append(
                 float(scorer(model, prepared_test.X, prepared_test.y))
             )
+            self._emit_progress("fold_completed", fold_index + 1, len(splits), "cv")
         return scores
+
+    def _emit_progress(
+        self, kind: str, completed: int, total: int, scope: str
+    ) -> None:
+        if self.progress is not None:
+            self.progress(f"{scope}:{kind}", completed, total)
 
     def validate_candidate(
         self, frame: DataFrame, target_column: str, response: str

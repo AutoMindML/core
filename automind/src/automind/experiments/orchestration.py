@@ -7,6 +7,7 @@ import os
 import re
 import uuid
 from dataclasses import asdict, dataclass, replace
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,7 @@ from automind.experiments.comparison import (
     ComparisonConfig,
     GuardedComparisonRunner,
 )
+from automind.experiments.progress import ProgressReporter
 from automind.experiments.protocol import (
     NoviceComparisonProtocol,
     sha256_file,
@@ -72,11 +74,12 @@ class GenerationOutcome:
     timeout_seconds: float | None = None
     retry_limit: int | None = None
     context: str | None = None
+    diagnostics: dict[str, Any] | None = None
 
     def failure(self) -> dict[str, Any] | None:
         if self.status == "succeeded":
             return None
-        return {
+        failure = {
             "stage": self.stage,
             "reason": self.reason,
             "phase": self.phase,
@@ -85,6 +88,9 @@ class GenerationOutcome:
             "context": self.context,
             "root_exception": self.context,
         }
+        if self.diagnostics is not None:
+            failure["diagnostics"] = self.diagnostics
+        return failure
 
 
 class ComparisonExperiment:
@@ -95,12 +101,14 @@ class ComparisonExperiment:
         provider: LLMProvider,
         settings: LLMSettings,
         runner: GuardedComparisonRunner,
+        progress: ProgressReporter | None = None,
     ) -> None:
         self.provider = provider
         self.settings = settings
         self.runner = runner
         self.direct_code_contract = DirectCodeContract()
         self._attempt_journal_path: Path | None = None
+        self.progress = progress or ProgressReporter()
 
     def run(
         self,
@@ -117,9 +125,11 @@ class ComparisonExperiment:
         result_path = run_root / "result.json"
         attempts_path = run_root / "generation_attempts.json"
         state_path = run_root / "observation.state"
+        interruption_path = run_root / "interruption.json"
         if (
             (attempts_path.is_file() or state_path.is_file())
             and not result_path.is_file()
+            and not interruption_path.is_file()
         ):
             raise RuntimeError("occupied incomplete run root is indeterminate")
         if result_path.is_file():
@@ -145,6 +155,7 @@ class ComparisonExperiment:
                 run_root / "direct_code_metadata.json", direct_metadata
             )
         state_path.write_text("pending\n", encoding="utf-8")
+        self.progress.emit("observation_started", scope=str(run_root))
         attempts: list[dict[str, Any]] = []
         self._attempt_journal_path = run_root / "generation_attempts.json"
         direct_outcome = GenerationOutcome("not_requested")
@@ -158,27 +169,42 @@ class ComparisonExperiment:
             }
             for condition in comparison.conditions
         )
-        candidates = (
-            self._generate_candidates(metadata_prompt, generation, attempts)
-            if needs_candidates
-            else []
-        )
-        direct_code = None
-        if ComparisonCondition.DIRECT_CODE in comparison.conditions:
-            if direct_metadata is None:
-                raise ValueError("direct-code condition requires metadata")
-            direct_outcome = self._generate_code(
-                direct_metadata, generation.retry_limit, attempts
+        try:
+            candidates = (
+                self._generate_candidates(metadata_prompt, generation, attempts)
+                if needs_candidates
+                else []
             )
-        direct_code = direct_outcome.code
+            direct_code = None
+            if ComparisonCondition.DIRECT_CODE in comparison.conditions:
+                if direct_metadata is None:
+                    raise ValueError("direct-code condition requires metadata")
+                direct_outcome = self._generate_code(
+                    direct_metadata, generation.retry_limit, attempts
+                )
+            direct_code = direct_outcome.code
+        except KeyboardInterrupt:
+            _write_interruption(run_root, "generation")
+            self.progress.emit("interrupted", scope=str(run_root))
+            raise
         direct_code_failure = direct_outcome.failure()
         probe_result = None
         if direct_code is not None and self.runner.code_harness is not None:
-            probe_result = self.runner.code_harness.probe(
-                direct_code,
-                run_root / "direct_code_probe",
-                direct_metadata,
-                comparison.target_column,
+            self.progress.emit("probe_started", scope="direct_code")
+            try:
+                probe_result = self.runner.code_harness.probe(
+                    direct_code,
+                    run_root / "direct_code_probe",
+                    direct_metadata,
+                    comparison.target_column,
+                )
+            except KeyboardInterrupt:
+                _write_interruption(run_root, "probe")
+                self.progress.emit("interrupted", scope="direct_code")
+                raise
+            self.progress.emit(
+                "probe_completed", scope="direct_code",
+                details={"status": probe_result.status},
             )
             if probe_result.status != "succeeded":
                 direct_code_failure = {
@@ -193,15 +219,21 @@ class ComparisonExperiment:
                 }
                 direct_code = None
         _atomic_write_json(run_root / "generation_attempts.json", attempts)
-        result = self.runner.run(
-            train,
-            holdout,
-            candidates,
-            comparison,
-            run_root / "conditions",
-            direct_code=direct_code,
-            direct_code_failure=direct_code_failure,
-        )
+        try:
+            result = self.runner.run(
+                train,
+                holdout,
+                candidates,
+                comparison,
+                run_root / "conditions",
+                direct_code=direct_code,
+                direct_code_failure=direct_code_failure,
+                progress=self.progress,
+            )
+        except KeyboardInterrupt:
+            _write_interruption(run_root, "conditions")
+            self.progress.emit("interrupted", scope=str(run_root))
+            raise
         result["generation"] = {
             "candidate_requested": generation.candidate_count,
             "candidate_succeeded": len(candidates),
@@ -213,10 +245,15 @@ class ComparisonExperiment:
             "contract_digest": self.direct_code_contract.digest(),
             "attempts_path": "generation_attempts.json",
         }
-        (run_root / "result.json").write_text(
-            json.dumps(result, indent=2, sort_keys=True), encoding="utf-8"
-        )
-        state_path.write_text("completed\n", encoding="utf-8")
+        try:
+            _atomic_write_json(run_root / "result.json", result)
+            state_path.write_text("completed\n", encoding="utf-8")
+            interruption_path.unlink(missing_ok=True)
+            self.progress.emit("observation_completed", scope=str(run_root))
+        except KeyboardInterrupt:
+            _write_interruption(run_root, "finalization")
+            self.progress.emit("interrupted", scope=str(run_root))
+            raise
         return result
 
     def _generate_candidates(
@@ -227,6 +264,10 @@ class ComparisonExperiment:
     ) -> list[CandidatePlan]:
         candidates = []
         for index in range(config.candidate_count):
+            self.progress.emit(
+                "candidate_started", scope="candidate", completed=index,
+                total=config.candidate_count,
+            )
             response = self._attempt(
                 "candidate",
                 index,
@@ -238,6 +279,10 @@ class ComparisonExperiment:
                 candidates.append(
                     CandidatePlan(f"candidate-{index}", response.content)
                 )
+            self.progress.emit(
+                "candidate_completed", scope="candidate", completed=index + 1,
+                total=config.candidate_count,
+            )
         return candidates
 
     def replay_saved_completion(
@@ -357,7 +402,9 @@ class ComparisonExperiment:
             )
             error_text = str(failed.get("error", "provider failure"))
             lowered = error_text.lower()
-            if "timed out" in lowered or "timeout" in lowered:
+            if failed.get("reason") in {"output_limit", "empty_content"}:
+                reason = failed["reason"]
+            elif "timed out" in lowered or "timeout" in lowered:
                 reason = "timeout"
             elif "502" in lowered or "bad gateway" in lowered:
                 reason = "http_502"
@@ -375,6 +422,7 @@ class ComparisonExperiment:
                 timeout_seconds=self.settings.timeout_seconds,
                 retry_limit=retry_limit,
                 context=error_text,
+                diagnostics=failed.get("diagnostics"),
             )
         try:
             code = _extract_code(response.content)
@@ -465,6 +513,15 @@ class ComparisonExperiment:
                 "status": "pending",
             }
             self._record_attempt(attempts, record)
+            self.progress.emit(
+                "request_started", scope=kind,
+                completed=attempt_index, total=retry_limit + 1,
+                details={
+                    "item_index": item_index,
+                    "max_tokens": request.max_tokens,
+                    "timeout_seconds": self.settings.timeout_seconds,
+                },
+            )
             try:
                 response = self.provider.complete(request)
                 record.update(
@@ -477,7 +534,27 @@ class ComparisonExperiment:
                     }
                 )
                 self._journal_attempts(attempts)
+                self.progress.emit(
+                    "request_completed", scope=kind,
+                    completed=attempt_index + 1, total=retry_limit + 1,
+                    details={"status": "succeeded"},
+                )
                 return response
+            except KeyboardInterrupt:
+                record.update(
+                    {
+                        "status": "interrupted",
+                        "error_type": "KeyboardInterrupt",
+                        "error": "experiment interrupted",
+                    }
+                )
+                self._journal_attempts(attempts)
+                self.progress.emit(
+                    "request_completed", scope=kind,
+                    completed=attempt_index + 1, total=retry_limit + 1,
+                    details={"status": "interrupted"},
+                )
+                raise
             except Exception as error:  # noqa: BLE001
                 record.update(
                     {
@@ -486,7 +563,18 @@ class ComparisonExperiment:
                         "error": str(error),
                     }
                 )
+                reason = getattr(error, "reason", None)
+                diagnostics = getattr(error, "diagnostics", None)
+                if reason is not None:
+                    record["reason"] = reason
+                if isinstance(diagnostics, dict):
+                    record["diagnostics"] = diagnostics
                 self._journal_attempts(attempts)
+                self.progress.emit(
+                    "request_completed", scope=kind,
+                    completed=attempt_index + 1, total=retry_limit + 1,
+                    details={"status": "failed", "reason": reason},
+                )
         return None
 
     def _record_attempt(
@@ -512,6 +600,7 @@ class NoviceComparisonStudy:
         settings: LLMSettings | None = None,
         provider: LLMProvider | None = None,
         adapter: SyntheaDatasetAdapter | None = None,
+        progress: ProgressReporter | None = None,
     ) -> None:
         self.protocol = protocol
         self.dataset_root = dataset_root
@@ -527,11 +616,19 @@ class NoviceComparisonStudy:
             api_key=self.settings.api_key,
             timeout_seconds=self.settings.timeout_seconds,
         )
+        self.progress = progress or ProgressReporter()
 
     def run(self, *, resume: bool = True) -> dict[str, Any]:
         frames = self.adapter.load_frames()
         run_identity = self._run_identity()
         summaries = []
+        total_observations = (
+            len(self.protocol.split_seeds) * self.protocol.repetitions
+        )
+        self.progress.emit(
+            "study_started", scope=self.protocol.name,
+            completed=0, total=total_observations,
+        )
         for split_seed in self.protocol.split_seeds:
             train, holdout, audit = self.adapter.prepare_partitions(
                 frames, split_seed
@@ -546,6 +643,15 @@ class NoviceComparisonStudy:
                     / f"run_{repetition:03d}"
                 )
                 result_path = run_root / "result.json"
+                interruption = run_root / "interruption.json"
+                if interruption.is_file():
+                    if not resume:
+                        raise RuntimeError(
+                            f"interrupted run root requires resume: {run_root}"
+                        )
+                    self._archive_interrupted_observation(
+                        run_root, run_identity, split_seed, repetition
+                    )
                 if resume and result_path.is_file():
                     previous = json.loads(
                         result_path.read_text(encoding="utf-8")
@@ -555,23 +661,24 @@ class NoviceComparisonStudy:
                             f"resume identity mismatch: {result_path}"
                         )
                     summaries.append(previous)
+                    self.progress.emit(
+                        "observation_reused", scope=str(run_root),
+                        completed=len(summaries), total=total_observations,
+                    )
                     continue
                 run_root.mkdir(parents=True, exist_ok=True)
+                if any(run_root.iterdir()):
+                    raise RuntimeError(
+                        f"occupied incomplete run root is indeterminate: {run_root}"
+                    )
                 identity_manifest = run_root / "run_identity.json"
-                if identity_manifest.is_file():
-                    saved = json.loads(
-                        identity_manifest.read_text(encoding="utf-8")
-                    )
-                    if saved.get("run_identity") != run_identity:
-                        raise ValueError("run identity manifest mismatch")
-                else:
-                    _atomic_write_json(
-                        identity_manifest,
-                        {
-                            "run_identity": run_identity,
-                            "protocol_fingerprint": self.protocol.fingerprint(),
-                        },
-                    )
+                _atomic_write_json(
+                    identity_manifest,
+                    {
+                        "run_identity": run_identity,
+                        "protocol_fingerprint": self.protocol.fingerprint(),
+                    },
+                )
                 (run_root / "dataset_audit.json").write_text(
                     json.dumps(audit, indent=2, sort_keys=True),
                     encoding="utf-8",
@@ -596,7 +703,15 @@ class NoviceComparisonStudy:
                     else UnavailableSandboxExecutor()
                 )
                 if self.protocol.sandbox_backend == "podman":
-                    sandbox.preflight(SandboxPolicy())
+                    try:
+                        sandbox.preflight(SandboxPolicy())
+                    except KeyboardInterrupt:
+                        _record_study_interruption(
+                            run_root, run_identity, split_seed, repetition,
+                            len(summaries), total_observations, "preflight",
+                            len(comparison.conditions),
+                        )
+                        raise
                 runner = GuardedComparisonRunner(
                     lambda seed: LogisticRegression(
                         max_iter=1000, random_state=seed
@@ -606,35 +721,104 @@ class NoviceComparisonStudy:
                         TaskType.CLASSIFICATION,
                         protected_columns=frozenset({"target"}),
                     ),
-                    code_harness=DirectCodeHarness(sandbox),
-                )
-                result = ComparisonExperiment(
-                    self.provider, self.settings, runner
-                ).run(
-                    train,
-                    holdout,
-                    comparison,
-                    GenerationConfig(
-                        candidate_count=self.protocol.candidate_count,
-                        retry_limit=self.protocol.retry_limit,
+                    code_harness=DirectCodeHarness(
+                        sandbox,
+                        progress=lambda event: self.progress.emit(event),
                     ),
-                    run_root,
-                    metadata_prompt=prompt,
-                    direct_metadata=_frame_metadata(train, "target"),
                 )
-                result["split_seed"] = split_seed
-                result["repetition"] = repetition
-                result["run_identity"] = run_identity
-                result_path.write_text(
-                    json.dumps(result, indent=2, sort_keys=True),
-                    encoding="utf-8",
-                )
+                try:
+                    result = ComparisonExperiment(
+                        self.provider, self.settings, runner,
+                        progress=self.progress,
+                    ).run(
+                        train,
+                        holdout,
+                        comparison,
+                        GenerationConfig(
+                            candidate_count=self.protocol.candidate_count,
+                            retry_limit=self.protocol.retry_limit,
+                        ),
+                        run_root,
+                        metadata_prompt=prompt,
+                        direct_metadata=_frame_metadata(train, "target"),
+                    )
+                except KeyboardInterrupt:
+                    _record_study_interruption(
+                        run_root, run_identity, split_seed, repetition,
+                        len(summaries), total_observations, "observation",
+                        len(comparison.conditions),
+                    )
+                    raise
+                try:
+                    result["split_seed"] = split_seed
+                    result["repetition"] = repetition
+                    result["run_identity"] = run_identity
+                    _atomic_write_json(result_path, result)
+                except KeyboardInterrupt:
+                    _record_study_interruption(
+                        run_root, run_identity, split_seed, repetition,
+                        len(summaries), total_observations, "result_write",
+                        len(comparison.conditions),
+                    )
+                    raise
                 summaries.append(result)
+                self.progress.emit(
+                    "study_progress", scope=self.protocol.name,
+                    completed=len(summaries), total=total_observations,
+                )
+        condition_total = len(summaries) * len(self.protocol.conditions)
+        condition_completed = sum(
+            1
+            for item in summaries
+            for outcome in item.get("conditions", {}).values()
+            if outcome.get("status") in {"succeeded", "failed"}
+        )
         return {
             "protocol": self.protocol.name,
             "fingerprint": self.protocol.fingerprint(),
             "runs": summaries,
+            "progress": {
+                "observations_completed": len(summaries),
+                "observations_total": total_observations,
+                "conditions_completed": condition_completed,
+                "conditions_total": condition_total,
+                "conditions_skipped": max(0, condition_total - condition_completed),
+            },
         }
+
+    def _archive_interrupted_observation(
+        self,
+        run_root: Path,
+        run_identity: str,
+        split_seed: int,
+        repetition: int,
+    ) -> None:
+        marker = json.loads(
+            (run_root / "interruption.json").read_text(encoding="utf-8")
+        )
+        if not isinstance(marker, dict):
+            raise TypeError("interruption identity marker is invalid")
+        identity_path = run_root / "run_identity.json"
+        if not identity_path.is_file():
+            raise ValueError("interruption identity manifest is missing")
+        saved = json.loads(identity_path.read_text(encoding="utf-8"))
+        if (
+            marker.get("run_identity") != run_identity
+            or saved.get("run_identity") != run_identity
+            or saved.get("protocol_fingerprint") != self.protocol.fingerprint()
+            or marker.get("split_seed") != split_seed
+            or marker.get("repetition") != repetition
+        ):
+            raise ValueError("interruption identity mismatch")
+        archive = run_root.with_name(
+            run_root.name
+            + ".interrupted-"
+            + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        )
+        if archive.exists():
+            raise FileExistsError(f"interruption archive exists: {archive}")
+        os.replace(run_root, archive)
+        self.progress.emit("interrupted_archived", scope=str(archive))
 
     def _run_identity(self) -> str:
         dataset_hashes = {
@@ -695,6 +879,54 @@ def _atomic_write_json(path: Path, payload: object) -> None:
         # Preserve the journal rather than losing provenance.
         path.write_text(temporary.read_text(encoding="utf-8"), encoding="utf-8")
         temporary.unlink(missing_ok=True)
+
+
+def _write_interruption(run_root: Path, phase: str) -> None:
+    """Leave a durable marker so resume can repeat the whole observation."""
+    identity_path = run_root / "generation_identity.json"
+    identity = (
+        json.loads(identity_path.read_text(encoding="utf-8"))
+        if identity_path.is_file()
+        else None
+    )
+    _atomic_write_json(
+        run_root / "interruption.json",
+        {"phase": phase, "identity": identity},
+    )
+
+
+def _record_study_interruption(
+    run_root: Path,
+    run_identity: str,
+    split_seed: int,
+    repetition: int,
+    observations_completed: int,
+    observations_total: int,
+    phase: str,
+    conditions_total: int,
+) -> None:
+    marker_path = run_root / "interruption.json"
+    marker = (
+        json.loads(marker_path.read_text(encoding="utf-8"))
+        if marker_path.is_file()
+        else {}
+    )
+    _atomic_write_json(
+        marker_path,
+        {
+            **marker,
+            "phase": marker.get("phase", phase),
+            "run_identity": run_identity,
+            "split_seed": split_seed,
+            "repetition": repetition,
+            "counts": {
+                "observations_completed": observations_completed,
+                "observations_total": observations_total,
+                "conditions_total": conditions_total,
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
 def _frame_metadata(frame: DataFrame, target_column: str) -> dict[str, Any]:
