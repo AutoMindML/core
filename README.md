@@ -64,16 +64,16 @@ just api-live
 
 Use the [API guide](api/README.md) for the mounted routes and request examples.
 
-## Validate or run the research protocol
+## Validate or run a research protocol
 
-The maintained research preset is
-`automind/src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json`.
-It runs the direct-code condition using the Synthea dataset manifest. From the
-repository root:
+The Synthea direct-code presets include the original two-observation
+`synthea-covid19-direct-code-v2.protocol.json` and the 20-observation
+`synthea-covid19-direct-code-repeated-v2.protocol.json`. The latter uses five
+data-split seeds and four repetitions per split. From the repository root:
 
 ```powershell
-just experiment-validate src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json src/automind/data/csv/synthea_covid19_10k
-just experiment-dry-run src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json src/automind/data/csv/synthea_covid19_10k
+just experiment-validate src/automind/configs/research/synthea-covid19-direct-code-repeated-v2.protocol.json src/automind/data/csv/synthea_covid19_10k
+just experiment-dry-run src/automind/configs/research/synthea-covid19-direct-code-repeated-v2.protocol.json src/automind/data/csv/synthea_covid19_10k
 ```
 
 Validation and dry run inspect local files and sandbox readiness. Running or resuming

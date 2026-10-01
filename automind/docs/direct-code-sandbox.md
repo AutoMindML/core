@@ -54,13 +54,13 @@ output changes on the local experiment host.
 
 ## Run a direct-code protocol
 
-The retained preset is
-`../src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json`.
+For example, the repeated Synthea direct-code preset is
+`../src/automind/configs/research/synthea-covid19-direct-code-repeated-v2.protocol.json`.
 Validate the protocol and inspect readiness before any live request:
 
 ```powershell
 uv run --locked --group dev --no-sync automind-experiment dry-run `
-  src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json `
+  src/automind/configs/research/synthea-covid19-direct-code-repeated-v2.protocol.json `
   --dataset-root src/automind/data/csv/synthea_covid19_10k
 ```
 

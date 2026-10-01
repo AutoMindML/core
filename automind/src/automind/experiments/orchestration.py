@@ -589,6 +589,10 @@ class ComparisonExperiment:
             _atomic_write_json(self._attempt_journal_path, attempts)
 
 
+class OccupiedRunRootError(RuntimeError):
+    """A new run cannot overwrite an existing observation result."""
+
+
 class NoviceComparisonStudy:
     """Execute a v2 protocol on the frozen Synthea dataset adapter."""
 
@@ -668,6 +672,12 @@ class NoviceComparisonStudy:
                     continue
                 run_root.mkdir(parents=True, exist_ok=True)
                 if any(run_root.iterdir()):
+                    if result_path.is_file():
+                        raise OccupiedRunRootError(
+                            f"run root already contains a result: {run_root}; "
+                            "use resume to reuse a matching run, or choose "
+                            "a new protocol output_root for new trials"
+                        )
                     raise RuntimeError(
                         f"occupied incomplete run root is indeterminate: {run_root}"
                     )
@@ -727,8 +737,16 @@ class NoviceComparisonStudy:
                     ),
                 )
                 try:
+                    llm_settings = (
+                        replace(
+                            self.settings,
+                            seed=self.settings.seed + repetition,
+                        )
+                        if self.settings.seed is not None and repetition > 0
+                        else self.settings
+                    )
                     result = ComparisonExperiment(
-                        self.provider, self.settings, runner,
+                        self.provider, llm_settings, runner,
                         progress=self.progress,
                     ).run(
                         train,
@@ -855,6 +873,10 @@ class NoviceComparisonStudy:
             "direct_code_contract_version": DirectCodeContract().version,
             "direct_code_contract_digest": DirectCodeContract().digest(),
         }
+        if self.protocol.repetitions > 1 and self.settings.seed is not None:
+            payload["repetition_llm_seed_policy"] = (
+                "base_seed_plus_repetition_index_v1"
+            )
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode()).hexdigest()
 

@@ -198,11 +198,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             if isinstance(protocol, NoviceComparisonProtocol):
                 from automind.experiments.orchestration import (
                     NoviceComparisonStudy,
+                    OccupiedRunRootError,
                 )
 
-                payload = NoviceComparisonStudy(
-                    protocol, args.dataset_root, progress=progress
-                ).run(resume=args.command == "resume")
+                try:
+                    payload = NoviceComparisonStudy(
+                        protocol, args.dataset_root, progress=progress
+                    ).run(resume=args.command == "resume")
+                except OccupiedRunRootError as error:
+                    import sys
+
+                    print(f"Experiment not started: {error}", file=sys.stderr)
+                    return 2
             else:
                 from automind.experiments.synthea_pilot import (
                     SyntheaPilotRunner,

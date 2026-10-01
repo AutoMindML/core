@@ -69,6 +69,15 @@ class _InterruptingProvider:
         raise KeyboardInterrupt()
 
 
+class _SeedRecordingProvider:
+    def __init__(self) -> None:
+        self.seeds: list[int | None] = []
+
+    def complete(self, request):
+        self.seeds.append(request.seed)
+        raise RuntimeError("synthetic provider failure")
+
+
 @pytest.mark.parametrize(
     ("message", "reason"),
     [
@@ -351,6 +360,77 @@ def test_v2_study_executes_protocol_with_injected_provider(
     assert outcomes["deterministic"]["status"] == "succeeded"
     assert outcomes["guarded"]["status"] == "succeeded"
     assert outcomes["direct_code"]["status"] == "failed"
+
+
+def test_v2_run_preserves_completed_root_and_explains_resume(
+    tmp_path, monkeypatch
+):
+    train, holdout = _split()
+    monkeypatch.setattr(SyntheaDatasetAdapter, "load_frames", lambda self: {})
+    monkeypatch.setattr(
+        SyntheaDatasetAdapter,
+        "prepare_partitions",
+        lambda self, frames, seed: (train, holdout, {"seed": seed}),
+    )
+    output_root = tmp_path / "output"
+    run_root = output_root / "seed_7" / "run_000"
+    run_root.mkdir(parents=True)
+    result_path = run_root / "result.json"
+    result_path.write_text('{"prior": "completed"}', encoding="utf-8")
+    protocol = NoviceComparisonProtocol(
+        name="comparison",
+        dataset_manifest="dataset.json",
+        conditions=["deterministic"],
+        repetitions=1,
+        split_seeds=[7],
+        output_root=str(output_root),
+    )
+    study = NoviceComparisonStudy(
+        protocol, tmp_path, settings=_settings(),
+        provider=_FailingProvider("must not call provider"),
+    )
+
+    with pytest.raises(RuntimeError, match="use.*resume"):
+        study.run(resume=False)
+
+    assert result_path.read_text(encoding="utf-8") == '{"prior": "completed"}'
+
+
+def test_v2_repetitions_vary_llm_seed_and_record_each_attempt(
+    tmp_path, monkeypatch
+):
+    train, holdout = _split()
+    monkeypatch.setattr(SyntheaDatasetAdapter, "load_frames", lambda self: {})
+    monkeypatch.setattr(
+        SyntheaDatasetAdapter,
+        "prepare_partitions",
+        lambda self, frames, seed: (train, holdout, {"seed": seed}),
+    )
+    output_root = tmp_path / "output"
+    protocol = NoviceComparisonProtocol(
+        name="repeated-comparison",
+        dataset_manifest="dataset.json",
+        conditions=["direct_code"],
+        repetitions=3,
+        split_seeds=[7, 11],
+        output_root=str(output_root),
+    )
+    provider = _SeedRecordingProvider()
+
+    result = NoviceComparisonStudy(
+        protocol, tmp_path, settings=_settings(), provider=provider
+    ).run(resume=False)
+
+    assert len(result["runs"]) == 6
+    assert provider.seeds == [42, 43, 44, 42, 43, 44]
+    for split_seed in protocol.split_seeds:
+        for repetition in range(protocol.repetitions):
+            attempts_path = (
+                output_root / f"seed_{split_seed}"
+                / f"run_{repetition:03d}" / "generation_attempts.json"
+            )
+            attempts = json.loads(attempts_path.read_text(encoding="utf-8"))
+            assert attempts[0]["request"]["seed"] == 42 + repetition
 
 
 def test_v2_resume_rejects_changed_protocol_identity(tmp_path, monkeypatch):

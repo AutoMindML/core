@@ -48,23 +48,27 @@ Inference profiles live in `src/automind/configs/llm/`. Do not commit API keys o
 private endpoints. `ExperimentProtocol.from_llm_settings()` records the resolved model
 and inference parameters in replayable artifacts.
 
-## Research protocol
+## Research protocols
 
-The maintained Synthea direct-code preset is
-`src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json`. Its
-condition, seeds, model profile, and execution budget are defined in the JSON. The
-dataset manifest and CSV fixture are separate local resources under
+The Synthea direct-code presets are
+`src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json`
+for the original two observations and
+`src/automind/configs/research/synthea-covid19-direct-code-repeated-v2.protocol.json`
+for five split seeds with four repetitions each. The repeated preset uses a new
+output root and increments the configured LLM seed by the zero-based repetition
+index; each attempt journal records the request seed. The dataset manifest and CSV
+fixture are separate local resources under
 `src/automind/configs/research/` and `src/automind/data/csv/synthea_covid19_10k/`.
 
-Inspect a protocol without making an LLM request:
+Inspect the repeated protocol without making an LLM request:
 
 ```powershell
 uv run --locked --group dev --no-sync automind-experiment validate `
-  src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json `
+  src/automind/configs/research/synthea-covid19-direct-code-repeated-v2.protocol.json `
   --dataset-root src/automind/data/csv/synthea_covid19_10k
 
 uv run --locked --group dev --no-sync automind-experiment dry-run `
-  src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json `
+  src/automind/configs/research/synthea-covid19-direct-code-repeated-v2.protocol.json `
   --dataset-root src/automind/data/csv/synthea_covid19_10k
 ```
 
@@ -75,15 +79,17 @@ output root:
 
 ```powershell
 uv run --locked --group dev --no-sync automind-experiment run `
-  src/automind/configs/research/synthea-covid19-direct-code-v2.protocol.json `
+  src/automind/configs/research/synthea-covid19-direct-code-repeated-v2.protocol.json `
   --dataset-root src/automind/data/csv/synthea_covid19_10k
 ```
 
-Use the [direct-code sandbox guide](docs/direct-code-sandbox.md) before a live run. To
-continue a matching run, replace `run` with `resume` in the command above. The
-repository `justfile` also exposes summarize and replay recipes. Protocol JSON identity
-fields participate in the fingerprint, so changing them requires a new output root;
-renaming the file alone preserves the existing results.
+Use the [direct-code sandbox guide](docs/direct-code-sandbox.md) before a live run.
+`run` starts a new study and refuses to overwrite an occupied output root. To reuse
+completed observations or continue an interrupted matching study, replace `run` with
+`resume` in the command above. The repository `justfile` also exposes summarize and
+replay recipes. Changing `split_seeds`, `repetitions`, or other protocol JSON identity
+fields changes the fingerprint and requires a new output root; renaming the file alone
+preserves the existing results.
 
 ## Verification
 

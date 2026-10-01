@@ -146,6 +146,47 @@ def test_cli_dispatches_v2_run_to_comparison_study(
     assert json.loads(capsys.readouterr().out)["protocol"] == "comparison"
 
 
+def test_cli_completed_run_root_reports_resume_without_traceback(
+    tmp_path, monkeypatch, capsys
+):
+    from automind.experiments.orchestration import (
+        NoviceComparisonStudy,
+        OccupiedRunRootError,
+    )
+    from automind.experiments.protocol import NoviceComparisonProtocol
+
+    data = tmp_path / "data.csv"
+    data.write_text("id,x,target\n1,2,0\n", encoding="utf-8")
+    digest = hashlib.sha256(data.read_bytes()).hexdigest()
+    (tmp_path / "dataset.json").write_text(
+        json.dumps(_manifest(digest)), encoding="utf-8"
+    )
+    protocol_path = tmp_path / "comparison.json"
+    protocol_path.write_text(
+        NoviceComparisonProtocol(
+            name="comparison",
+            dataset_manifest="dataset.json",
+            conditions=["deterministic"],
+            repetitions=1,
+            split_seeds=[1],
+            output_root=str(tmp_path / "output"),
+        ).model_dump_json(),
+        encoding="utf-8",
+    )
+
+    def reject_occupied_root(self, *, resume):
+        raise OccupiedRunRootError("existing result; use resume")
+
+    monkeypatch.setattr(NoviceComparisonStudy, "run", reject_occupied_root)
+    monkeypatch.setenv("AUTOMIND_LLM_BASE_URL", "http://invalid.test/v1")
+
+    assert main(["run", str(protocol_path), "--dataset-root", str(tmp_path)]) == 2
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert "Experiment not started: existing result; use resume" in output.err
+    assert "Traceback" not in output.err
+
+
 def test_v2_summarize_reports_failure_stages(tmp_path, capsys):
     result_root = tmp_path / "seed_1" / "run_000"
     result_root.mkdir(parents=True)
